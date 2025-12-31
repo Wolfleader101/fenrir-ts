@@ -1,8 +1,7 @@
 export type EventType<T> = symbol & { __eventType?: T };
 
 export function defineEvent<T>(name: string): EventType<T> {
-  // Symbol.for lets you share tokens across modules if you want.
-  // Symbol(name) is also fine if you want uniqueness per import.
+  // using Symbol.for to allow cross-module event type sharing
   return Symbol.for(`event:${name}`) as EventType<T>;
 }
 

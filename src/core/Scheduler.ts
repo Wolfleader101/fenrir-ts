@@ -18,7 +18,6 @@ const ALL_STAGES = Object.values(Schedule);
 type StageRecord = Record<ScheduleStage, SystemFn[]>;
 
 function createStageRecord() {
-  // Ensure every stage exists and maintains stable order
   const record = {} as StageRecord;
   for (const s of ALL_STAGES) record[s] = [];
   return record;

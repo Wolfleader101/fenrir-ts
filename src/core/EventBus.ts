@@ -20,12 +20,10 @@ export class EventBus {
     return this.getQueue(type).read();
   }
 
-  /** called once per frame boundary (like your App::UpdateEvents) */
   public update() {
     for (const q of this.queues.values()) q.update();
   }
 
-  /** optional: for scene changes / resets */
   public clear() {
     for (const q of this.queues.values()) q.clearAll();
   }

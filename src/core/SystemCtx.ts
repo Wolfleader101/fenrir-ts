@@ -1,8 +1,8 @@
+import type { EventBus } from "./EventBus";
 import type { Time } from "./Time";
 
 // TODO fix later
 type Scene = {};
-type EventBus = {};
 
 export type SystemCtx = {
   time: Time;

@@ -35,7 +35,9 @@ export class Engine {
       stop: () => this.stop(),
     };
 
-    this.start(ctx);
+    this.scheduler.runStage(Schedule.PreInit, ctx);
+    this.scheduler.runStage(Schedule.Init, ctx);
+    this.scheduler.runStage(Schedule.PostInit, ctx);
 
     const loop = () => {
       if (!this.running) return;
@@ -101,12 +103,5 @@ export class Engine {
   public addSystems(stage: ScheduleStage, systems: readonly SystemFn[]) {
     this.scheduler.addSystems(stage, systems);
     return this;
-  }
-
-  private start(ctx: SystemCtx) {
-    // Run-once init phases
-    this.scheduler.runStage(Schedule.PreInit, ctx);
-    this.scheduler.runStage(Schedule.Init, ctx);
-    this.scheduler.runStage(Schedule.PostInit, ctx);
   }
 }
