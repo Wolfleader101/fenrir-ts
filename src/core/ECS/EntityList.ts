@@ -1,0 +1,204 @@
+import type { ComponentType } from "./Components";
+import { Pool } from "./Pool";
+import { View } from "./View";
+
+export type Entity = number;
+
+// 20 bits for id => up to ~1,048,576 entities
+// 12 bits for generation => up to 4096 lifetimes per id
+const ID_BITS = 20;
+const GEN_BITS = 12;
+
+const ID_MASK = (1 << ID_BITS) - 1; // 0xFFFFF
+const GEN_MASK = (1 << GEN_BITS) - 1; // 0xFFF
+
+// Use this as "no free entity" sentinel
+const INVALID_ID = -1;
+
+function packEntity(id: number, gen: number): Entity {
+  // Keep within masks (important when gen wraps)
+  return ((gen & GEN_MASK) << ID_BITS) | (id & ID_MASK);
+}
+
+function unpackId(e: Entity): number {
+  return e & ID_MASK;
+}
+
+function unpackGen(e: Entity): number {
+  return (e >>> ID_BITS) & GEN_MASK;
+}
+
+/**
+ * EntityList manages entity lifetimes (create/destroy) and id recycling.
+ * Component pools will be built on top of this.
+ */
+export class EntityList {
+  // generation per entity id
+  private generations: number[] = [];
+
+  // free list pointer per id (meaningful only when id is dead)
+  private nextFree: number[] = [];
+
+  // head of free list (id) or INVALID_ID if none
+  private freeHead: number = INVALID_ID;
+
+  // component pools keyed by component token
+  private pools = new Map<symbol, Pool<any>>();
+
+  // ---------- Entities ----------
+
+  /**
+   * Create a new entity (reuses a destroyed id if available).
+   */
+  public createEntity(): Entity {
+    let id: number;
+
+    if (this.freeHead !== INVALID_ID) {
+      // pop from free list
+      id = this.freeHead;
+      this.freeHead = this.nextFree[id];
+
+      // mark as "alive": by convention, nextFree[id] points to itself when alive
+      this.nextFree[id] = id;
+    } else {
+      // allocate a new id
+      id = this.generations.length;
+      this.generations.push(0);
+      this.nextFree.push(id); // alive marker
+    }
+
+    return packEntity(id, this.generations[id]);
+  }
+
+  /**
+   * Destroy an entity. Returns false if the handle was already dead/invalid.
+   * Note: component removal will be added in Step 3 when pools exist.
+   */
+  public destroyEntity(entity: Entity) {
+    if (!this.isAlive(entity)) return false;
+
+    const id = this.idOf(entity);
+
+    // Remove from all component pools (simple + correct)
+    for (const pool of this.pools.values()) {
+      pool.remove(id);
+    }
+
+    // bump generation (wraps naturally under GEN_MASK)
+    this.generations[id] = (this.generations[id] + 1) & GEN_MASK;
+
+    // push id onto free list
+    this.nextFree[id] = this.freeHead;
+    this.freeHead = id;
+
+    return true;
+  }
+
+  /**
+   * Checks if an entity handle is currently alive and matches generation.
+   */
+  public isAlive(entity: Entity) {
+    const id = unpackId(entity);
+    const gen = unpackGen(entity);
+
+    if (id < 0 || id >= this.generations.length) return false;
+
+    // alive marker: nextFree[id] === id
+    if (this.nextFree[id] !== id) return false;
+
+    return this.generations[id] === gen;
+  }
+
+  /** Extract the numeric entity id (index) from a handle */
+  public idOf(entity: Entity): number {
+    return unpackId(entity);
+  }
+
+  /** Extract the generation/version from a handle */
+  public genOf(entity: Entity): number {
+    return unpackGen(entity);
+  }
+
+  /** Total allocated ids (includes dead). Useful for debugging. */
+  public capacity(): number {
+    return this.generations.length;
+  }
+
+  // ---------- Components ----------
+
+  private getPool<T>(type: ComponentType<T>): Pool<T> {
+    let pool = this.pools.get(type) as Pool<T> | undefined;
+    if (!pool) {
+      pool = new Pool<T>();
+      this.pools.set(type, pool);
+    }
+    return pool;
+  }
+
+  private assertAlive(entity: Entity): number {
+    if (!this.isAlive(entity)) {
+      throw new Error("Entity is not alive (stale handle or destroyed).");
+    }
+    return unpackId(entity);
+  }
+
+  /**
+   * Add or replace a component on an entity.
+   * Returns true if inserted, false if replaced.
+   */
+  public set<T>(entity: Entity, type: ComponentType<T>, component: T): boolean {
+    const id = this.assertAlive(entity);
+    return this.getPool(type).set(id, component);
+  }
+
+  /**
+   * Alias fror set<T>
+   */
+  public add<T>(entity: Entity, type: ComponentType<T>, component: T): boolean {
+    return this.set(entity, type, component);
+  }
+
+  public has<T>(entity: Entity, type: ComponentType<T>): boolean {
+    const id = this.assertAlive(entity);
+    return this.getPool(type).has(id);
+  }
+
+  public get<T>(entity: Entity, type: ComponentType<T>): T {
+    const id = this.assertAlive(entity);
+    return this.getPool(type).get(id);
+  }
+
+  public tryGet<T>(entity: Entity, type: ComponentType<T>): T | undefined {
+    const id = this.assertAlive(entity);
+    return this.getPool(type).tryGet(id);
+  }
+
+  public remove<T>(entity: Entity, type: ComponentType<T>): boolean {
+    const id = this.assertAlive(entity);
+    return this.getPool(type).remove(id);
+  }
+
+  /**
+   * Expose a pool for view iteration
+   */
+  public pool<T>(type: ComponentType<T>): Pool<T> {
+    return this.getPool(type);
+  }
+
+  private pack(id: number, gen: number): Entity {
+    return ((gen & GEN_MASK) << ID_BITS) | (id & ID_MASK);
+  }
+
+  public entityFromId(entityId: number): Entity {
+    // entityId must refer to a currently alive entity in the smallest pool.
+    // Pools only store alive entity ids (because destroy removes from all pools).
+    // So this is safe.
+    return this.pack(entityId, this.generations[entityId]);
+  }
+
+  public view<TTypes extends readonly ComponentType<any>[]>(
+    types: TTypes
+  ): View<TTypes> {
+    return new View(this, types);
+  }
+}
