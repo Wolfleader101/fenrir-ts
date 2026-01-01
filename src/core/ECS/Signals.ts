@@ -6,14 +6,14 @@ type RemoveCb = (entity: Entity) => void;
 type ReplaceCb<T> = (entity: Entity, component: T) => void; // new value
 
 export class ComponentSignals {
-  private onAddMap = new Map<symbol, Set<Function>>();
-  private onRemoveMap = new Map<symbol, Set<Function>>();
-  private onReplaceMap = new Map<symbol, Set<Function>>();
+  private onAddMap = new Map<symbol, Function[]>();
+  private onRemoveMap = new Map<symbol, Function[]>();
+  private onReplaceMap = new Map<symbol, Function[]>();
 
-  // optional “any component” listeners
-  private onAnyAdd = new Set<(type: symbol, entity: Entity) => void>();
-  private onAnyRemove = new Set<(type: symbol, entity: Entity) => void>();
-  private onAnyReplace = new Set<(type: symbol, entity: Entity) => void>();
+  // optional "any component" listeners
+  private onAnyAdd: Array<(type: symbol, entity: Entity) => void> = [];
+  private onAnyRemove: Array<(type: symbol, entity: Entity) => void> = [];
+  private onAnyReplace: Array<(type: symbol, entity: Entity) => void> = [];
 
   onAdd<T>(type: ComponentType<T>, cb: AddCb<T>): () => void {
     return this.addListener(this.onAddMap, type, cb);
@@ -26,51 +26,68 @@ export class ComponentSignals {
   }
 
   onAnyComponentAdded(cb: (type: symbol, entity: Entity) => void): () => void {
-    this.onAnyAdd.add(cb);
-    return () => this.onAnyAdd.delete(cb);
+    this.onAnyAdd.push(cb);
+    return () => {
+      const index = this.onAnyAdd.indexOf(cb);
+      if (index >= 0) this.onAnyAdd.splice(index, 1);
+    };
   }
   onAnyComponentRemoved(
     cb: (type: symbol, entity: Entity) => void
   ): () => void {
-    this.onAnyRemove.add(cb);
-    return () => this.onAnyRemove.delete(cb);
+    this.onAnyRemove.push(cb);
+    return () => {
+      const index = this.onAnyRemove.indexOf(cb);
+      if (index >= 0) this.onAnyRemove.splice(index, 1);
+    };
   }
   onAnyComponentReplaced(
     cb: (type: symbol, entity: Entity) => void
   ): () => void {
-    this.onAnyReplace.add(cb);
-    return () => this.onAnyReplace.delete(cb);
+    this.onAnyReplace.push(cb);
+    return () => {
+      const index = this.onAnyReplace.indexOf(cb);
+      if (index >= 0) this.onAnyReplace.splice(index, 1);
+    };
   }
 
   emitAdd<T>(type: ComponentType<T>, entity: Entity, component: T) {
-    const set = this.onAddMap.get(type);
-    if (set) for (const cb of set) (cb as AddCb<T>)(entity, component);
+    const callbacks = this.onAddMap.get(type);
+    if (callbacks)
+      for (const cb of callbacks) (cb as AddCb<T>)(entity, component);
     for (const cb of this.onAnyAdd) cb(type, entity);
   }
 
   emitRemove(type: ComponentType<any>, entity: Entity) {
-    const set = this.onRemoveMap.get(type);
-    if (set) for (const cb of set) (cb as RemoveCb)(entity);
+    const callbacks = this.onRemoveMap.get(type);
+    if (callbacks) for (const cb of callbacks) (cb as RemoveCb)(entity);
     for (const cb of this.onAnyRemove) cb(type, entity);
   }
 
   emitReplace<T>(type: ComponentType<T>, entity: Entity, component: T) {
-    const set = this.onReplaceMap.get(type);
-    if (set) for (const cb of set) (cb as ReplaceCb<T>)(entity, component);
+    const callbacks = this.onReplaceMap.get(type);
+    if (callbacks)
+      for (const cb of callbacks) (cb as ReplaceCb<T>)(entity, component);
     for (const cb of this.onAnyReplace) cb(type, entity);
   }
 
   private addListener(
-    map: Map<symbol, Set<Function>>,
+    map: Map<symbol, Function[]>,
     type: symbol,
     cb: Function
   ): () => void {
-    let set = map.get(type);
-    if (!set) {
-      set = new Set();
-      map.set(type, set);
+    let callbacks = map.get(type);
+    if (!callbacks) {
+      callbacks = [];
+      map.set(type, callbacks);
     }
-    set.add(cb);
-    return () => set!.delete(cb);
+    callbacks.push(cb);
+    return () => {
+      const callbacksList = map.get(type);
+      if (callbacksList) {
+        const index = callbacksList.indexOf(cb);
+        if (index >= 0) callbacksList.splice(index, 1);
+      }
+    };
   }
 }

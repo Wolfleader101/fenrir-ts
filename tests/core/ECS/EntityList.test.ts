@@ -283,6 +283,76 @@ describe("EntityList", () => {
       unsubscribe();
     });
 
+    it("should remove all components and emit signals when destroying entity with multiple components", () => {
+      const removePositionSpy = vi.fn();
+      const removeVelocitySpy = vi.fn();
+      const removeHealthSpy = vi.fn();
+
+      entityList.signals.onRemove(Position, removePositionSpy);
+      entityList.signals.onRemove(Velocity, removeVelocitySpy);
+      entityList.signals.onRemove(Health, removeHealthSpy);
+
+      // Add multiple components
+      entityList.set(entity, Position, { x: 10, y: 20 });
+      entityList.set(entity, Velocity, { x: 1, y: 2 });
+      entityList.set(entity, Health, { hp: 100, maxHp: 100 });
+
+      expect(entityList.has(entity, Position)).toBe(true);
+      expect(entityList.has(entity, Velocity)).toBe(true);
+      expect(entityList.has(entity, Health)).toBe(true);
+
+      // Destroy entity - should remove all components and emit signals
+      const destroyed = entityList.destroyEntity(entity);
+
+      expect(destroyed).toBe(true);
+      expect(entityList.isAlive(entity)).toBe(false);
+
+      // All remove signals should have been emitted
+      expect(removePositionSpy).toHaveBeenCalledWith(entity);
+      expect(removeVelocitySpy).toHaveBeenCalledWith(entity);
+      expect(removeHealthSpy).toHaveBeenCalledWith(entity);
+
+      expect(removePositionSpy).toHaveBeenCalledTimes(1);
+      expect(removeVelocitySpy).toHaveBeenCalledTimes(1);
+      expect(removeHealthSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("should properly iterate through pools map during entity destruction", () => {
+      const ComponentA = defineComponent<number>("ComponentA");
+      const ComponentB = defineComponent<string>("ComponentB");
+      const ComponentC = defineComponent<boolean>("ComponentC");
+
+      // Create entity and add components to create pools
+      entityList.set(entity, ComponentA, 42);
+      entityList.set(entity, ComponentB, "test");
+      entityList.set(entity, ComponentC, true);
+
+      // Verify components exist
+      expect(entityList.has(entity, ComponentA)).toBe(true);
+      expect(entityList.has(entity, ComponentB)).toBe(true);
+      expect(entityList.has(entity, ComponentC)).toBe(true);
+
+      // Create spies to track removal signals
+      const spyA = vi.fn();
+      const spyB = vi.fn();
+      const spyC = vi.fn();
+
+      entityList.signals.onRemove(ComponentA, spyA);
+      entityList.signals.onRemove(ComponentB, spyB);
+      entityList.signals.onRemove(ComponentC, spyC);
+
+      // Destroy entity - this should trigger the for loop in destroyEntity (lines 91-97)
+      const destroyed = entityList.destroyEntity(entity);
+
+      expect(destroyed).toBe(true);
+      expect(entityList.isAlive(entity)).toBe(false);
+
+      // All removal signals should have been emitted (covers lines 93-96)
+      expect(spyA).toHaveBeenCalledWith(entity);
+      expect(spyB).toHaveBeenCalledWith(entity);
+      expect(spyC).toHaveBeenCalledWith(entity);
+    });
+
     it("should emit any component signals", () => {
       const anyAddCallback = vi.fn();
       const anyRemoveCallback = vi.fn();
