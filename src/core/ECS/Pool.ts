@@ -37,14 +37,21 @@ export class Pool<T> {
     return idx === -1 ? undefined : this.dense[idx];
   }
 
-  /** Get component by dense index (fast path) */
-  public getByIndex(denseIndex: number): T {
+  /** Get by dense index (fast path) */
+  public getAt(denseIndex: number): T {
     return this.dense[denseIndex];
   }
 
-  /** Get entity id by dense index */
   public entityAt(denseIndex: number): number {
     return this.denseEntities[denseIndex];
+  }
+
+  public entities(): readonly number[] {
+    return this.denseEntities;
+  }
+
+  public components(): readonly T[] {
+    return this.dense;
   }
 
   /**
@@ -52,16 +59,15 @@ export class Pool<T> {
    * Returns true if inserted, false if replaced.
    */
   public set(entityId: number, component: T) {
-    const s = this.sparse[entityId] ?? 0;
-    if (s !== 0) {
-      this.dense[s - 1] = component;
+    const existing = this.indexOf(entityId);
+    if (existing !== -1) {
+      this.dense[existing] = component;
       return false;
     }
 
     const denseIndex = this.denseEntities.length;
     this.denseEntities.push(entityId);
     this.dense.push(component);
-
     this.sparse[entityId] = denseIndex + 1;
     return true;
   }
@@ -71,13 +77,11 @@ export class Pool<T> {
    * Returns true if removed, false if it wasn't present.
    */
   public remove(entityId: number) {
-    const s = this.sparse[entityId] ?? 0;
-    if (s === 0) return false;
+    const index = this.indexOf(entityId);
+    if (index === -1) return false;
 
-    const index = s - 1;
     const lastIndex = this.denseEntities.length - 1;
 
-    // swap+pop if not removing last element
     if (index !== lastIndex) {
       const lastEntity = this.denseEntities[lastIndex];
       const lastComponent = this.dense[lastIndex];
@@ -85,14 +89,11 @@ export class Pool<T> {
       this.denseEntities[index] = lastEntity;
       this.dense[index] = lastComponent;
 
-      // update sparse for swapped entity
       this.sparse[lastEntity] = index + 1;
     }
 
     this.denseEntities.pop();
     this.dense.pop();
-
-    // mark removed
     this.sparse[entityId] = 0;
     return true;
   }
@@ -107,16 +108,5 @@ export class Pool<T> {
     for (let i = 0; i < entities.length; i++) {
       fn(entities[i], comps[i]);
     }
-  }
-
-  /**
-   * Expose packed arrays for views (read-only).
-   */
-  public entities(): readonly number[] {
-    return this.denseEntities;
-  }
-
-  public components(): readonly T[] {
-    return this.dense;
   }
 }
