@@ -1,5 +1,6 @@
 import type { ComponentType } from "./Component";
 import { Pool } from "./Pool";
+import { ComponentSignals } from "./Signals";
 import { View, type ComponentTuple } from "./View";
 
 export type Entity = number;
@@ -50,6 +51,8 @@ export class EntityList {
   // cache of views keyed by component type array
   private viewCache = new WeakMap<AnyTypes, View<any>>();
 
+  public readonly signals = new ComponentSignals(); // TODO might want to inject this and use interface
+
   // ---------- Entities ----------
 
   /**
@@ -84,9 +87,13 @@ export class EntityList {
 
     const id = this.idOf(entity);
 
-    // Remove from all component pools (simple + correct)
-    for (const pool of this.pools.values()) {
-      pool.remove(id);
+    // Remove from all component pools (emit per-type remove signals)
+    for (const [typeSym, pool] of this.pools.entries()) {
+      const removed = pool.remove(id);
+      if (removed) {
+        // typeSym is a symbol, but we want to keep it as the component token.
+        this.signals.emitRemove(typeSym, entity);
+      }
     }
 
     // bump generation (wraps naturally under GEN_MASK)
@@ -153,7 +160,19 @@ export class EntityList {
    */
   public set<T>(entity: Entity, type: ComponentType<T>, component: T): boolean {
     const id = this.assertAlive(entity);
-    return this.getPool(type).set(id, component);
+    const pool = this.getPool(type);
+
+    const existed = pool.has(id);
+    const inserted = pool.set(id, component);
+
+    if (!existed && inserted) {
+      this.signals.emitAdd(type, entity, component);
+    } else {
+      // replaced
+      this.signals.emitReplace(type, entity, component);
+    }
+
+    return inserted;
   }
 
   /**
@@ -180,7 +199,9 @@ export class EntityList {
 
   public remove<T>(entity: Entity, type: ComponentType<T>): boolean {
     const id = this.assertAlive(entity);
-    return this.getPool(type).remove(id);
+    const removed = this.getPool(type).remove(id);
+    if (removed) this.signals.emitRemove(type, entity);
+    return removed;
   }
 
   /**

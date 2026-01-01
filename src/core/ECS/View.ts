@@ -67,12 +67,23 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
     a: Pool<A>,
     fn: (e: Entity, a: A) => void
   ) {
-    const n = drive.size();
-    for (let di = 0; di < n; di++) {
-      const id = drive.entityAt(di);
-      const ai = a === drive ? di : a.indexOf(id);
-      if (ai === -1) continue;
-      fn(this.entityList.entityFromId(id), a.getAt(ai));
+    let i = 0;
+    let end = drive.size();
+
+    while (i < end) {
+      const id = drive.entityAt(i);
+
+      const ai = a === drive ? i : a.indexOf(id);
+      if (ai !== -1) {
+        fn(this.entityList.entityFromId(id), a.getAt(ai));
+      }
+
+      // shrink-only (don’t include newly-added entities)
+      const newEnd = drive.size();
+      if (newEnd < end) end = newEnd;
+
+      // if swap+pop replaced index i, process the swapped entity next (don’t increment)
+      if (i < end && drive.entityAt(i) === id) i++;
     }
   }
 
@@ -82,17 +93,24 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
     b: Pool<B>,
     fn: (e: Entity, a: A, b: B) => void
   ) {
-    const n = drive.size();
-    for (let di = 0; di < n; di++) {
-      const id = drive.entityAt(di);
+    let i = 0;
+    let end = drive.size();
 
-      const ai = a === drive ? di : a.indexOf(id);
-      if (ai === -1) continue;
+    while (i < end) {
+      const id = drive.entityAt(i);
 
-      const bi = b === drive ? di : b.indexOf(id);
-      if (bi === -1) continue;
+      const ai = a === drive ? i : a.indexOf(id);
+      if (ai !== -1) {
+        const bi = b === drive ? i : b.indexOf(id);
+        if (bi !== -1) {
+          fn(this.entityList.entityFromId(id), a.getAt(ai), b.getAt(bi));
+        }
+      }
 
-      fn(this.entityList.entityFromId(id), a.getAt(ai), b.getAt(bi));
+      const newEnd = drive.size();
+      if (newEnd < end) end = newEnd;
+
+      if (i < end && drive.entityAt(i) === id) i++;
     }
   }
 
@@ -103,25 +121,34 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
     c: Pool<C>,
     fn: (e: Entity, a: A, b: B, c: C) => void
   ) {
-    const n = drive.size();
-    for (let di = 0; di < n; di++) {
-      const id = drive.entityAt(di);
+    let i = 0;
+    let end = drive.size();
 
-      const ai = a === drive ? di : a.indexOf(id);
-      if (ai === -1) continue;
+    while (i < end) {
+      const id = drive.entityAt(i);
 
-      const bi = b === drive ? di : b.indexOf(id);
-      if (bi === -1) continue;
+      const ai = a === drive ? i : a.indexOf(id);
+      if (ai !== -1) {
+        const bi = b === drive ? i : b.indexOf(id);
+        if (bi !== -1) {
+          const ci = c === drive ? i : c.indexOf(id);
+          if (ci !== -1) {
+            fn(
+              this.entityList.entityFromId(id),
+              a.getAt(ai),
+              b.getAt(bi),
+              c.getAt(ci)
+            );
+          }
+        }
+      }
 
-      const ci = c === drive ? di : c.indexOf(id);
-      if (ci === -1) continue;
+      // shrink-only end (don't include newly-added entities)
+      const newEnd = drive.size();
+      if (newEnd < end) end = newEnd;
 
-      fn(
-        this.entityList.entityFromId(id),
-        a.getAt(ai),
-        b.getAt(bi),
-        c.getAt(ci)
-      );
+      // If swap+pop replaced index i, don't increment (process swapped entity next)
+      if (i < end && drive.entityAt(i) === id) i++;
     }
   }
 
@@ -133,29 +160,38 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
     d: Pool<D>,
     fn: (e: Entity, a: A, b: B, c: C, d: D) => void
   ) {
-    const n = drive.size();
-    for (let di = 0; di < n; di++) {
-      const id = drive.entityAt(di);
+    let i = 0;
+    let end = drive.size();
 
-      const ai = a === drive ? di : a.indexOf(id);
-      if (ai === -1) continue;
+    while (i < end) {
+      const id = drive.entityAt(i);
 
-      const bi = b === drive ? di : b.indexOf(id);
-      if (bi === -1) continue;
+      const ai = a === drive ? i : a.indexOf(id);
+      if (ai !== -1) {
+        const bi = b === drive ? i : b.indexOf(id);
+        if (bi !== -1) {
+          const ci = c === drive ? i : c.indexOf(id);
+          if (ci !== -1) {
+            const di = d === drive ? i : d.indexOf(id);
+            if (di !== -1) {
+              fn(
+                this.entityList.entityFromId(id),
+                a.getAt(ai),
+                b.getAt(bi),
+                c.getAt(ci),
+                d.getAt(di)
+              );
+            }
+          }
+        }
+      }
 
-      const ci = c === drive ? di : c.indexOf(id);
-      if (ci === -1) continue;
+      // shrink-only end (don't include newly-added entities)
+      const newEnd = drive.size();
+      if (newEnd < end) end = newEnd;
 
-      const di2 = d === drive ? di : d.indexOf(id);
-      if (di2 === -1) continue;
-
-      fn(
-        this.entityList.entityFromId(id),
-        a.getAt(ai),
-        b.getAt(bi),
-        c.getAt(ci),
-        d.getAt(di2)
-      );
+      // If swap+pop replaced index i, don't increment (process swapped entity next)
+      if (i < end && drive.entityAt(i) === id) i++;
     }
   }
 
@@ -164,32 +200,42 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
     pools: Pool<any>[],
     fn: (e: Entity, ...components: any[]) => void
   ) {
-    const n = drive.size();
+    let i = 0;
+    let end = drive.size();
 
-    // allocate once per call (not per entity)
+    // Allocate once per call (not per entity)
     const indices = new Array<number>(pools.length);
     const comps = new Array<any>(pools.length);
 
-    for (let di = 0; di < n; di++) {
-      const id = drive.entityAt(di);
+    while (i < end) {
+      const id = drive.entityAt(i);
 
       let ok = true;
+
+      // Resolve dense indices for each pool
       for (let p = 0; p < pools.length; p++) {
         const pool = pools[p];
-        const idx = pool === drive ? di : pool.indexOf(id);
+        const idx = pool === drive ? i : pool.indexOf(id);
         if (idx === -1) {
           ok = false;
           break;
         }
         indices[p] = idx;
       }
-      if (!ok) continue;
 
-      for (let p = 0; p < pools.length; p++) {
-        comps[p] = pools[p].getAt(indices[p]);
+      if (ok) {
+        for (let p = 0; p < pools.length; p++) {
+          comps[p] = pools[p].getAt(indices[p]);
+        }
+        fn(this.entityList.entityFromId(id), ...comps);
       }
 
-      fn(this.entityList.entityFromId(id), ...comps);
+      // shrink-only end (don't include newly-added entities)
+      const newEnd = drive.size();
+      if (newEnd < end) end = newEnd;
+
+      // If swap+pop replaced index i, don't increment (process swapped entity next)
+      if (i < end && drive.entityAt(i) === id) i++;
     }
   }
 }
