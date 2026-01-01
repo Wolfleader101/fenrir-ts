@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { Pool } from "../../../src/core/ECS/Pool";
+import { Pool } from "@/core/ECS";
 
 describe("Pool", () => {
   let pool: Pool<{ x: number; y: number }>;
