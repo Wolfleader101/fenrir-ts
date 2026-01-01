@@ -1,6 +1,6 @@
-import type { ComponentType } from "./Components";
+import type { ComponentType } from "./Component";
 import { Pool } from "./Pool";
-import { View } from "./View";
+import { View, type ComponentTuple } from "./View";
 
 export type Entity = number;
 
@@ -28,6 +28,8 @@ function unpackGen(e: Entity): number {
   return (e >>> ID_BITS) & GEN_MASK;
 }
 
+type AnyTypes = readonly ComponentType<any>[];
+
 /**
  * EntityList manages entity lifetimes (create/destroy) and id recycling.
  * Component pools will be built on top of this.
@@ -44,6 +46,9 @@ export class EntityList {
 
   // component pools keyed by component token
   private pools = new Map<symbol, Pool<any>>();
+
+  // cache of views keyed by component type array
+  private viewCache = new WeakMap<AnyTypes, View<any>>();
 
   // ---------- Entities ----------
 
@@ -196,9 +201,32 @@ export class EntityList {
     return this.pack(entityId, this.generations[entityId]);
   }
 
-  public view<TTypes extends readonly ComponentType<any>[]>(
-    types: TTypes
-  ): View<TTypes> {
-    return new View(this, types);
+  // ---------- Views ----------
+
+  /**
+   * Create or get a cached view for the given component types.
+   * 
+   * Important: this cache works best if systems store the tuple
+   * 
+   * If you inline `[Position, Velocity] as const` each frame, you’ll create a new array, so caching won’t help.
+   * @example
+    const MOVEMENT_QUERY = [Position, Velocity] as const;
+    entityList.each(MOVEMENT_QUERY, ...);
+   */
+
+  public view<TTypes extends AnyTypes>(types: TTypes) {
+    const existing = this.viewCache.get(types);
+    if (existing) return existing as View<TTypes>;
+
+    const v = new View(this, types);
+    this.viewCache.set(types, v);
+    return v;
+  }
+
+  public each<TTypes extends readonly ComponentType<any>[]>(
+    types: TTypes,
+    fn: (entity: Entity, ...components: ComponentTuple<TTypes>) => void
+  ): void {
+    this.view(types).each(fn);
   }
 }

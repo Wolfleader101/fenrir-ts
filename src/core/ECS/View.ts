@@ -4,8 +4,8 @@ import type { Entity } from "./EntityList";
 import type { EntityList } from "./EntityList";
 import type { ComponentType } from "./Component";
 
-type ComponentDataOf<C> = C extends ComponentType<infer T> ? T : never;
-type ComponentTuple<TTypes extends readonly ComponentType<any>[]> = {
+export type ComponentDataOf<C> = C extends ComponentType<infer T> ? T : never;
+export type ComponentTuple<TTypes extends readonly ComponentType<any>[]> = {
   [K in keyof TTypes]: ComponentDataOf<TTypes[K]>;
 };
 
