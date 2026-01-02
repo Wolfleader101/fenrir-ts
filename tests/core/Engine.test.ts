@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Engine } from "@/core/Engine";
 import { Scheduler, Schedule } from "@/core/Scheduler";
 import { EventBus } from "@/core/EventBus";
+import { SceneManager } from "@/core/SceneManager";
 import { Time } from "@/core/Time";
 import type { SystemCtx, SystemFn } from "@/core/SystemCtx";
+import type { ILogger } from "@/core/ILogger";
 
 // Mock requestAnimationFrame and cancelAnimationFrame
 const mockRequestAnimationFrame = vi.fn();
@@ -17,7 +19,8 @@ describe("Engine", () => {
   let engine: Engine;
   let scheduler: Scheduler;
   let eventBus: EventBus;
-  let scene: {};
+  let sceneManager: SceneManager;
+  let mockLogger: ILogger;
 
   beforeEach(() => {
     // Setup mocks
@@ -29,13 +32,21 @@ describe("Engine", () => {
     // Create dependencies
     scheduler = new Scheduler();
     eventBus = new EventBus();
-    scene = {};
+    mockLogger = {
+      trace: vi.fn(),
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+    sceneManager = new SceneManager(mockLogger);
 
     // Create engine
     engine = new Engine({
       scheduler,
-      scene,
+      sceneManager,
       events: eventBus,
+      logger: mockLogger,
     });
   });
 
@@ -171,8 +182,11 @@ describe("Engine", () => {
 
       expect(testSystem).toHaveBeenCalledWith({
         time: engine.getTime(),
-        scene: scene,
         events: eventBus,
+        logger: mockLogger,
+        scenes: sceneManager,
+        scene: expect.any(Object),
+        entities: expect.any(Object),
         stop: expect.any(Function),
       });
     });
@@ -360,8 +374,11 @@ describe("Engine", () => {
 
       expect(exitSystem).toHaveBeenCalledWith({
         time: engine.getTime(),
-        scene: scene,
         events: eventBus,
+        logger: mockLogger,
+        scenes: sceneManager,
+        scene: expect.any(Object),
+        entities: expect.any(Object),
         stop: expect.any(Function),
       });
 
@@ -500,7 +517,7 @@ describe("Engine", () => {
     it("should maintain separate time instances across engine instances", () => {
       const engine2 = new Engine({
         scheduler: new Scheduler(),
-        scene: {},
+        sceneManager: new SceneManager(),
         events: new EventBus(),
       });
 
