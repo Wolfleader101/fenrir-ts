@@ -1,7 +1,4 @@
 import "./style.css";
-import typescriptLogo from "./typescript.svg";
-import viteLogo from "/vite.svg";
-import { setupCounter } from "./counter.ts";
 import { createDomInputSystems } from "./core/InputSystem/DOMInputSystem.ts";
 import { Engine } from "./core/Engine.ts";
 import { Schedule, Scheduler } from "./core/Scheduler.ts";
@@ -10,33 +7,10 @@ import { SceneManager } from "./core/SceneManager.ts";
 import { EventBus } from "./core/EventBus.ts";
 import { ConsoleLogger } from "./core/ConsoleLogger.ts";
 import type { ILogger } from "./core/ILogger.ts";
-
-document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
-  </div>
-`;
-
-setupCounter(document.querySelector<HTMLButtonElement>("#counter")!);
-
-const domInput = createDomInputSystems({
-  target: window,
-  preventDefaults: true,
-});
-
-const input = createInputStateSystem();
+import { createTransformPropagationSystem } from "./core/TransformPropagationSystem.ts";
+import { createThreeRendererSystem } from "./core/Renderer/ThreeRendererSystem.ts";
+import { spinSystem } from "./game/spin.ts";
+import { testSceneInit } from "./game/testScene.ts";
 
 const logger: ILogger = new ConsoleLogger();
 
@@ -51,8 +25,31 @@ const engine = new Engine({
   logger,
 });
 
-engine.addSystem(Schedule.Init, domInput.init);
-engine.addSystem(Schedule.PreUpdate, input.preUpdate);
-engine.addSystem(Schedule.Exit, domInput.exit);
+const domInput = createDomInputSystems({
+  target: window,
+  preventDefaults: true,
+});
 
-engine.run();
+const input = createInputStateSystem();
+
+const transformPropagation = createTransformPropagationSystem();
+
+const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+
+const renderer = createThreeRendererSystem({
+  logger,
+  canvas,
+  clearColor: 0x101010,
+});
+
+engine
+  .addSystems(Schedule.Init, [domInput.init, renderer.init, testSceneInit])
+  .addSystems(Schedule.PreUpdate, [
+    input.preUpdate,
+    spinSystem,
+    transformPropagation.preUpdate,
+  ])
+  .addSystem(Schedule.Update, renderer.update)
+  .addSystem(Schedule.PostUpdate, renderer.postUpdate)
+  .addSystems(Schedule.Exit, [domInput.exit, renderer.exit])
+  .run();
