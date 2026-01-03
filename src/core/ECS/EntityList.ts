@@ -1,4 +1,11 @@
+import { Quaternion, Vector3 } from "three";
 import type { ComponentType } from "./Component";
+import {
+  Name,
+  Relationship,
+  Transform,
+  WorldTransform,
+} from "./DefaultComponents";
 import { Pool } from "./Pool";
 import { ComponentSignals } from "./Signals";
 import { View, type ComponentTuple } from "./View";
@@ -53,6 +60,10 @@ export class EntityList {
 
   public readonly signals = new ComponentSignals(); // TODO might want to inject this and use interface
 
+  public nullEntity(): Entity {
+    return packEntity(ID_MASK, 0);
+  }
+
   // ---------- Entities ----------
 
   /**
@@ -75,7 +86,32 @@ export class EntityList {
       this.nextFree.push(id); // alive marker
     }
 
-    return packEntity(id, this.generations[id]);
+    const e = packEntity(id, this.generations[id]);
+
+    // defaults
+    this.set(e, Transform, {
+      position: new Vector3(),
+      rotation: new Quaternion(),
+      scale: new Vector3(1, 1, 1),
+    });
+
+    this.set(e, WorldTransform, {
+      position: new Vector3(),
+      rotation: new Quaternion(),
+      scale: new Vector3(1, 1, 1),
+    });
+
+    this.set(e, Name, { name: `Entity ${id}` });
+
+    const nullE = this.nullEntity();
+    this.set(e, Relationship, {
+      parent: nullE,
+      firstChild: nullE,
+      nextSibling: nullE,
+      prevSibling: nullE,
+    });
+
+    return e;
   }
 
   /**
@@ -85,14 +121,20 @@ export class EntityList {
   public destroyEntity(entity: Entity) {
     if (!this.isAlive(entity)) return false;
 
+    // 1) destroy children first
+    this.destroyChildrenRecursive(entity);
+
+    // 2) detach from parent/siblings
+    this.detachFromParent(entity);
+
     const id = this.idOf(entity);
 
     // Remove from all component pools (emit per-type remove signals)
     for (const [typeSym, pool] of this.pools.entries()) {
       const removed = pool.remove(id);
-      if (removed) {
+      if (removed !== undefined) {
         // typeSym is a symbol, but we want to keep it as the component token.
-        this.signals.emitRemove(typeSym, entity);
+        this.signals.emitRemove(typeSym, entity, removed);
       }
     }
 
@@ -135,7 +177,6 @@ export class EntityList {
   public capacity(): number {
     return this.generations.length;
   }
-
   // ---------- Components ----------
 
   private getPool<T>(type: ComponentType<T>): Pool<T> {
@@ -200,8 +241,8 @@ export class EntityList {
   public remove<T>(entity: Entity, type: ComponentType<T>): boolean {
     const id = this.assertAlive(entity);
     const removed = this.getPool(type).remove(id);
-    if (removed) this.signals.emitRemove(type, entity);
-    return removed;
+    if (removed !== undefined) this.signals.emitRemove(type, entity, removed);
+    return removed !== undefined;
   }
 
   /**
@@ -249,5 +290,137 @@ export class EntityList {
     fn: (entity: Entity, ...components: ComponentTuple<TTypes>) => void
   ): void {
     this.view(types).each(fn);
+  }
+
+  // ---------- Relationship ----------
+
+  public forEachChild(parent: Entity, fn: (child: Entity) => void) {
+    if (!this.isAlive(parent)) return;
+    if (!this.has(parent, Relationship)) return;
+
+    const rel = this.get(parent, Relationship);
+    let child = rel.firstChild;
+
+    while (this.isAlive(child)) {
+      fn(child);
+      const childRel = this.get(child, Relationship);
+      child = childRel.nextSibling;
+    }
+  }
+
+  public addChild(parent: Entity, child: Entity) {
+    if (!this.isAlive(parent) || !this.isAlive(child)) return;
+
+    const nullE = this.nullEntity();
+
+    // Ensure Relationship exists
+    if (!this.has(parent, Relationship)) {
+      this.set(parent, Relationship, {
+        parent: nullE,
+        firstChild: nullE,
+        nextSibling: nullE,
+        prevSibling: nullE,
+      });
+    }
+    if (!this.has(child, Relationship)) {
+      this.set(child, Relationship, {
+        parent: nullE,
+        firstChild: nullE,
+        nextSibling: nullE,
+        prevSibling: nullE,
+      });
+    }
+
+    const parentRel = this.get(parent, Relationship);
+    const childRel = this.get(child, Relationship);
+
+    // Detach child from existing parent first (optional but recommended)
+    if (this.isAlive(childRel.parent)) {
+      this.removeChild(childRel.parent, child);
+    }
+
+    // Insert
+    if (!this.isAlive(parentRel.firstChild)) {
+      parentRel.firstChild = child;
+      childRel.parent = parent;
+      childRel.prevSibling = nullE;
+      childRel.nextSibling = nullE;
+      return;
+    }
+
+    // Walk to last child
+    let last = parentRel.firstChild;
+    while (true) {
+      const lastRel = this.get(last, Relationship);
+      if (!this.isAlive(lastRel.nextSibling)) break;
+      last = lastRel.nextSibling;
+    }
+
+    const lastRel = this.get(last, Relationship);
+    lastRel.nextSibling = child;
+
+    childRel.prevSibling = last;
+    childRel.nextSibling = nullE;
+    childRel.parent = parent;
+  }
+
+  public removeChild(parent: Entity, child: Entity) {
+    if (!this.isAlive(parent) || !this.isAlive(child)) return;
+    if (!this.has(parent, Relationship) || !this.has(child, Relationship))
+      return;
+
+    const nullE = this.nullEntity();
+    const parentRel = this.get(parent, Relationship);
+    const childRel = this.get(child, Relationship);
+
+    // Ensure child is actually parented to this parent
+    if (childRel.parent !== parent) return;
+
+    const prev = childRel.prevSibling;
+    const next = childRel.nextSibling;
+
+    // If first child
+    if (parentRel.firstChild === child) {
+      parentRel.firstChild = next;
+    }
+
+    // Link prev -> next
+    if (this.isAlive(prev)) {
+      this.get(prev, Relationship).nextSibling = next;
+    }
+
+    // Link next -> prev
+    if (this.isAlive(next)) {
+      this.get(next, Relationship).prevSibling = prev;
+    }
+
+    // Clear child's links
+    childRel.parent = nullE;
+    childRel.prevSibling = nullE;
+    childRel.nextSibling = nullE;
+  }
+
+  private detachFromParent(e: Entity) {
+    if (!this.has(e, Relationship)) return;
+    const rel = this.get(e, Relationship);
+
+    const parent = rel.parent;
+    if (!this.isAlive(parent)) return;
+
+    // removeChild does all unlinking and clears child's links
+    this.removeChild(parent, e);
+  }
+
+  private destroyChildrenRecursive(e: Entity) {
+    if (!this.has(e, Relationship)) return;
+
+    // snapshot nextSibling before destroying current child
+    let child = this.get(e, Relationship).firstChild;
+
+    while (this.isAlive(child)) {
+      const next = this.get(child, Relationship).nextSibling;
+      this.destroyEntity(child); // calls recursive
+      child = next;
+    }
   }
 }

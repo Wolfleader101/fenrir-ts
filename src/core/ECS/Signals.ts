@@ -2,7 +2,7 @@ import type { ComponentType } from "./Component";
 import type { Entity } from "./EntityList";
 
 type AddCb<T> = (entity: Entity, component: T) => void;
-type RemoveCb = (entity: Entity) => void;
+type RemoveCb<T> = (entity: Entity, component: T) => void;
 type ReplaceCb<T> = (entity: Entity, component: T) => void; // new value
 
 export class ComponentSignals {
@@ -18,7 +18,7 @@ export class ComponentSignals {
   onAdd<T>(type: ComponentType<T>, cb: AddCb<T>): () => void {
     return this.addListener(this.onAddMap, type, cb);
   }
-  onRemove(type: ComponentType<any>, cb: RemoveCb): () => void {
+  onRemove<T>(type: ComponentType<T>, cb: RemoveCb<T>): () => void {
     return this.addListener(this.onRemoveMap, type, cb);
   }
   onReplace<T>(type: ComponentType<T>, cb: ReplaceCb<T>): () => void {
@@ -58,9 +58,11 @@ export class ComponentSignals {
     for (const cb of this.onAnyAdd) cb(type, entity);
   }
 
-  emitRemove(type: ComponentType<any>, entity: Entity) {
+  emitRemove<T>(type: ComponentType<T>, entity: Entity, component: T) {
     const callbacks = this.onRemoveMap.get(type);
-    if (callbacks) for (const cb of callbacks) (cb as RemoveCb)(entity);
+    if (callbacks)
+      for (const cb of callbacks) (cb as RemoveCb<T>)(entity, component);
+
     for (const cb of this.onAnyRemove) cb(type, entity);
   }
 
