@@ -17,6 +17,7 @@ export function createInputStateSystem(): {
         // optional: clear all keys when focus lost
         // easiest: recreate sets by clearing down
         // (or add a clear method)
+        // state.clearAll();
       }
     }
 

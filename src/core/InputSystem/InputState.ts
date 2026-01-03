@@ -41,4 +41,12 @@ export class InputState {
     if (this.down.has(code)) this.released.add(code);
     this.down.delete(code);
   }
+
+  clearAll() {
+    this.down.clear();
+    this.pressed.clear();
+    this.released.clear();
+    this.mouseDX = this.mouseDY = 0;
+    this.wheelDX = this.wheelDY = 0;
+  }
 }
