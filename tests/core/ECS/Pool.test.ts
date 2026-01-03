@@ -110,16 +110,16 @@ describe("Pool", () => {
       const component = { x: 10, y: 20 };
       pool.set(42, component);
 
-      const wasRemoved = pool.remove(42);
-      expect(wasRemoved).toBe(true);
+      const removedComponent = pool.remove(42);
+      expect(removedComponent).toEqual(component);
       expect(pool.size()).toBe(0);
       expect(pool.has(42)).toBe(false);
       expect(pool.indexOf(42)).toBe(-1);
     });
 
-    it("should return false when removing non-existent component", () => {
-      const wasRemoved = pool.remove(999);
-      expect(wasRemoved).toBe(false);
+    it("should return undefined when removing non-existent component", () => {
+      const removedComponent = pool.remove(999);
+      expect(removedComponent).toBeUndefined();
     });
 
     it("should handle swap-and-pop removal correctly", () => {
@@ -132,8 +132,9 @@ describe("Pool", () => {
       pool.set(30, comp3);
 
       // Remove middle entity (should swap last to middle)
-      pool.remove(20);
+      const removedComponent = pool.remove(20);
 
+      expect(removedComponent).toEqual(comp2);
       expect(pool.size()).toBe(2);
       expect(pool.has(10)).toBe(true);
       expect(pool.has(20)).toBe(false);
@@ -154,8 +155,9 @@ describe("Pool", () => {
       pool.set(20, comp2);
 
       // Remove last entity
-      pool.remove(20);
+      const removedComponent = pool.remove(20);
 
+      expect(removedComponent).toEqual(comp2);
       expect(pool.size()).toBe(1);
       expect(pool.has(10)).toBe(true);
       expect(pool.has(20)).toBe(false);
@@ -331,7 +333,8 @@ describe("Pool", () => {
       expect(pool.get(42)).toEqual(comp2);
       expect(pool.indexOf(42)).toBe(0); // Same index
 
-      pool.remove(42);
+      const removedComponent = pool.remove(42);
+      expect(removedComponent).toEqual(comp2);
       expect(pool.has(42)).toBe(false);
       expect(pool.indexOf(42)).toBe(-1);
 

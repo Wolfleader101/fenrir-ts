@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EntityList, defineComponent } from "@/core/ECS";
+import { Relationship } from "@/core/ECS/DefaultComponents";
 
 // Test component types
 type Position = { x: number; y: number };
@@ -263,7 +264,7 @@ describe("EntityList", () => {
       entityList.set(entity, Position, pos);
       entityList.remove(entity, Position);
 
-      expect(removeCallback).toHaveBeenCalledWith(entity);
+      expect(removeCallback).toHaveBeenCalledWith(entity, pos);
       expect(removeCallback).toHaveBeenCalledTimes(1);
 
       unsubscribe();
@@ -277,7 +278,7 @@ describe("EntityList", () => {
       entityList.set(entity, Position, pos);
       entityList.destroyEntity(entity);
 
-      expect(removeCallback).toHaveBeenCalledWith(entity);
+      expect(removeCallback).toHaveBeenCalledWith(entity, pos);
       expect(removeCallback).toHaveBeenCalledTimes(1);
 
       unsubscribe();
@@ -308,9 +309,12 @@ describe("EntityList", () => {
       expect(entityList.isAlive(entity)).toBe(false);
 
       // All remove signals should have been emitted
-      expect(removePositionSpy).toHaveBeenCalledWith(entity);
-      expect(removeVelocitySpy).toHaveBeenCalledWith(entity);
-      expect(removeHealthSpy).toHaveBeenCalledWith(entity);
+      expect(removePositionSpy).toHaveBeenCalledWith(entity, { x: 10, y: 20 });
+      expect(removeVelocitySpy).toHaveBeenCalledWith(entity, { x: 1, y: 2 });
+      expect(removeHealthSpy).toHaveBeenCalledWith(entity, {
+        hp: 100,
+        maxHp: 100,
+      });
 
       expect(removePositionSpy).toHaveBeenCalledTimes(1);
       expect(removeVelocitySpy).toHaveBeenCalledTimes(1);
@@ -348,9 +352,9 @@ describe("EntityList", () => {
       expect(entityList.isAlive(entity)).toBe(false);
 
       // All removal signals should have been emitted (covers lines 93-96)
-      expect(spyA).toHaveBeenCalledWith(entity);
-      expect(spyB).toHaveBeenCalledWith(entity);
-      expect(spyC).toHaveBeenCalledWith(entity);
+      expect(spyA).toHaveBeenCalledWith(entity, 42);
+      expect(spyB).toHaveBeenCalledWith(entity, "test");
+      expect(spyC).toHaveBeenCalledWith(entity, true);
     });
 
     it("should emit any component signals", () => {
@@ -524,7 +528,7 @@ describe("EntityList", () => {
         callCount++;
       });
 
-      expect(callCount).toBe(0); // No entities have Name component
+      expect(callCount).toBe(3); // All entities have Name component by default
     });
   });
 
@@ -592,6 +596,291 @@ describe("EntityList", () => {
       });
 
       expect(processedCount).toBe(10);
+    });
+  });
+
+  describe("null entity", () => {
+    it("should create a consistent null entity", () => {
+      const null1 = entityList.nullEntity();
+      const null2 = entityList.nullEntity();
+
+      expect(null1).toBe(null2);
+      expect(null1).toEqual(null2);
+    });
+
+    it("should have invalid ID for null entity", () => {
+      const nullEntity = entityList.nullEntity();
+      const id = entityList.idOf(nullEntity);
+
+      // INVALID_ID is -1, but due to bit masking it becomes a large number
+      // The ID should be the masked value of -1
+      const ID_MASK = (1 << 20) - 1; // 0xFFFFF
+      expect(id).toBe(ID_MASK); // -1 & ID_MASK = 0xFFFFF
+    });
+
+    it("should have generation 0 for null entity", () => {
+      const nullEntity = entityList.nullEntity();
+      const gen = entityList.genOf(nullEntity);
+
+      expect(gen).toBe(0);
+    });
+
+    it("should not be considered alive", () => {
+      const nullEntity = entityList.nullEntity();
+
+      expect(entityList.isAlive(nullEntity)).toBe(false);
+    });
+
+    it("should reject operations on null entity", () => {
+      const nullEntity = entityList.nullEntity();
+      const pos = { x: 10, y: 20 };
+
+      expect(() => entityList.set(nullEntity, Position, pos)).toThrow(
+        "Entity is not alive"
+      );
+      expect(() => entityList.has(nullEntity, Position)).toThrow(
+        "Entity is not alive"
+      );
+      expect(() => entityList.get(nullEntity, Position)).toThrow(
+        "Entity is not alive"
+      );
+      expect(() => entityList.tryGet(nullEntity, Position)).toThrow(
+        "Entity is not alive"
+      );
+      expect(() => entityList.remove(nullEntity, Position)).toThrow(
+        "Entity is not alive"
+      );
+    });
+
+    it("should not be destroyable", () => {
+      const nullEntity = entityList.nullEntity();
+
+      const result = entityList.destroyEntity(nullEntity);
+      expect(result).toBe(false);
+    });
+
+    it("should be distinguishable from regular entities", () => {
+      const nullEntity = entityList.nullEntity();
+      const regularEntity = entityList.createEntity();
+
+      expect(nullEntity).not.toBe(regularEntity);
+      expect(entityList.isAlive(nullEntity)).toBe(false);
+      expect(entityList.isAlive(regularEntity)).toBe(true);
+    });
+
+    it("should remain invalid even if entities are created and destroyed", () => {
+      const nullEntity = entityList.nullEntity();
+
+      // Create and destroy some entities
+      const entity1 = entityList.createEntity();
+      const entity2 = entityList.createEntity();
+      entityList.destroyEntity(entity1);
+      entityList.destroyEntity(entity2);
+
+      // Null entity should still be invalid
+      expect(entityList.isAlive(nullEntity)).toBe(false);
+    });
+
+    it("should be usable as sentinel value in data structures", () => {
+      const nullEntity = entityList.nullEntity();
+
+      // Test usage as sentinel in a simple structure
+      const relationships = {
+        parent: nullEntity,
+        children: [nullEntity, nullEntity],
+      };
+
+      expect(relationships.parent).toBe(nullEntity);
+      expect(relationships.children[0]).toBe(nullEntity);
+      expect(entityList.isAlive(relationships.parent)).toBe(false);
+    });
+  });
+
+  describe("relationship system", () => {
+    let parent: ReturnType<typeof entityList.createEntity>;
+    let child1: ReturnType<typeof entityList.createEntity>;
+    let child2: ReturnType<typeof entityList.createEntity>;
+
+    beforeEach(() => {
+      parent = entityList.createEntity();
+      child1 = entityList.createEntity();
+      child2 = entityList.createEntity();
+    });
+
+    it("should add child to parent using null entities as default", () => {
+      entityList.addChild(parent, child1);
+
+      expect(entityList.has(parent, Relationship)).toBe(true);
+      expect(entityList.has(child1, Relationship)).toBe(true);
+
+      const parentRel = entityList.get(parent, Relationship);
+      const childRel = entityList.get(child1, Relationship);
+
+      expect(parentRel.firstChild).toBe(child1);
+      expect(childRel.parent).toBe(parent);
+      expect(childRel.prevSibling).toBe(entityList.nullEntity());
+      expect(childRel.nextSibling).toBe(entityList.nullEntity());
+    });
+
+    it("should handle multiple children with null entity linking", () => {
+      entityList.addChild(parent, child1);
+      entityList.addChild(parent, child2);
+
+      const parentRel = entityList.get(parent, Relationship);
+      const child1Rel = entityList.get(child1, Relationship);
+      const child2Rel = entityList.get(child2, Relationship);
+
+      expect(parentRel.firstChild).toBe(child1);
+
+      // child1 should be first, with child2 as next sibling
+      expect(child1Rel.nextSibling).toBe(child2);
+      expect(child1Rel.prevSibling).toBe(entityList.nullEntity());
+
+      // child2 should be last, with child1 as prev sibling
+      expect(child2Rel.prevSibling).toBe(child1);
+      expect(child2Rel.nextSibling).toBe(entityList.nullEntity());
+    });
+
+    it("should iterate through children correctly using null entity termination", () => {
+      entityList.addChild(parent, child1);
+      entityList.addChild(parent, child2);
+
+      const children: any[] = [];
+      entityList.forEachChild(parent, (child) => {
+        children.push(child);
+      });
+
+      expect(children).toHaveLength(2);
+      expect(children).toContain(child1);
+      expect(children).toContain(child2);
+    });
+
+    it("should handle empty parent iteration gracefully", () => {
+      // Parent with no children
+      let callCount = 0;
+      entityList.forEachChild(parent, () => {
+        callCount++;
+      });
+
+      expect(callCount).toBe(0);
+    });
+
+    it("should handle parent without Relationship component", () => {
+      // Parent without any Relationship component
+      let callCount = 0;
+      entityList.forEachChild(parent, () => {
+        callCount++;
+      });
+
+      expect(callCount).toBe(0);
+    });
+
+    it("should remove child correctly and maintain null entity links", () => {
+      entityList.addChild(parent, child1);
+      entityList.addChild(parent, child2);
+
+      entityList.removeChild(parent, child1);
+
+      const parentRel = entityList.get(parent, Relationship);
+      const child1Rel = entityList.get(child1, Relationship);
+      const child2Rel = entityList.get(child2, Relationship);
+
+      // Parent should now point to child2 as first child
+      expect(parentRel.firstChild).toBe(child2);
+
+      // child1 should be detached (all null entity references)
+      expect(child1Rel.parent).toBe(entityList.nullEntity());
+      expect(child1Rel.prevSibling).toBe(entityList.nullEntity());
+      expect(child1Rel.nextSibling).toBe(entityList.nullEntity());
+
+      // child2 should now be first and only child
+      expect(child2Rel.parent).toBe(parent);
+      expect(child2Rel.prevSibling).toBe(entityList.nullEntity());
+      expect(child2Rel.nextSibling).toBe(entityList.nullEntity());
+    });
+
+    it("should handle removal of middle child in chain", () => {
+      const child3 = entityList.createEntity();
+
+      entityList.addChild(parent, child1);
+      entityList.addChild(parent, child2);
+      entityList.addChild(parent, child3);
+
+      // Remove middle child
+      entityList.removeChild(parent, child2);
+
+      const child1Rel = entityList.get(child1, Relationship);
+      const child2Rel = entityList.get(child2, Relationship);
+      const child3Rel = entityList.get(child3, Relationship);
+
+      // child1 should now link directly to child3
+      expect(child1Rel.nextSibling).toBe(child3);
+      expect(child3Rel.prevSibling).toBe(child1);
+
+      // child2 should be fully detached
+      expect(child2Rel.parent).toBe(entityList.nullEntity());
+      expect(child2Rel.prevSibling).toBe(entityList.nullEntity());
+      expect(child2Rel.nextSibling).toBe(entityList.nullEntity());
+    });
+
+    it("should handle reparenting with proper null entity cleanup", () => {
+      const newParent = entityList.createEntity();
+
+      entityList.addChild(parent, child1);
+      entityList.addChild(newParent, child1); // Reparent
+
+      const oldParentRel = entityList.get(parent, Relationship);
+      const newParentRel = entityList.get(newParent, Relationship);
+      const childRel = entityList.get(child1, Relationship);
+
+      // Old parent should have no children
+      expect(oldParentRel.firstChild).toBe(entityList.nullEntity());
+
+      // New parent should have child1
+      expect(newParentRel.firstChild).toBe(child1);
+
+      // child1 should be parented to new parent
+      expect(childRel.parent).toBe(newParent);
+    });
+
+    it("should handle operations on non-alive entities gracefully", () => {
+      const deadEntity = entityList.createEntity();
+      entityList.destroyEntity(deadEntity);
+
+      // Should not crash, just return early
+      entityList.addChild(deadEntity, child1);
+      entityList.addChild(parent, deadEntity);
+      entityList.removeChild(deadEntity, child1);
+      entityList.removeChild(parent, deadEntity);
+
+      let callCount = 0;
+      entityList.forEachChild(deadEntity, () => {
+        callCount++;
+      });
+      expect(callCount).toBe(0);
+    });
+
+    it("should prevent operations when entities lack Relationship component during removal", () => {
+      // Try to remove child from parent when neither has Relationship component
+      entityList.removeChild(parent, child1);
+
+      // Should handle gracefully - no crash, no changes
+      expect(entityList.has(parent, Relationship)).toBe(true);
+      expect(entityList.has(child1, Relationship)).toBe(true);
+    });
+
+    it("should validate parent-child relationship during removal", () => {
+      const wrongParent = entityList.createEntity();
+
+      entityList.addChild(parent, child1);
+      entityList.addChild(wrongParent, child2);
+
+      // Try to remove child1 from wrong parent
+      entityList.removeChild(wrongParent, child1);
+
+      // child1 should still be parented to correct parent
+      const child1Rel = entityList.get(child1, Relationship);
+      expect(child1Rel.parent).toBe(parent);
     });
   });
 });

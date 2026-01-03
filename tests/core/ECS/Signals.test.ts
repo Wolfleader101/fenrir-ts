@@ -26,7 +26,7 @@ describe("ComponentSignals", () => {
       // Should not throw when emitting to empty signals
       expect(() => {
         signals.emitAdd(Position, testEntity, { x: 10, y: 20 });
-        signals.emitRemove(Position, testEntity);
+        signals.emitRemove(Position, testEntity, { x: 10, y: 20 });
         signals.emitReplace(Position, testEntity, { x: 30, y: 40 });
       }).not.toThrow();
     });
@@ -106,10 +106,11 @@ describe("ComponentSignals", () => {
       const removeListener = vi.fn();
 
       signals.onRemove(Position, removeListener);
-      signals.emitRemove(Position, testEntity);
+      const testComponent = { x: 10, y: 20 };
+      signals.emitRemove(Position, testEntity, testComponent);
 
       expect(removeListener).toHaveBeenCalledOnce();
-      expect(removeListener).toHaveBeenCalledWith(testEntity);
+      expect(removeListener).toHaveBeenCalledWith(testEntity, testComponent);
     });
 
     it("should support multiple remove listeners", () => {
@@ -119,10 +120,11 @@ describe("ComponentSignals", () => {
       signals.onRemove(Position, listener1);
       signals.onRemove(Position, listener2);
 
-      signals.emitRemove(Position, testEntity);
+      const testComponent = { x: 10, y: 20 };
+      signals.emitRemove(Position, testEntity, testComponent);
 
-      expect(listener1).toHaveBeenCalledWith(testEntity);
-      expect(listener2).toHaveBeenCalledWith(testEntity);
+      expect(listener1).toHaveBeenCalledWith(testEntity, testComponent);
+      expect(listener2).toHaveBeenCalledWith(testEntity, testComponent);
     });
 
     it("should return working unsubscribe function", () => {
@@ -130,11 +132,12 @@ describe("ComponentSignals", () => {
 
       const unsubscribe = signals.onRemove(Position, listener);
 
-      signals.emitRemove(Position, testEntity);
+      const testComponent = { x: 10, y: 20 };
+      signals.emitRemove(Position, testEntity, testComponent);
       expect(listener).toHaveBeenCalledTimes(1);
 
       unsubscribe();
-      signals.emitRemove(Position, testEntity);
+      signals.emitRemove(Position, testEntity, testComponent);
       expect(listener).toHaveBeenCalledTimes(1);
     });
   });
@@ -201,8 +204,8 @@ describe("ComponentSignals", () => {
 
       signals.onAnyComponentRemoved(anyRemoveListener);
 
-      signals.emitRemove(Position, testEntity);
-      signals.emitRemove(Velocity, testEntity);
+      signals.emitRemove(Position, testEntity, { x: 10, y: 20 });
+      signals.emitRemove(Velocity, testEntity, { dx: 5, dy: 10 });
 
       expect(anyRemoveListener).toHaveBeenCalledTimes(2);
       expect(anyRemoveListener).toHaveBeenNthCalledWith(
@@ -245,7 +248,7 @@ describe("ComponentSignals", () => {
 
       // Test they work initially
       signals.emitAdd(Position, testEntity, { x: 10, y: 20 });
-      signals.emitRemove(Position, testEntity);
+      signals.emitRemove(Position, testEntity, { x: 10, y: 20 });
       signals.emitReplace(Position, testEntity, { x: 30, y: 40 });
 
       expect(anyAddListener).toHaveBeenCalledTimes(1);
@@ -259,7 +262,7 @@ describe("ComponentSignals", () => {
 
       // Test they no longer work
       signals.emitAdd(Position, testEntity, { x: 50, y: 60 });
-      signals.emitRemove(Position, testEntity);
+      signals.emitRemove(Position, testEntity, { x: 10, y: 20 });
       signals.emitReplace(Position, testEntity, { x: 70, y: 80 });
 
       expect(anyAddListener).toHaveBeenCalledTimes(1); // Still 1
@@ -290,9 +293,13 @@ describe("ComponentSignals", () => {
       signals.onRemove(Position, specificRemoveListener);
       signals.onAnyComponentRemoved(anyRemoveListener);
 
-      signals.emitRemove(Position, testEntity);
+      const testComponent = { x: 10, y: 20 };
+      signals.emitRemove(Position, testEntity, testComponent);
 
-      expect(specificRemoveListener).toHaveBeenCalledWith(testEntity);
+      expect(specificRemoveListener).toHaveBeenCalledWith(
+        testEntity,
+        testComponent
+      );
       expect(anyRemoveListener).toHaveBeenCalledWith(Position, testEntity);
     });
 
@@ -415,7 +422,7 @@ describe("ComponentSignals", () => {
     it("should handle emitting with no listeners gracefully", () => {
       expect(() => {
         signals.emitAdd(Position, testEntity, { x: 10, y: 20 });
-        signals.emitRemove(Position, testEntity);
+        signals.emitRemove(Position, testEntity, { x: 10, y: 20 });
         signals.emitReplace(Position, testEntity, { x: 30, y: 40 });
       }).not.toThrow();
     });
@@ -506,8 +513,9 @@ describe("ComponentSignals", () => {
       });
 
       // Remove component
-      signals.emitRemove(Position, testEntity);
-      expect(removeListener).toHaveBeenCalledWith(testEntity);
+      const testComponent = { x: 10, y: 20 };
+      signals.emitRemove(Position, testEntity, testComponent);
+      expect(removeListener).toHaveBeenCalledWith(testEntity, testComponent);
       expect(anyRemoveListener).toHaveBeenCalledWith(Position, testEntity);
     });
 

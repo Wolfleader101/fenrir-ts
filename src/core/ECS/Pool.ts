@@ -77,28 +77,32 @@ export class Pool<T> {
    * Returns true if removed, false if it wasn't present.
    */
   public remove(entityId: number): T | undefined {
-    const idx = this.tryIndexOf(entityId);
-    if (idx === undefined) return undefined;
+    const idx = this.indexOf(entityId);
+    if (idx === -1) return undefined;
 
     const removed = this.dense[idx];
 
-    // swap+pop removal (your existing logic)
+    // swap+pop removal
     const lastIndex = this.dense.length - 1;
-    const lastEntity = this.denseEntities[lastIndex];
 
-    // move last into idx
-    this.dense[idx] = this.dense[lastIndex];
-    this.denseEntities[idx] = lastEntity;
+    if (idx !== lastIndex) {
+      // Only do swap if not removing the last element
+      const lastEntity = this.denseEntities[lastIndex];
 
-    // update sparse for moved entity
-    this.sparse[lastEntity] = idx;
+      // move last into idx
+      this.dense[idx] = this.dense[lastIndex];
+      this.denseEntities[idx] = lastEntity;
+
+      // update sparse for moved entity (remember sparse stores denseIndex + 1)
+      this.sparse[lastEntity] = idx + 1;
+    }
 
     // pop back
     this.dense.pop();
     this.denseEntities.pop();
 
     // mark sparse for removed entity as "missing"
-    this.sparse[entityId] = -1;
+    this.sparse[entityId] = 0;
 
     return removed;
   }
@@ -113,13 +117,5 @@ export class Pool<T> {
     for (let i = 0; i < entities.length; i++) {
       fn(entities[i], comps[i]);
     }
-  }
-
-  private tryIndexOf(entityId: number): number | undefined {
-    const idx = this.sparse[entityId];
-    if (idx === undefined || idx < 0) return undefined;
-    // optional verification: denseEntities[idx] === entityId
-    if (this.denseEntities[idx] !== entityId) return undefined;
-    return idx;
   }
 }

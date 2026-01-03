@@ -220,7 +220,8 @@ describe("View", () => {
       entityList.set(entities[1], Position, { x: 30, y: 40 });
       entityList.set(entities[1], Velocity, { dx: 3, dy: 4 });
       entityList.set(entities[1], Health, { hp: 75, maxHp: 100 });
-      // No name for entities[1]
+      // Remove the default Name component to test filtering
+      entityList.remove(entities[1], Name);
 
       const view = new View(entityList, [Position, Velocity, Health, Name]);
       const results: any[] = [];
