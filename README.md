@@ -95,3 +95,7 @@ Instead, it emphasizes:
 ## License
 
 MIT — use it, break it, learn from it.
+
+## Model Licenses
+
+Sample models are sourced from the [glTF Sample Models repository](https://github.com/KhronosGroup/glTF-Sample-Models).
