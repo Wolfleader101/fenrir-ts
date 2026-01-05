@@ -1,22 +1,19 @@
 import { defineComponent } from "../ECS";
-
-/**
- * Stable asset keys so renderables can reference shared geometry/material definitions.
- */
-export type AssetKey = string & { __assetKey?: true };
-export const assetKey = (k: string) => k as AssetKey;
+import type { AssetKey } from "../Assets/AssetStore";
+import type { EntityBuilder } from "../EntityBuilder/EntityBuilder";
 
 export type GeometryDesc =
   | { kind: "box"; size?: [number, number, number] } // default 1,1,1
   | { kind: "plane"; size?: [number, number] } // default 1,1
   | { kind: "sphere"; radius?: number; widthSeg?: number; heightSeg?: number }
-  | { kind: "fromAsset"; key: AssetKey }; // e.g. gltf mesh, custom buffer geo
+  | { kind: "model"; key: AssetKey }; // File-based model loading
 
 export type MaterialDesc =
   | { kind: "standard"; color?: number; roughness?: number; metalness?: number }
   | { kind: "lambert"; color?: number }
   | { kind: "basic"; color?: number }
-  | { kind: "fromAsset"; key: AssetKey }; // textures/materials later
+  | { kind: "asset"; key: AssetKey } // Load material from asset
+  | { kind: "none" }; // Use asset's own material (for Object3D assets)
 
 export type RenderFlags = {
   visible?: boolean; // default true

@@ -1,3 +1,4 @@
+import type { IAssetStore } from "../Assets/AssetStore";
 import type { ILogger } from "../ILogger";
 import type { SystemFn } from "../SystemCtx";
 import { Renderable } from "./renderComponents";
@@ -7,34 +8,33 @@ export function createThreeRendererSystem(opts: {
   logger: ILogger;
   canvas?: HTMLCanvasElement;
   clearColor?: number;
+  assets: IAssetStore;
 }) {
-  let three: ThreeRenderer | null = null;
+  let three = new ThreeRenderer({
+    canvas: opts.canvas,
+    logger: opts.logger,
+    clearColor: opts.clearColor,
+    assets: opts.assets,
+  });
 
   const init: SystemFn = (ctx) => {
-    three = new ThreeRenderer({
-      canvas: opts.canvas,
-      logger: opts.logger,
-      clearColor: opts.clearColor,
-    });
-
-    // Create meshes when Renderable is added
-    ctx.entities.signals.onAdd(Renderable, (e, r) => {
-      three!.upsertRenderable(ctx.entities, e, r);
+    ctx.entities.signals.onAdd(Renderable, async (e, r) => {
+      await three.upsertRenderable(ctx.entities, e, r);
     });
 
     // Remove meshes when Renderable is removed (or entity destroyed triggers component removals)
     ctx.entities.signals.onRemove(Renderable, (e, r) => {
-      three!.removeRenderable(e, r.id);
+      three.removeRenderable(e, r.id);
     });
 
     // Optional: handle replace (material/geometry changes)
-    ctx.entities.signals.onReplace(Renderable, (e, r) => {
-      three!.upsertRenderable(ctx.entities, e, r);
+    ctx.entities.signals.onReplace(Renderable, async (e, r) => {
+      await three.upsertRenderable(ctx.entities, e, r);
     });
 
     // If entities already exist with Renderable before init, hydrate:
-    ctx.entities.each([Renderable] as const, (e, r) => {
-      three!.upsertRenderable(ctx.entities, e, r);
+    ctx.entities.each([Renderable] as const, async (e, r) => {
+      await three.upsertRenderable(ctx.entities, e, r);
     });
 
     // Basic resize handling
@@ -65,8 +65,7 @@ export function createThreeRendererSystem(opts: {
   const exit: SystemFn = () => {
     for (const fn of cleanupFns) fn();
     cleanupFns.length = 0;
-    three = null;
   };
 
-  return { init, update, postUpdate, exit } as const;
+  return { init, update, postUpdate, exit, renderer: three } as const;
 }

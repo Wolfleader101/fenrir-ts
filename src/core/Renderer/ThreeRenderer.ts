@@ -1,5 +1,5 @@
-// ThreeRenderer.ts
 import * as THREE from "three";
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import type { Entity, EntityList } from "../ECS";
 import { WorldTransform } from "../ECS/DefaultComponents";
 import type { ILogger } from "../ILogger";
@@ -9,6 +9,7 @@ import {
   type MaterialDesc,
   Renderable,
 } from "./renderComponents";
+import type { IAssetStore } from "../Assets/AssetStore";
 
 type ObjKey = string;
 const keyFor = (e: Entity, id: number) => `${e}:${id}`;
@@ -31,6 +32,22 @@ function matKey(d: MaterialDesc): string {
   return JSON.stringify(d);
 }
 
+function isModelGeom(
+  d: GeometryDesc
+): d is Extract<GeometryDesc, { kind: "model" }> {
+  return d.kind === "model";
+}
+function isAssetMat(
+  d: MaterialDesc
+): d is Extract<MaterialDesc, { kind: "asset" }> {
+  return d.kind === "asset";
+}
+function isNoneMat(
+  d: MaterialDesc
+): d is Extract<MaterialDesc, { kind: "none" }> {
+  return d.kind === "none";
+}
+
 export class ThreeRenderer {
   public readonly scene = new THREE.Scene();
   public readonly renderer: THREE.WebGLRenderer;
@@ -40,6 +57,8 @@ export class ThreeRenderer {
 
   private readonly geomCache = new Map<string, THREE.BufferGeometry>();
   private readonly matCache = new Map<string, THREE.Material>();
+
+  private readonly assets: IAssetStore;
 
   // optional: ref counts if you want to dispose caches safely later
   // private readonly geomRef = new Map<string, number>();
@@ -51,12 +70,15 @@ export class ThreeRenderer {
     width?: number;
     height?: number;
     clearColor?: number;
+    assets: IAssetStore;
   }) {
     const {
       canvas,
       width = window.innerWidth,
       height = window.innerHeight,
     } = opts;
+
+    this.assets = opts.assets;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -71,7 +93,7 @@ export class ThreeRenderer {
     }
 
     this.camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
-    this.camera.position.set(0, 5, 10);
+    this.camera.position.set(0, 2, 10);
     this.camera.lookAt(0, 0, 0);
 
     // Basic default lighting (optional)
@@ -90,29 +112,74 @@ export class ThreeRenderer {
   }
 
   /** Call when Renderable is added or replaced (if geometry/material can change). */
-  public upsertRenderable(entities: EntityList, e: Entity, r: Renderable) {
+  public async upsertRenderable(
+    entities: EntityList,
+    e: Entity,
+    r: Renderable
+  ) {
     const k = keyFor(e, r.id);
+    const existing = this.objects.get(k);
+
+    const geoOrObj = await this.getGeometry(r.geometry);
+
+    const wantsObject3D = geoOrObj instanceof THREE.Object3D;
+
+    // If existence + type mismatch, recreate
+    if (existing && wantsObject3D) {
+      // existing might be Mesh -> replace
+      this.scene.remove(existing);
+      this.objects.delete(k);
+    } else if (
+      existing &&
+      !wantsObject3D &&
+      !(existing instanceof THREE.Mesh)
+    ) {
+      this.scene.remove(existing);
+      this.objects.delete(k);
+    }
+
     let obj = this.objects.get(k);
 
     if (!obj) {
-      obj = this.createObjectFromRenderable(r);
+      // If we already computed geoOrObj, avoid double work
+      if (wantsObject3D) {
+        // Check if the object has skeletal animations (SkinnedMesh)
+        let hasSkeletalAnimation = false;
+        geoOrObj.traverse((child) => {
+          if (
+            child instanceof THREE.SkinnedMesh ||
+            (child as any).isSkinnedMesh
+          ) {
+            hasSkeletalAnimation = true;
+          }
+        });
+
+        // Use SkeletonUtils.clone for animated models, regular clone for static models
+        if (hasSkeletalAnimation) {
+          obj = SkeletonUtils.clone(geoOrObj);
+        } else {
+          obj = geoOrObj.clone(true);
+        }
+      } else {
+        const material = await this.getMaterial(r.material!);
+        if (!material) {
+          throw new Error("Material is required for BufferGeometry meshes");
+        }
+        obj = new THREE.Mesh(geoOrObj, material);
+      }
+
       this.objects.set(k, obj);
       this.scene.add(obj);
-    } else {
-      // If you want to support runtime geometry/material changes:
-      // simplest: recreate the Mesh
-      if (obj instanceof THREE.Mesh) {
-        const desiredGeom = this.getGeometry(r.geometry);
-        const desiredMat = this.getMaterial(r.material);
+    } else if (obj instanceof THREE.Mesh && !wantsObject3D) {
+      const desiredGeom = geoOrObj;
+      const desiredMat = await this.getMaterial(r.material!);
 
-        if (obj.geometry !== desiredGeom) obj.geometry = desiredGeom;
-        if (obj.material !== desiredMat) obj.material = desiredMat as any;
-      }
+      if (obj.geometry !== desiredGeom) obj.geometry = desiredGeom;
+      if (desiredMat && obj.material !== desiredMat) obj.material = desiredMat;
     }
 
     this.applyFlags(obj, r.flags);
 
-    // Set initial transform immediately if available
     if (entities.has(e, WorldTransform)) {
       this.applyWorldTransform(obj, entities.get(e, WorldTransform));
     }
@@ -147,23 +214,45 @@ export class ThreeRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  // ---------- internals ----------
+  /** Get the rendered Three.js object for an entity/renderable ID */
+  public getRenderedObject(
+    entity: Entity,
+    renderableId: number
+  ): THREE.Object3D | undefined {
+    const k = keyFor(entity, renderableId);
+    const obj = this.objects.get(k);
 
-  private createObjectFromRenderable(r: Renderable): THREE.Object3D {
-    const geom = this.getGeometry(r.geometry);
-    const mat = this.getMaterial(r.material);
-    const mesh = new THREE.Mesh(geom, mat);
-    this.applyFlags(mesh, r.flags);
-    return mesh;
+    return obj;
   }
 
-  private getGeometry(desc: GeometryDesc): THREE.BufferGeometry {
-    const k = geomKey(desc);
+  public dispose() {
+    // remove objects
+    for (const obj of this.objects.values()) this.scene.remove(obj);
+    this.objects.clear();
+
+    // dispose procedural caches only
+    for (const g of this.geomCache.values()) g.dispose();
+    this.geomCache.clear();
+
+    for (const m of this.matCache.values()) m.dispose();
+    this.matCache.clear();
+
+    this.renderer.dispose();
+  }
+
+  // ---------- internals ----------
+
+  private async getGeometry(desc: GeometryDesc) {
+    if (isModelGeom(desc)) {
+      // AssetStore provides Object3D geometry
+      return await this.assets.getGeometry(desc.key);
+    }
+
+    const k = geomKey(desc); // only procedural desc reach here
     const existing = this.geomCache.get(k);
     if (existing) return existing;
 
     let g: THREE.BufferGeometry;
-
     switch (desc.kind) {
       case "box": {
         const [x, y, z] = desc.size ?? [1, 1, 1];
@@ -182,30 +271,33 @@ export class ThreeRenderer {
         g = new THREE.SphereGeometry(radius, w, h);
         break;
       }
-      case "fromAsset": {
-        // Later: pull from GLTF cache etc.
-        // For now, create a placeholder geometry so you can see something.
-        g = new THREE.BoxGeometry(1, 1, 1);
-        break;
-      }
-      default: {
-        // exhaustive check
-        const _never: never = desc;
-        g = new THREE.BoxGeometry(1, 1, 1);
-      }
+      default:
+        const exhaustiveCheck: never = desc;
+        throw new Error(`Unknown geometry kind: ${exhaustiveCheck}`);
     }
 
     this.geomCache.set(k, g);
     return g;
   }
 
-  private getMaterial(desc: MaterialDesc): THREE.Material {
+  private async getMaterial(
+    desc: MaterialDesc
+  ): Promise<THREE.Material | null> {
+    if (isNoneMat(desc)) {
+      return null; // Object3D uses its own material
+    }
+
+    if (isAssetMat(desc)) {
+      // For now, we'll create a basic material with the loaded texture
+      const texture = await this.assets.getTexture(desc.key);
+      return new THREE.MeshStandardMaterial({ map: texture });
+    }
+
     const k = matKey(desc);
     const existing = this.matCache.get(k);
     if (existing) return existing;
 
     let m: THREE.Material;
-
     switch (desc.kind) {
       case "standard": {
         m = new THREE.MeshStandardMaterial({
@@ -227,15 +319,9 @@ export class ThreeRenderer {
         });
         break;
       }
-      case "fromAsset": {
-        // Later: textures/materials
-        m = new THREE.MeshStandardMaterial({ color: 0xff00ff });
-        break;
-      }
-      default: {
-        const _never: never = desc;
-        m = new THREE.MeshStandardMaterial({ color: 0xffffff });
-      }
+      default:
+        const exhaustiveCheck: never = desc;
+        throw new Error(`Unknown material kind: ${exhaustiveCheck}`);
     }
 
     this.matCache.set(k, m);
