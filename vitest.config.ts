@@ -17,6 +17,7 @@ export default defineConfig({
         "src/test/",
         "**/*.d.ts",
         "**/*.config.*",
+        "**/index.{ts,js}",
         "src/main.ts",
         "index.html",
       ],
