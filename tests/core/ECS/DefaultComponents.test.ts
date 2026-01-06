@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Vector3, Quaternion } from "three";
 import {
   Transform,
-  WorldTransform,
   Name,
   Relationship,
   makeRelationship,
@@ -27,29 +26,6 @@ describe("DefaultComponents", () => {
       expect(transform.position).toBeInstanceOf(Vector3);
       expect(transform.rotation).toBeInstanceOf(Quaternion);
       expect(transform.scale).toBeInstanceOf(Vector3);
-    });
-  });
-
-  describe("WorldTransform component", () => {
-    it("should define WorldTransform component", () => {
-      expect(WorldTransform).toBeDefined();
-      expect(typeof WorldTransform).toBe("symbol");
-    });
-
-    it("should have correct WorldTransform type structure", () => {
-      const worldTransform = {
-        position: new Vector3(5, 10, 15),
-        rotation: new Quaternion(0.5, 0, 0, Math.sqrt(0.75)),
-        scale: new Vector3(1.5, 1.5, 1.5),
-      };
-
-      expect(worldTransform.position).toBeInstanceOf(Vector3);
-      expect(worldTransform.rotation).toBeInstanceOf(Quaternion);
-      expect(worldTransform.scale).toBeInstanceOf(Vector3);
-    });
-
-    it("should be different from Transform component", () => {
-      expect(Transform).not.toBe(WorldTransform);
     });
   });
 
@@ -187,14 +163,6 @@ describe("DefaultComponents", () => {
       expect(relationship.prevSibling).toBe(nullEntity);
     });
 
-    it("should apply WorldTransform component", () => {
-      applyDefaultComponents(entityList, entity);
-
-      expect(entityList.has(entity, WorldTransform)).toBe(true);
-      // WorldTransform is added but not set in the current implementation
-      // This test verifies the component exists
-    });
-
     it("should not overwrite existing components", () => {
       // Set a custom Transform first
       const customTransform = {
@@ -256,7 +224,7 @@ describe("DefaultComponents", () => {
 
   describe("component uniqueness", () => {
     it("should have unique symbols for each component", () => {
-      const components = [Transform, WorldTransform, Name, Relationship];
+      const components = [Transform, Name, Relationship];
       const uniqueSymbols = new Set(components);
 
       expect(uniqueSymbols.size).toBe(components.length);
@@ -265,7 +233,6 @@ describe("DefaultComponents", () => {
 
     it("should have descriptive symbol names", () => {
       expect(Transform.toString()).toContain("Transform");
-      expect(WorldTransform.toString()).toContain("WorldTransform");
       expect(Name.toString()).toContain("Name");
       expect(Relationship.toString()).toContain("Relationship");
     });

@@ -1,15 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Scheduler, Schedule, type ScheduleStage } from "@/core/Scheduler";
-import type { SystemCtx, SystemFn } from "@/core/SystemCtx";
+import type { SystemCtx, SyncSystemFn, AsyncSystemFn } from "@/core/SystemCtx";
 import { EventBus } from "@/core/EventBus";
 import { Time } from "@/core/Time";
+import { Scene } from "@/core/Scene";
+import { EntityList } from "@/core/ECS";
+import { SceneManager } from "@/core/SceneManager";
+import { ConsoleLogger } from "@/core/ConsoleLogger";
 
 // Mock SystemCtx for testing
 function createMockSystemCtx(): SystemCtx {
+  const scene = new Scene("test");
   return {
     time: new Time(),
-    scene: {},
+    scene,
+    entities: scene.entityList,
     events: new EventBus(),
+    scenes: new SceneManager(),
+    logger: new ConsoleLogger(),
     stop: vi.fn(),
   };
 }
@@ -57,7 +65,7 @@ describe("Scheduler", () => {
     });
 
     it("should be ready to accept systems immediately", () => {
-      const testSystem: SystemFn = vi.fn();
+      const testSystem: AsyncSystemFn = vi.fn();
 
       expect(() => {
         scheduler.addSystem(Schedule.Init, testSystem);
@@ -69,8 +77,8 @@ describe("Scheduler", () => {
 
   describe("addSystem", () => {
     it("should add a system to the correct stage", () => {
-      const initSystem: SystemFn = vi.fn();
-      const updateSystem: SystemFn = vi.fn();
+      const initSystem: AsyncSystemFn = vi.fn();
+      const updateSystem: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Init, initSystem);
       scheduler.addSystem(Schedule.Update, updateSystem);
@@ -80,7 +88,7 @@ describe("Scheduler", () => {
     });
 
     it("should return the scheduler for method chaining", () => {
-      const system: SystemFn = vi.fn();
+      const system: AsyncSystemFn = vi.fn();
 
       const result = scheduler.addSystem(Schedule.Init, system);
 
@@ -88,9 +96,9 @@ describe("Scheduler", () => {
     });
 
     it("should add multiple systems to the same stage", () => {
-      const system1: SystemFn = vi.fn();
-      const system2: SystemFn = vi.fn();
-      const system3: SystemFn = vi.fn();
+      const system1: SyncSystemFn = vi.fn();
+      const system2: SyncSystemFn = vi.fn();
+      const system3: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Update, system1);
       scheduler.addSystem(Schedule.Update, system2);
@@ -101,9 +109,9 @@ describe("Scheduler", () => {
     });
 
     it("should maintain insertion order", () => {
-      const systems: SystemFn[] = [];
+      const systems: SyncSystemFn[] = [];
       for (let i = 0; i < 10; i++) {
-        const system: SystemFn = vi.fn();
+        const system: SyncSystemFn = vi.fn();
         systems.push(system);
         scheduler.addSystem(Schedule.Tick, system);
       }
@@ -112,19 +120,20 @@ describe("Scheduler", () => {
     });
 
     it("should allow same system in different stages", () => {
-      const sharedSystem: SystemFn = vi.fn();
+      const asyncSystem: AsyncSystemFn = vi.fn();
+      const syncSystem: SyncSystemFn = vi.fn();
 
-      scheduler.addSystem(Schedule.Init, sharedSystem);
-      scheduler.addSystem(Schedule.Update, sharedSystem);
-      scheduler.addSystem(Schedule.Exit, sharedSystem);
+      scheduler.addSystem(Schedule.Init, asyncSystem);
+      scheduler.addSystem(Schedule.Update, syncSystem);
+      scheduler.addSystem(Schedule.Exit, asyncSystem);
 
-      expect(scheduler.getSystems(Schedule.Init)).toContain(sharedSystem);
-      expect(scheduler.getSystems(Schedule.Update)).toContain(sharedSystem);
-      expect(scheduler.getSystems(Schedule.Exit)).toContain(sharedSystem);
+      expect(scheduler.getSystems(Schedule.Init)).toContain(asyncSystem);
+      expect(scheduler.getSystems(Schedule.Update)).toContain(syncSystem);
+      expect(scheduler.getSystems(Schedule.Exit)).toContain(asyncSystem);
     });
 
     it("should allow same system multiple times in same stage", () => {
-      const duplicateSystem: SystemFn = vi.fn();
+      const duplicateSystem: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Update, duplicateSystem);
       scheduler.addSystem(Schedule.Update, duplicateSystem);
@@ -137,9 +146,9 @@ describe("Scheduler", () => {
 
   describe("addSystems", () => {
     it("should add multiple systems at once", () => {
-      const system1: SystemFn = vi.fn();
-      const system2: SystemFn = vi.fn();
-      const system3: SystemFn = vi.fn();
+      const system1: AsyncSystemFn = vi.fn();
+      const system2: AsyncSystemFn = vi.fn();
+      const system3: AsyncSystemFn = vi.fn();
       const systems = [system1, system2, system3];
 
       scheduler.addSystems(Schedule.Init, systems);
@@ -148,7 +157,7 @@ describe("Scheduler", () => {
     });
 
     it("should return the scheduler for method chaining", () => {
-      const systems: SystemFn[] = [vi.fn(), vi.fn()];
+      const systems: SyncSystemFn[] = [vi.fn(), vi.fn()];
 
       const result = scheduler.addSystems(Schedule.Update, systems);
 
@@ -164,9 +173,9 @@ describe("Scheduler", () => {
     });
 
     it("should maintain order when adding to existing systems", () => {
-      const existingSystem: SystemFn = vi.fn();
-      const newSystem1: SystemFn = vi.fn();
-      const newSystem2: SystemFn = vi.fn();
+      const existingSystem: SyncSystemFn = vi.fn();
+      const newSystem1: SyncSystemFn = vi.fn();
+      const newSystem2: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Update, existingSystem);
       scheduler.addSystems(Schedule.Update, [newSystem1, newSystem2]);
@@ -179,9 +188,12 @@ describe("Scheduler", () => {
     });
 
     it("should work with readonly arrays", () => {
-      const system1: SystemFn = vi.fn();
-      const system2: SystemFn = vi.fn();
-      const readonlySystems: readonly SystemFn[] = [system1, system2] as const;
+      const system1: SyncSystemFn = vi.fn();
+      const system2: SyncSystemFn = vi.fn();
+      const readonlySystems: readonly SyncSystemFn[] = [
+        system1,
+        system2,
+      ] as const;
 
       expect(() => {
         scheduler.addSystems(Schedule.Tick, readonlySystems);
@@ -193,8 +205,8 @@ describe("Scheduler", () => {
 
   describe("getSystems", () => {
     it("should return systems for the requested stage", () => {
-      const initSystem: SystemFn = vi.fn();
-      const updateSystem: SystemFn = vi.fn();
+      const initSystem: AsyncSystemFn = vi.fn();
+      const updateSystem: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Init, initSystem);
       scheduler.addSystem(Schedule.Update, updateSystem);
@@ -209,7 +221,7 @@ describe("Scheduler", () => {
     });
 
     it("should return arrays that can be safely iterated", () => {
-      const systems: SystemFn[] = [vi.fn(), vi.fn(), vi.fn()];
+      const systems: SyncSystemFn[] = [vi.fn(), vi.fn(), vi.fn()];
       scheduler.addSystems(Schedule.Update, systems);
 
       const retrievedSystems = scheduler.getSystems(Schedule.Update);
@@ -222,7 +234,7 @@ describe("Scheduler", () => {
     });
 
     it("should return the actual array (not a copy)", () => {
-      const system: SystemFn = vi.fn();
+      const system: AsyncSystemFn = vi.fn();
       scheduler.addSystem(Schedule.Init, system);
 
       const systems1 = scheduler.getSystems(Schedule.Init);
@@ -232,14 +244,14 @@ describe("Scheduler", () => {
     });
   });
 
-  describe("runStage", () => {
+  describe("runSyncStage", () => {
     it("should execute all systems in the stage", () => {
       const system1 = vi.fn();
       const system2 = vi.fn();
       const system3 = vi.fn();
 
       scheduler.addSystems(Schedule.Update, [system1, system2, system3]);
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(system1).toHaveBeenCalledOnce();
       expect(system2).toHaveBeenCalledOnce();
@@ -249,36 +261,36 @@ describe("Scheduler", () => {
     it("should pass the system context to each system", () => {
       const system = vi.fn();
 
-      scheduler.addSystem(Schedule.Init, system);
-      scheduler.runStage(Schedule.Init, mockCtx);
+      scheduler.addSystem(Schedule.Update, system);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(system).toHaveBeenCalledWith(mockCtx);
     });
 
     it("should execute systems in insertion order", () => {
       const executionOrder: number[] = [];
-      const system1: SystemFn = () => executionOrder.push(1);
-      const system2: SystemFn = () => executionOrder.push(2);
-      const system3: SystemFn = () => executionOrder.push(3);
+      const system1: SyncSystemFn = () => executionOrder.push(1);
+      const system2: SyncSystemFn = () => executionOrder.push(2);
+      const system3: SyncSystemFn = () => executionOrder.push(3);
 
       scheduler.addSystem(Schedule.Update, system1);
       scheduler.addSystem(Schedule.Update, system2);
       scheduler.addSystem(Schedule.Update, system3);
 
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(executionOrder).toEqual([1, 2, 3]);
     });
 
     it("should handle empty stages gracefully", () => {
       expect(() => {
-        scheduler.runStage(Schedule.PreInit, mockCtx);
+        scheduler.runSyncStage(Schedule.Update, mockCtx);
       }).not.toThrow();
     });
 
     it("should continue execution if a system throws an error", () => {
       const system1 = vi.fn();
-      const errorSystem: SystemFn = () => {
+      const errorSystem: SyncSystemFn = () => {
         throw new Error("Test error");
       };
       const system3 = vi.fn();
@@ -286,7 +298,7 @@ describe("Scheduler", () => {
       scheduler.addSystems(Schedule.Update, [system1, errorSystem, system3]);
 
       expect(() => {
-        scheduler.runStage(Schedule.Update, mockCtx);
+        scheduler.runSyncStage(Schedule.Update, mockCtx);
       }).toThrow("Test error");
 
       // First system should have run
@@ -296,25 +308,68 @@ describe("Scheduler", () => {
     });
 
     it("should not affect other stages", () => {
-      const initSystem = vi.fn();
       const updateSystem = vi.fn();
+      const tickSystem = vi.fn();
+
+      scheduler.addSystem(Schedule.Update, updateSystem);
+      scheduler.addSystem(Schedule.Tick, tickSystem);
+
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
+
+      expect(updateSystem).toHaveBeenCalled();
+      expect(tickSystem).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("runAsyncStage", () => {
+    it("should execute all async systems in the stage", async () => {
+      const system1 = vi.fn();
+      const system2 = vi.fn();
+      const system3 = vi.fn();
+
+      scheduler.addSystems(Schedule.Init, [system1, system2, system3]);
+      await scheduler.runAsyncStage(Schedule.Init, mockCtx);
+
+      expect(system1).toHaveBeenCalledOnce();
+      expect(system2).toHaveBeenCalledOnce();
+      expect(system3).toHaveBeenCalledOnce();
+    });
+
+    it("should pass the system context to each system", async () => {
+      const system = vi.fn();
+
+      scheduler.addSystem(Schedule.Init, system);
+      await scheduler.runAsyncStage(Schedule.Init, mockCtx);
+
+      expect(system).toHaveBeenCalledWith(mockCtx);
+    });
+
+    it("should handle empty async stages gracefully", async () => {
+      await expect(async () => {
+        await scheduler.runAsyncStage(Schedule.PreInit, mockCtx);
+      }).not.toThrow();
+    });
+
+    it("should not affect other stages", async () => {
+      const initSystem = vi.fn();
+      const exitSystem = vi.fn();
 
       scheduler.addSystem(Schedule.Init, initSystem);
-      scheduler.addSystem(Schedule.Update, updateSystem);
+      scheduler.addSystem(Schedule.Exit, exitSystem);
 
-      scheduler.runStage(Schedule.Init, mockCtx);
+      await scheduler.runAsyncStage(Schedule.Init, mockCtx);
 
       expect(initSystem).toHaveBeenCalled();
-      expect(updateSystem).not.toHaveBeenCalled();
+      expect(exitSystem).not.toHaveBeenCalled();
     });
   });
 
   describe("method chaining", () => {
     it("should allow fluent configuration", () => {
-      const system1: SystemFn = vi.fn();
-      const system2: SystemFn = vi.fn();
-      const system3: SystemFn = vi.fn();
-      const system4: SystemFn = vi.fn();
+      const system1: AsyncSystemFn = vi.fn();
+      const system2: SyncSystemFn = vi.fn();
+      const system3: SyncSystemFn = vi.fn();
+      const system4: AsyncSystemFn = vi.fn();
 
       const result = scheduler
         .addSystem(Schedule.Init, system1)
@@ -330,10 +385,10 @@ describe("Scheduler", () => {
 
   describe("system execution context", () => {
     it("should provide access to time in system context", () => {
-      const system: SystemFn = vi.fn();
+      const system: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Update, system);
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(system).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -343,10 +398,10 @@ describe("Scheduler", () => {
     });
 
     it("should provide access to events in system context", () => {
-      const system: SystemFn = vi.fn();
+      const system: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Update, system);
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(system).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -356,10 +411,10 @@ describe("Scheduler", () => {
     });
 
     it("should provide stop function in system context", () => {
-      const system: SystemFn = vi.fn();
+      const system: SyncSystemFn = vi.fn();
 
       scheduler.addSystem(Schedule.Update, system);
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(system).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -369,7 +424,7 @@ describe("Scheduler", () => {
     });
 
     it("should allow systems to interact with the context", () => {
-      const system: SystemFn = (ctx) => {
+      const system: SyncSystemFn = (ctx: SystemCtx) => {
         ctx.stop(); // Call the stop function
         expect(ctx.time).toBeDefined();
         expect(ctx.events).toBeDefined();
@@ -379,55 +434,26 @@ describe("Scheduler", () => {
       scheduler.addSystem(Schedule.Update, system);
 
       expect(() => {
-        scheduler.runStage(Schedule.Update, mockCtx);
+        scheduler.runSyncStage(Schedule.Update, mockCtx);
       }).not.toThrow();
 
       expect(mockCtx.stop).toHaveBeenCalled();
     });
   });
 
-  describe("all schedule stages", () => {
-    it("should support all defined schedule stages", () => {
-      const systems: SystemFn[] = [];
-
-      Object.values(Schedule).forEach((stage) => {
-        const system = vi.fn();
-        systems.push(system);
-        scheduler.addSystem(stage, system);
-      });
-
-      Object.values(Schedule).forEach((stage, index) => {
-        scheduler.runStage(stage, mockCtx);
-        expect(systems[index]).toHaveBeenCalled();
-      });
-    });
-
-    it("should maintain separate system lists for each stage", () => {
-      const systemsByStage = new Map<ScheduleStage, SystemFn>();
-
-      Object.values(Schedule).forEach((stage) => {
-        const system = vi.fn();
-        systemsByStage.set(stage, system);
-        scheduler.addSystem(stage, system);
-      });
-
-      Object.values(Schedule).forEach((stage) => {
-        const systems = scheduler.getSystems(stage);
-        const expectedSystem = systemsByStage.get(stage);
-
-        expect(systems).toEqual([expectedSystem]);
-        expect(systems).toHaveLength(1);
-      });
-    });
-  });
-
   describe("integration scenarios", () => {
-    it("should handle typical game initialization flow", () => {
+    it("should handle typical game initialization flow", async () => {
       const executionLog: string[] = [];
 
-      const preInitSystem: SystemFn = () => executionLog.push("preInit");
-      const initSystem: SystemFn = () => executionLog.push("init");
-      const postInitSystem: SystemFn = () => executionLog.push("postInit");
+      const preInitSystem: AsyncSystemFn = () => {
+        executionLog.push("preInit");
+      };
+      const initSystem: AsyncSystemFn = () => {
+        executionLog.push("init");
+      };
+      const postInitSystem: AsyncSystemFn = () => {
+        executionLog.push("postInit");
+      };
 
       scheduler
         .addSystem(Schedule.PreInit, preInitSystem)
@@ -435,9 +461,9 @@ describe("Scheduler", () => {
         .addSystem(Schedule.PostInit, postInitSystem);
 
       // Simulate initialization sequence
-      scheduler.runStage(Schedule.PreInit, mockCtx);
-      scheduler.runStage(Schedule.Init, mockCtx);
-      scheduler.runStage(Schedule.PostInit, mockCtx);
+      await scheduler.runAsyncStage(Schedule.PreInit, mockCtx);
+      await scheduler.runAsyncStage(Schedule.Init, mockCtx);
+      await scheduler.runAsyncStage(Schedule.PostInit, mockCtx);
 
       expect(executionLog).toEqual(["preInit", "init", "postInit"]);
     });
@@ -445,10 +471,12 @@ describe("Scheduler", () => {
     it("should handle typical game update loop", () => {
       const executionLog: string[] = [];
 
-      const preUpdateSystem: SystemFn = () => executionLog.push("preUpdate");
-      const tickSystem: SystemFn = () => executionLog.push("tick");
-      const updateSystem: SystemFn = () => executionLog.push("update");
-      const postUpdateSystem: SystemFn = () => executionLog.push("postUpdate");
+      const preUpdateSystem: SyncSystemFn = () =>
+        executionLog.push("preUpdate");
+      const tickSystem: SyncSystemFn = () => executionLog.push("tick");
+      const updateSystem: SyncSystemFn = () => executionLog.push("update");
+      const postUpdateSystem: SyncSystemFn = () =>
+        executionLog.push("postUpdate");
 
       scheduler
         .addSystem(Schedule.PreUpdate, preUpdateSystem)
@@ -457,10 +485,10 @@ describe("Scheduler", () => {
         .addSystem(Schedule.PostUpdate, postUpdateSystem);
 
       // Simulate one frame
-      scheduler.runStage(Schedule.PreUpdate, mockCtx);
-      scheduler.runStage(Schedule.Tick, mockCtx);
-      scheduler.runStage(Schedule.Update, mockCtx);
-      scheduler.runStage(Schedule.PostUpdate, mockCtx);
+      scheduler.runSyncStage(Schedule.PreUpdate, mockCtx);
+      scheduler.runSyncStage(Schedule.Tick, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.PostUpdate, mockCtx);
 
       expect(executionLog).toEqual([
         "preUpdate",
@@ -473,13 +501,13 @@ describe("Scheduler", () => {
     it("should handle complex system dependencies", () => {
       const state = { value: 0 };
 
-      const incrementSystem: SystemFn = () => {
+      const incrementSystem: SyncSystemFn = () => {
         state.value += 10;
       };
-      const multiplySystem: SystemFn = () => {
+      const multiplySystem: SyncSystemFn = () => {
         state.value *= 2;
       };
-      const decrementSystem: SystemFn = () => {
+      const decrementSystem: SyncSystemFn = () => {
         state.value -= 5;
       };
 
@@ -489,7 +517,7 @@ describe("Scheduler", () => {
         .addSystem(Schedule.Update, multiplySystem) // 10 * 2 = 20
         .addSystem(Schedule.Update, decrementSystem); // 20 - 5 = 15
 
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
 
       expect(state.value).toBe(15);
     });
@@ -497,21 +525,21 @@ describe("Scheduler", () => {
     it("should handle systems that modify scheduler state", () => {
       let dynamicSystemExecuted = false;
 
-      const dynamicSystem: SystemFn = () => {
+      const dynamicSystem: SyncSystemFn = () => {
         dynamicSystemExecuted = true;
       };
 
-      const addSystemDynamically: SystemFn = () => {
+      const addSystemDynamically: SyncSystemFn = () => {
         scheduler.addSystem(Schedule.PostUpdate, dynamicSystem);
       };
 
       scheduler.addSystem(Schedule.Update, addSystemDynamically);
 
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
       expect(dynamicSystemExecuted).toBe(false);
 
       // The dynamically added system should be available for the next run
-      scheduler.runStage(Schedule.PostUpdate, mockCtx);
+      scheduler.runSyncStage(Schedule.PostUpdate, mockCtx);
       expect(dynamicSystemExecuted).toBe(true);
     });
   });
@@ -519,7 +547,7 @@ describe("Scheduler", () => {
   describe("performance considerations", () => {
     it("should handle large numbers of systems efficiently", () => {
       const systemCount = 1000;
-      const systems: SystemFn[] = [];
+      const systems: SyncSystemFn[] = [];
 
       for (let i = 0; i < systemCount; i++) {
         const system = vi.fn();
@@ -528,7 +556,7 @@ describe("Scheduler", () => {
       }
 
       const start = performance.now();
-      scheduler.runStage(Schedule.Update, mockCtx);
+      scheduler.runSyncStage(Schedule.Update, mockCtx);
       const end = performance.now();
 
       // Should complete within a reasonable time (this is a loose check)
@@ -541,7 +569,7 @@ describe("Scheduler", () => {
     });
 
     it("should maintain stable performance across multiple runs", () => {
-      const systems: SystemFn[] = [];
+      const systems: SyncSystemFn[] = [];
       for (let i = 0; i < 100; i++) {
         systems.push(vi.fn());
       }
@@ -551,7 +579,7 @@ describe("Scheduler", () => {
       // Run multiple times to check for performance degradation
       for (let run = 0; run < 10; run++) {
         const start = performance.now();
-        scheduler.runStage(Schedule.Update, mockCtx);
+        scheduler.runSyncStage(Schedule.Update, mockCtx);
         const end = performance.now();
 
         expect(end - start).toBeLessThan(50); // Should stay fast

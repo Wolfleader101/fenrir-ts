@@ -1,4 +1,4 @@
-import type { SystemCtx, SystemFn } from "./SystemCtx";
+import type { AsyncSystemFn, SyncSystemFn, SystemCtx } from "./SystemCtx";
 
 export const Schedule = {
   PreInit: "preInit",
@@ -13,27 +13,53 @@ export const Schedule = {
 
 export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
 
+export type AsyncStage =
+  | typeof Schedule.PreInit
+  | typeof Schedule.Init
+  | typeof Schedule.PostInit
+  | typeof Schedule.Exit;
+
+export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
+
 const ALL_STAGES = Object.values(Schedule);
 
-type StageRecord = Record<ScheduleStage, SystemFn[]>;
+type StageRecord = {
+  [K in SyncStage]: SyncSystemFn[];
+} & {
+  [K in AsyncStage]: AsyncSystemFn[];
+};
 
-function createStageRecord() {
+function createStageRecord(): StageRecord {
   const record = {} as StageRecord;
-  for (const s of ALL_STAGES) record[s] = [];
+  ALL_STAGES.forEach((s) => {
+    (record as any)[s] = [];
+  });
   return record;
 }
 
-export class Scheduler {
-  private readonly stages: Record<ScheduleStage, SystemFn[]> =
-    createStageRecord();
+const isPromise = (v: any): v is Promise<any> =>
+  v != null && typeof v.then === "function";
 
-  public addSystem(stage: ScheduleStage, system: SystemFn) {
-    this.stages[stage].push(system);
+export class Scheduler {
+  private readonly stages = createStageRecord();
+
+  public addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn): this;
+  public addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn): this;
+  public addSystem(stage: ScheduleStage, system: any) {
+    this.stages[stage as keyof StageRecord].push(system);
     return this;
   }
 
-  public addSystems(stage: ScheduleStage, systems: readonly SystemFn[]) {
-    systems.forEach((s) => this.addSystem(stage, s));
+  public addSystems<S extends SyncStage>(
+    stage: S,
+    systems: readonly SyncSystemFn[]
+  ): this;
+  public addSystems<S extends AsyncStage>(
+    stage: S,
+    systems: readonly AsyncSystemFn[]
+  ): this;
+  public addSystems(stage: ScheduleStage, systems: readonly any[]) {
+    systems.forEach((s) => this.addSystem(stage as any, s));
     return this;
   }
 
@@ -41,10 +67,14 @@ export class Scheduler {
     return this.stages[stage];
   }
 
-  public runStage(stage: ScheduleStage, ctx: SystemCtx) {
-    // stable insertion order
+  public runSyncStage<S extends SyncStage>(stage: S, ctx: SystemCtx) {
+    for (const system of this.stages[stage]) system(ctx);
+  }
+
+  public async runAsyncStage<S extends AsyncStage>(stage: S, ctx: SystemCtx) {
     for (const system of this.stages[stage]) {
-      system(ctx);
+      const res = system(ctx);
+      if (isPromise(res)) await res;
     }
   }
 }

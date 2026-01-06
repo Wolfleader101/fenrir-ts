@@ -1,7 +1,12 @@
-import type { Scheduler, ScheduleStage } from "./Scheduler";
+import type {
+  AsyncStage,
+  Scheduler,
+  ScheduleStage,
+  SyncStage,
+} from "./Scheduler";
 import { Schedule } from "./Scheduler";
 import { Time } from "./Time";
-import type { SystemCtx, SystemFn } from "./SystemCtx";
+import type { AsyncSystemFn, SyncSystemFn, SystemCtx } from "./SystemCtx";
 import type { EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
 import type { ILogger } from "./ILogger";
@@ -50,16 +55,17 @@ export class Engine {
     };
   }
 
-  public run(): void {
+  public async run(): Promise<void> {
     if (this.running) return;
 
     this.running = true;
 
     const ctx = this.createSystemCtx();
 
-    this.scheduler.runStage(Schedule.PreInit, ctx);
-    this.scheduler.runStage(Schedule.Init, ctx);
-    this.scheduler.runStage(Schedule.PostInit, ctx);
+    // Run async initialization stages sequentially
+    await this.scheduler.runAsyncStage(Schedule.PreInit, ctx);
+    await this.scheduler.runAsyncStage(Schedule.Init, ctx);
+    await this.scheduler.runAsyncStage(Schedule.PostInit, ctx);
 
     const loop = () => {
       if (!this.running) return;
@@ -67,17 +73,17 @@ export class Engine {
       this.time.update();
 
       // Pre-render/update phase
-      this.scheduler.runStage(Schedule.PreUpdate, ctx);
+      this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
 
       // Fixed timestep updates
       while (this.time.accumulator >= this.time.tickRate) {
-        this.scheduler.runStage(Schedule.Tick, ctx);
+        this.scheduler.runSyncStage(Schedule.Tick, ctx);
         this.time.accumulator -= this.time.tickRate;
       }
 
       // Variable updates & rendering
-      this.scheduler.runStage(Schedule.Update, ctx);
-      this.scheduler.runStage(Schedule.PostUpdate, ctx);
+      this.scheduler.runSyncStage(Schedule.Update, ctx);
+      this.scheduler.runSyncStage(Schedule.PostUpdate, ctx);
 
       // Frame boundary: update event queues
       this.events.update();
@@ -88,7 +94,7 @@ export class Engine {
     this.rafId = requestAnimationFrame(loop);
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
     if (!this.running) return;
 
     this.running = false;
@@ -100,7 +106,7 @@ export class Engine {
 
     const ctx = this.createSystemCtx();
 
-    this.scheduler.runStage(Schedule.Exit, ctx);
+    await this.scheduler.runAsyncStage(Schedule.Exit, ctx);
   }
 
   public getTime(): Time {
@@ -112,13 +118,23 @@ export class Engine {
   }
 
   // System Registration methods
-  public addSystem(stage: ScheduleStage, system: SystemFn) {
-    this.scheduler.addSystem(stage, system);
+  public addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn): this;
+  public addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn): this;
+  public addSystem(stage: ScheduleStage, system: any) {
+    this.scheduler.addSystem(stage as any, system);
     return this;
   }
 
-  public addSystems(stage: ScheduleStage, systems: readonly SystemFn[]) {
-    this.scheduler.addSystems(stage, systems);
+  public addSystems<S extends SyncStage>(
+    stage: S,
+    systems: readonly SyncSystemFn[]
+  ): this;
+  public addSystems<S extends AsyncStage>(
+    stage: S,
+    systems: readonly AsyncSystemFn[]
+  ): this;
+  public addSystems(stage: ScheduleStage, systems: readonly any[]) {
+    this.scheduler.addSystems(stage as any, systems);
     return this;
   }
 }
