@@ -10,7 +10,6 @@ import { SceneManager } from "./core/SceneManager.ts";
 import { EventBus } from "./core/EventBus.ts";
 import { ConsoleLogger } from "./core/ConsoleLogger.ts";
 import type { ILogger } from "./core/ILogger.ts";
-import { createTransformPropagationSystem } from "./core/TransformPropagationSystem.ts";
 import { createThreeRendererSystem } from "./core/Renderer/ThreeRendererSystem.ts";
 import { spinSystem } from "./game/spin.ts";
 import { createTestScene } from "./game/testScene.ts";
@@ -55,8 +54,6 @@ const domInput = createDomInputSystems({
 
 const input = createInputStateSystem();
 
-const transformPropagation = createTransformPropagationSystem();
-
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
 const renderer = createThreeRendererSystem({
@@ -84,7 +81,6 @@ engine
   ])
   .addSystems(Schedule.PreUpdate, [
     input.preUpdate,
-    transformPropagation.preUpdate,
     animations.preUpdate,
     spinSystem,
   ])

@@ -10,7 +10,7 @@ import * as THREE from "three";
 vi.mock("three", () => {
   const MockTexture = vi.fn(function () {
     return {
-      mapping: THREE.EquirectangularReflectionMapping,
+      mapping: 301, // THREE.EquirectangularReflectionMapping
       dispose: vi.fn(),
     };
   });
@@ -21,39 +21,45 @@ vi.mock("three", () => {
   };
 });
 
-// Mock the loaders
+// Mock the loaders - use the actual mocked functions for default behavior
+const mockGltfLoaderFn = vi.fn().mockResolvedValue({
+  geometry: { name: "MockGeometry" },
+  animations: [{ name: "mockAnimation" }],
+  materials: [{ name: "MockMaterial" }],
+});
+
+const mockTextureLoaderFn = vi.fn().mockResolvedValue({
+  mapping: 301,
+  dispose: vi.fn(),
+});
+
 vi.mock("@/core/Assets/loaders/gltfLoader", () => ({
-  createGltfLoader: vi.fn(() =>
-    vi.fn().mockResolvedValue({
-      geometry: { name: "MockGeometry" },
-      animations: [{ name: "mockAnimation" }],
-      materials: [{ name: "MockMaterial" }],
-    })
-  ),
+  createGltfLoader: vi.fn(() => mockGltfLoaderFn),
 }));
 
 vi.mock("@/core/Assets/loaders/textureLoader", () => ({
-  createTextureLoader: vi.fn(() =>
-    vi.fn().mockResolvedValue(new THREE.Texture())
-  ),
+  createTextureLoader: vi.fn(() => mockTextureLoaderFn),
 }));
 
 describe("AssetStore", () => {
   let assetStore: AssetStore;
-  let mockGltfLoader: any;
-  let mockTextureLoader: any;
+  let customGltfLoader: any;
+  let customTextureLoader: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create mock loaders
-    mockGltfLoader = vi.fn().mockResolvedValue({
+    // Create custom loaders for specific tests
+    customGltfLoader = vi.fn().mockResolvedValue({
       geometry: { name: "TestGeometry" },
       animations: [{ name: "testAnimation" }],
       materials: [{ name: "TestMaterial" }],
     });
 
-    mockTextureLoader = vi.fn().mockResolvedValue(new THREE.Texture());
+    customTextureLoader = vi.fn().mockResolvedValue({
+      mapping: 301,
+      dispose: vi.fn(),
+    });
 
     assetStore = new AssetStore();
   });
@@ -71,13 +77,13 @@ describe("AssetStore", () => {
       const config: AssetStoreConfig = {
         modelLoaders: {
           customModel: {
-            loader: mockGltfLoader,
+            loader: customGltfLoader,
             extensions: ["custom"],
           },
         },
         textureLoaders: {
           customTexture: {
-            loader: mockTextureLoader,
+            loader: customTextureLoader,
             extensions: ["ct"],
           },
         },
@@ -105,7 +111,7 @@ describe("AssetStore", () => {
       const initialExtensions = assetStore.getSupportedModelExtensions();
 
       assetStore.registerModelLoader("test", {
-        loader: mockGltfLoader,
+        loader: customGltfLoader,
         extensions: ["test"],
       });
 
@@ -118,7 +124,7 @@ describe("AssetStore", () => {
       const initialExtensions = assetStore.getSupportedTextureExtensions();
 
       assetStore.registerTextureLoader("test", {
-        loader: mockTextureLoader,
+        loader: customTextureLoader,
         extensions: ["test"],
       });
 
@@ -131,7 +137,7 @@ describe("AssetStore", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       assetStore.registerModelLoader("gltf", {
-        loader: mockGltfLoader,
+        loader: customGltfLoader,
         extensions: ["glb"],
       });
 
@@ -145,7 +151,7 @@ describe("AssetStore", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       assetStore.registerTextureLoader("texture", {
-        loader: mockTextureLoader,
+        loader: customTextureLoader,
         extensions: ["jpg"],
       });
 
@@ -173,12 +179,12 @@ describe("AssetStore", () => {
 
     it("should handle multiple loaders with same extensions", () => {
       assetStore.registerModelLoader("test1", {
-        loader: mockGltfLoader,
+        loader: customGltfLoader,
         extensions: ["glb", "test"],
       });
 
       assetStore.registerModelLoader("test2", {
-        loader: mockGltfLoader,
+        loader: customGltfLoader,
         extensions: ["glb", "other"],
       });
 
@@ -191,16 +197,16 @@ describe("AssetStore", () => {
 
   describe("model loading", () => {
     it("should load model with supported extension", async () => {
-      // Register a mock loader that will be called
-      assetStore.registerModelLoader("test-gltf", {
-        loader: mockGltfLoader,
-        extensions: ["gltf"],
+      // Register a custom loader with unique extension
+      assetStore.registerModelLoader("test-model", {
+        loader: customGltfLoader,
+        extensions: ["test"],
       });
 
       const key = assetKey("test-model");
-      await assetStore.loadModel(key, "test.gltf");
+      await assetStore.loadModel(key, "test.test");
 
-      expect(mockGltfLoader).toHaveBeenCalledWith({ url: "test.gltf" });
+      expect(customGltfLoader).toHaveBeenCalledWith({ url: "test.test" });
     });
 
     it("should throw error for unsupported model extension", async () => {
@@ -222,16 +228,16 @@ describe("AssetStore", () => {
 
   describe("texture loading", () => {
     it("should load texture with supported extension", async () => {
-      // Register a mock loader that will be called
+      // Register a custom loader with unique extension
       assetStore.registerTextureLoader("test-texture", {
-        loader: mockTextureLoader,
-        extensions: ["jpg"],
+        loader: customTextureLoader,
+        extensions: ["test"],
       });
 
       const key = assetKey("test-texture");
-      await assetStore.loadTexture(key, "test.jpg");
+      await assetStore.loadTexture(key, "test.test");
 
-      expect(mockTextureLoader).toHaveBeenCalledWith({ url: "test.jpg" });
+      expect(customTextureLoader).toHaveBeenCalledWith({ url: "test.test" });
     });
 
     it("should throw error for unsupported texture extension", async () => {
@@ -245,59 +251,52 @@ describe("AssetStore", () => {
 
   describe("asset retrieval", () => {
     beforeEach(async () => {
-      // Set up test assets
-      assetStore.registerModelLoader("test-gltf", {
-        loader: mockGltfLoader,
-        extensions: ["gltf"],
-      });
-
-      assetStore.registerTextureLoader("test-texture", {
-        loader: mockTextureLoader,
-        extensions: ["jpg"],
-      });
-
+      // Set up test assets using default loaders (already mocked)
       await assetStore.loadModel(assetKey("model"), "test.gltf");
       await assetStore.loadTexture(assetKey("texture"), "test.jpg");
     });
 
     it("should get geometry from model asset", async () => {
       const geometry = await assetStore.getGeometry(assetKey("model"));
-      expect(geometry).toEqual({ name: "TestGeometry" });
+      expect(geometry).toEqual({ name: "MockGeometry" });
     });
 
     it("should get animations from model asset", async () => {
       const animations = await assetStore.getAnimations(assetKey("model"));
-      expect(animations).toEqual([{ name: "testAnimation" }]);
+      expect(animations).toEqual([{ name: "mockAnimation" }]);
       // Should return a copy, not the original array
       expect(animations).not.toBe(
-        mockGltfLoader.mock.results[0].value.animations
+        mockGltfLoaderFn.mock.results[0].value.animations
       );
     });
 
     it("should get materials from model asset", async () => {
       const materials = await assetStore.getMaterials(assetKey("model"));
-      expect(materials).toEqual([{ name: "TestMaterial" }]);
+      expect(materials).toEqual([{ name: "MockMaterial" }]);
       // Should return a copy, not the original array
       expect(materials).not.toBe(
-        mockGltfLoader.mock.results[0].value.materials
+        mockGltfLoaderFn.mock.results[0].value.materials
       );
     });
 
     it("should get texture asset", async () => {
       const texture = await assetStore.getTexture(assetKey("texture"));
-      expect(texture).toBeInstanceOf(THREE.Texture);
+      expect(texture).toEqual({ mapping: 301, dispose: expect.any(Function) });
     });
 
     it("should get generic asset", async () => {
       const modelAsset = await assetStore.get(assetKey("model"));
       expect(modelAsset).toEqual({
-        geometry: { name: "TestGeometry" },
-        animations: [{ name: "testAnimation" }],
-        materials: [{ name: "TestMaterial" }],
+        geometry: { name: "MockGeometry" },
+        animations: [{ name: "mockAnimation" }],
+        materials: [{ name: "MockMaterial" }],
       });
 
       const textureAsset = await assetStore.get(assetKey("texture"));
-      expect(textureAsset).toBeInstanceOf(THREE.Texture);
+      expect(textureAsset).toEqual({
+        mapping: 301,
+        dispose: expect.any(Function),
+      });
     });
 
     it("should throw error when getting geometry from texture", async () => {
@@ -333,30 +332,20 @@ describe("AssetStore", () => {
 
   describe("cache management", () => {
     it("should cache loaded assets", async () => {
-      assetStore.registerTextureLoader("test", {
-        loader: mockTextureLoader,
-        extensions: ["jpg"],
-      });
-
       const key = assetKey("cached-texture");
 
-      // Load asset twice
+      // Load asset twice using default loader
       await assetStore.loadTexture(key, "test.jpg");
       const texture1 = await assetStore.getTexture(key);
       const texture2 = await assetStore.getTexture(key);
 
       // Should return same instance from cache
       expect(texture1).toBe(texture2);
-      // Loader should only be called once
-      expect(mockTextureLoader).toHaveBeenCalledTimes(1);
+      // Default loader should only be called once (cache working)
+      expect(mockTextureLoaderFn).toHaveBeenCalledTimes(1);
     });
 
     it("should clear cache", async () => {
-      assetStore.registerTextureLoader("test", {
-        loader: mockTextureLoader,
-        extensions: ["jpg"],
-      });
-
       const key = assetKey("test-texture");
       await assetStore.loadTexture(key, "test.jpg");
 
@@ -406,7 +395,7 @@ describe("AssetStore", () => {
   describe("file extension handling", () => {
     it("should handle case insensitive extensions", async () => {
       assetStore.registerModelLoader("test", {
-        loader: mockGltfLoader,
+        loader: customGltfLoader,
         extensions: ["gltf"],
       });
 
@@ -420,7 +409,7 @@ describe("AssetStore", () => {
 
     it("should handle multiple dots in filename", async () => {
       assetStore.registerTextureLoader("test", {
-        loader: mockTextureLoader,
+        loader: customTextureLoader,
         extensions: ["jpg"],
       });
 
