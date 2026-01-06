@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@types/three": "^0.182.0",
+    "jolt-physics": "^1.0.0",
     "three": "^0.182.0"
   }
 }
