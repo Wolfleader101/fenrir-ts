@@ -1,10 +1,10 @@
 import { Quaternion, Vector3 } from "three";
 import type { ComponentType } from "./Component";
 import {
+  applyDefaultComponents,
   Name,
   Relationship,
   Transform,
-  WorldTransform,
 } from "./DefaultComponents";
 import { Pool } from "./Pool";
 import { ComponentSignals } from "./Signals";
@@ -89,27 +89,7 @@ export class EntityList {
     const e = packEntity(id, this.generations[id]);
 
     // defaults
-    this.set(e, Transform, {
-      position: new Vector3(),
-      rotation: new Quaternion(),
-      scale: new Vector3(1, 1, 1),
-    });
-
-    this.set(e, WorldTransform, {
-      position: new Vector3(),
-      rotation: new Quaternion(),
-      scale: new Vector3(1, 1, 1),
-    });
-
-    this.set(e, Name, { name: `Entity ${id}` });
-
-    const nullE = this.nullEntity();
-    this.set(e, Relationship, {
-      parent: nullE,
-      firstChild: nullE,
-      nextSibling: nullE,
-      prevSibling: nullE,
-    });
+    applyDefaultComponents(this, e);
 
     return e;
   }
@@ -275,7 +255,6 @@ export class EntityList {
     const MOVEMENT_QUERY = [Position, Velocity] as const;
     entityList.each(MOVEMENT_QUERY, ...);
    */
-
   public view<TTypes extends AnyTypes>(types: TTypes) {
     const existing = this.viewCache.get(types);
     if (existing) return existing as View<TTypes>;

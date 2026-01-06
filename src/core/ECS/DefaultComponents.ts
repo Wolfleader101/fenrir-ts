@@ -10,14 +10,6 @@ export type Transform = {
 
 export const Transform = defineComponent<Transform>("Transform");
 
-export type WorldTransform = {
-  position: Vector3;
-  rotation: Quaternion;
-  scale: Vector3;
-};
-
-export const WorldTransform = defineComponent<WorldTransform>("WorldTransform");
-
 export type Name = {
   name: string;
 };
@@ -50,6 +42,6 @@ export function applyDefaultComponents(entities: EntityList, e: Entity) {
     scale: new Vector3(1, 1, 1),
   });
 
-  entities.set(e, Name, { name: `Entity ${entities.idOf(e)}` }); // or unpackId(e)
+  entities.set(e, Name, { name: `Entity ${entities.idOf(e)}` });
   entities.set(e, Relationship, makeRelationship(entities.nullEntity()));
 }
