@@ -1,6 +1,5 @@
 import { defineComponent } from "../ECS";
 import type { AssetKey } from "../Assets/AssetStore";
-import type { EntityBuilder } from "../EntityBuilder/EntityBuilder";
 
 export type GeometryDesc =
   | { kind: "box"; size?: [number, number, number] } // default 1,1,1

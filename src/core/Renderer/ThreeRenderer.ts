@@ -1,8 +1,10 @@
 import * as THREE from "three";
+
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import type { Entity, EntityList } from "../ECS";
-import { WorldTransform } from "../ECS/DefaultComponents";
+import { Transform } from "../ECS/DefaultComponents";
 import type { ILogger } from "../ILogger";
+import type { Scene } from "../Scene";
 import {
   type RenderFlags,
   type GeometryDesc,
@@ -10,6 +12,8 @@ import {
   Renderable,
 } from "./renderComponents";
 import type { IAssetStore } from "../Assets/AssetStore";
+import type { CameraInstance } from "../Camera/CameraComponents";
+import type { SkyboxInstance } from "../Skybox/SkyboxComponents";
 
 type ObjKey = string;
 const keyFor = (e: Entity, id: number) => `${e}:${id}`;
@@ -51,7 +55,7 @@ function isNoneMat(
 export class ThreeRenderer {
   public readonly scene = new THREE.Scene();
   public readonly renderer: THREE.WebGLRenderer;
-  public readonly camera: THREE.PerspectiveCamera;
+  public readonly camera: THREE.PerspectiveCamera; // Kept for backward compatibility
 
   private readonly objects = new Map<ObjKey, THREE.Object3D>();
 
@@ -59,6 +63,7 @@ export class ThreeRenderer {
   private readonly matCache = new Map<string, THREE.Material>();
 
   private readonly assets: IAssetStore;
+  private currentSkybox: SkyboxInstance | null = null;
 
   // optional: ref counts if you want to dispose caches safely later
   // private readonly geomRef = new Map<string, number>();
@@ -180,8 +185,9 @@ export class ThreeRenderer {
 
     this.applyFlags(obj, r.flags);
 
-    if (entities.has(e, WorldTransform)) {
-      this.applyWorldTransform(obj, entities.get(e, WorldTransform));
+    // Apply transform directly from Transform component
+    if (entities.has(e, Transform)) {
+      this.applyWorldTransform(obj, entities.get(e, Transform));
     }
   }
 
@@ -200,18 +206,87 @@ export class ThreeRenderer {
 
   /** Sync transforms for all renderables each frame. */
   public syncTransforms(entities: EntityList) {
-    // Iterate only entities that have both WorldTransform and Renderable
-    const Q = [WorldTransform, Renderable] as const;
+    // Iterate only entities that have both Transform and Renderable
+    const Q = [Transform, Renderable] as const;
 
-    entities.each(Q, (e, wt, r) => {
+    entities.each(Q, (e, transform, r) => {
       const obj = this.objects.get(keyFor(e, r.id));
       if (!obj) return; // if added without signals, fallback could upsert here
-      this.applyWorldTransform(obj, wt);
+      this.applyWorldTransform(obj, transform);
     });
   }
 
+  /**
+   * Render with cameras
+   */
+  public renderWithCameras(
+    cameras: Array<[Entity, CameraInstance]>,
+    ecsScene?: Scene,
+    skyboxInstance?: SkyboxInstance | null
+  ) {
+    // Update skybox if needed
+    this.updateSkybox(skyboxInstance ?? null);
+
+    // Render each camera in order
+    for (const [entity, cameraInstance] of cameras) {
+      const camera = cameraInstance.threeCamera;
+
+      // Apply viewport if camera has one
+      const viewport = (camera as any).viewport;
+      if (viewport) {
+        const canvas = this.renderer.domElement;
+        this.renderer.setViewport(
+          viewport.x * canvas.width,
+          viewport.y * canvas.height,
+          viewport.width * canvas.width,
+          viewport.height * canvas.height
+        );
+        this.renderer.setScissor(
+          viewport.x * canvas.width,
+          viewport.y * canvas.height,
+          viewport.width * canvas.width,
+          viewport.height * canvas.height
+        );
+        this.renderer.setScissorTest(true);
+      } else {
+        // Full viewport
+        this.renderer.setViewport(
+          0,
+          0,
+          this.renderer.domElement.width,
+          this.renderer.domElement.height
+        );
+        this.renderer.setScissorTest(false);
+      }
+
+      // Render with this camera
+      this.renderer.render(this.scene, camera);
+    }
+
+    // Reset viewport
+    this.renderer.setViewport(
+      0,
+      0,
+      this.renderer.domElement.width,
+      this.renderer.domElement.height
+    );
+    this.renderer.setScissorTest(false);
+  }
+
+  /**
+   * Legacy render method (kept for backward compatibility)
+   */
   public render() {
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Render with a specific camera
+   */
+  public renderWithCamera(
+    camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
+  ) {
+    this.renderer.render(this.scene, camera);
   }
 
   /** Get the rendered Three.js object for an entity/renderable ID */
@@ -351,5 +426,40 @@ export class ThreeRenderer {
     obj.quaternion.copy(wt.rotation);
     obj.scale.copy(wt.scale);
     obj.updateMatrixWorld(true);
+  }
+
+  /**
+   * Update skybox in the scene using Three.js recommended scene.background approach
+   */
+  private updateSkybox(skyboxInstance: SkyboxInstance | null) {
+    // Remove current skybox background if it exists
+    if (this.currentSkybox && this.currentSkybox !== skyboxInstance) {
+      this.scene.background = null;
+      this.currentSkybox = null;
+    }
+
+    // Set new skybox background if provided
+    if (skyboxInstance && skyboxInstance !== this.currentSkybox) {
+      // Use Three.js recommended background approach for proper skybox rendering
+      this.scene.background = skyboxInstance.background;
+      this.currentSkybox = skyboxInstance;
+    }
+  }
+
+  /**
+   * Get the current skybox instance
+   */
+  public getCurrentSkybox(): SkyboxInstance | null {
+    return this.currentSkybox;
+  }
+
+  /**
+   * Force remove skybox from scene
+   */
+  public removeSkybox() {
+    if (this.currentSkybox) {
+      this.scene.background = null;
+      this.currentSkybox = null;
+    }
   }
 }

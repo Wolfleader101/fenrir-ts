@@ -1,14 +1,22 @@
 import type { IAssetStore } from "../Assets/AssetStore";
 import type { ILogger } from "../ILogger";
-import type { SystemFn } from "../SystemCtx";
+import type { SyncSystemFn } from "../SystemCtx";
 import { Renderable } from "./renderComponents";
 import { ThreeRenderer } from "./ThreeRenderer";
+import type { CameraInstance } from "../Camera/CameraComponents";
+import type { createCameraSystem } from "../Camera/CameraSystem";
+import type { createSkyboxSystem } from "../Skybox/SkyboxSystem";
+
+type CameraSystemInstance = ReturnType<typeof createCameraSystem>;
+type SkyboxSystemInstance = ReturnType<typeof createSkyboxSystem>;
 
 export function createThreeRendererSystem(opts: {
   logger: ILogger;
   canvas?: HTMLCanvasElement;
   clearColor?: number;
   assets: IAssetStore;
+  cameraSystem: CameraSystemInstance | undefined;
+  skyboxSystem: SkyboxSystemInstance | undefined;
 }) {
   let three = new ThreeRenderer({
     canvas: opts.canvas,
@@ -17,7 +25,9 @@ export function createThreeRendererSystem(opts: {
     assets: opts.assets,
   });
 
-  const init: SystemFn = (ctx) => {
+  const { cameraSystem, skyboxSystem } = opts;
+
+  const init: SyncSystemFn = (ctx) => {
     ctx.entities.signals.onAdd(Renderable, async (e, r) => {
       await three.upsertRenderable(ctx.entities, e, r);
     });
@@ -48,21 +58,46 @@ export function createThreeRendererSystem(opts: {
     cleanupFns.push(() => window.removeEventListener("resize", onResize));
   };
 
-  const update: SystemFn = (ctx) => {
+  const update: SyncSystemFn = (ctx) => {
     if (!three) return;
 
     // WorldTransform should already be computed in PreUpdate by your propagation system
     three.syncTransforms(ctx.entities);
   };
 
-  const postUpdate: SystemFn = () => {
+  const postUpdate: SyncSystemFn = (ctx) => {
     if (!three) return;
-    three.render();
+
+    // Check if we have camera and skybox systems for ECS rendering
+    if (cameraSystem && skyboxSystem) {
+      // Get cameras sorted by priority
+      const cameras = cameraSystem.getCamerasSortedByPriority(ctx.entities);
+
+      // Get skybox for current scene
+      const skyboxInstance = skyboxSystem.getSkyboxInstance(ctx.scene);
+
+      // Filter to get camera instances
+      const cameraInstances: Array<[number, CameraInstance]> = [];
+      for (const [entity, camera, instance] of cameras) {
+        cameraInstances.push([entity, instance]);
+      }
+
+      if (cameraInstances.length > 0) {
+        // Render with ECS cameras
+        three.renderWithCameras(cameraInstances, ctx.scene, skyboxInstance);
+      } else {
+        // Fallback to legacy rendering if no ECS cameras
+        three.render();
+      }
+    } else {
+      // Legacy rendering without camera/skybox systems
+      three.render();
+    }
   };
 
   const cleanupFns: Array<() => void> = [];
 
-  const exit: SystemFn = () => {
+  const exit: SyncSystemFn = () => {
     for (const fn of cleanupFns) fn();
     cleanupFns.length = 0;
   };
