@@ -23,9 +23,7 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
     // Set up skybox if asset store is provided
     if (assetStore) {
       try {
-        await SkyboxUtils.setupDefaultSkybox(ctx.scene, assetStore, {
-          intensity: 1.0,
-        });
+        await SkyboxUtils.setupDefaultSkybox(ctx.scene, assetStore);
         ctx.logger.info("✅ Skybox configured for physics demo");
       } catch (error) {
         ctx.logger.warn("Failed to setup skybox for physics demo", { error });

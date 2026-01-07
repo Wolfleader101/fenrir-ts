@@ -8,23 +8,41 @@ import {
   SyncMode,
   ShapeBuilder,
   CommonMaterials,
+  CollisionUtils,
 } from "../../Physics";
+import type { CollisionLayer, CollisionMask } from "../../Physics";
 import { createPhysicsBody } from "../../Physics/components/PhysicsBody";
 
 declare module "../EntityBuilder" {
   interface EntityBuilder {
     /**
-     * Adds a physics body with the specified motion type
+     * Adds a physics body with the specified motion type and collision layers
      */
     physicsBody(config: {
       motionType: MotionType;
-      layer?: number;
+      collisionLayer?: CollisionLayer;
+      collisionMask?: CollisionMask;
       syncMode?: SyncMode;
       mass?: number;
       gravityFactor?: number;
       allowSleeping?: boolean;
       isSensor?: boolean;
     }): EntityBuilder;
+
+    /**
+     * Set collision layer for physics body (Godot-style)
+     */
+    collisionLayer(layer: CollisionLayer): EntityBuilder;
+
+    /**
+     * Set collision mask for physics body (Godot-style)
+     */
+    collisionMask(mask: CollisionMask): EntityBuilder;
+
+    /**
+     * Set which layers this body can collide with (convenience method)
+     */
+    collidesWith(...layers: CollisionLayer[]): EntityBuilder;
 
     /**
      * Adds a box physics shape
@@ -94,9 +112,10 @@ EntityBuilder.prototype.physicsBody = function (config) {
   return this.with(
     PhysicsBody,
     createPhysicsBody({
-      bodyId: 0, // Will be set by PhysicsBodySystem
+      bodyId: 0, // Will be set by PhysicsSystem
       motionType: config.motionType,
-      layer: config.layer ?? 0,
+      collisionLayer: config.collisionLayer,
+      collisionMask: config.collisionMask,
       syncMode: config.syncMode ?? defaultSyncMode,
       mass: config.mass,
       gravityFactor: config.gravityFactor,
@@ -104,6 +123,39 @@ EntityBuilder.prototype.physicsBody = function (config) {
       isSensor: config.isSensor,
     })
   );
+};
+
+EntityBuilder.prototype.collisionLayer = function (layer) {
+  return this.modify(PhysicsBody, (body) => {
+    if (!body) {
+      throw new Error(
+        "PhysicsBody component must be added before setting collision layer"
+      );
+    }
+    return {
+      ...body,
+      collisionLayer: layer,
+    };
+  });
+};
+
+EntityBuilder.prototype.collisionMask = function (mask) {
+  return this.modify(PhysicsBody, (body) => {
+    if (!body) {
+      throw new Error(
+        "PhysicsBody component must be added before setting collision mask"
+      );
+    }
+    return {
+      ...body,
+      collisionMask: mask,
+    };
+  });
+};
+
+EntityBuilder.prototype.collidesWith = function (...layers) {
+  const mask = CollisionUtils.createMask(...layers);
+  return this.collisionMask(mask);
 };
 
 EntityBuilder.prototype.physicsBox = function (halfExtents, convexRadius) {

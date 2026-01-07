@@ -18,6 +18,10 @@ import {
   type JoltSettings,
   type JoltShape,
 } from "./utils/JoltWrapper";
+import {
+  type CollisionLayer,
+  type CollisionMask,
+} from "./utils/CollisionLayers";
 
 /**
  * Simplified PhysicsWorld interface for the new system
@@ -39,10 +43,8 @@ export interface SimplePhysicsWorld {
   readonly isInitialized: boolean;
 }
 
-// Object layers (simplified like the demo)
-const LAYER_NON_MOVING = 0;
-const LAYER_MOVING = 1;
-const NUM_OBJECT_LAYERS = 2;
+// Maximum number of collision layers (32-bit system)
+const MAX_COLLISION_LAYERS = 32;
 
 /**
  * Physics object tracking (like demo's dynamicObjects array)
@@ -50,6 +52,8 @@ const NUM_OBJECT_LAYERS = 2;
 interface PhysicsObject {
   readonly entity: Entity;
   readonly body: JoltBody;
+  readonly collisionLayer: CollisionLayer;
+  readonly collisionMask: CollisionMask;
 }
 
 /**
@@ -64,31 +68,57 @@ class PhysicsSystem {
   private physicsObjects: PhysicsObject[] = [];
 
   /**
-   * Setup collision filtering (exactly like the demo)
+   * Get Jolt object layer from collision layer bit
+   */
+  private getJoltLayerFromCollisionLayer(
+    collisionLayer: CollisionLayer
+  ): number {
+    // Convert collision layer bit to layer index (0-31)
+    const layerIndex = Math.log2(collisionLayer);
+    if (layerIndex < 0 || layerIndex >= 32 || !Number.isInteger(layerIndex)) {
+      throw new Error(
+        `Invalid collision layer: ${collisionLayer}. Must be a power of 2 (1, 2, 4, 8, etc.)`
+      );
+    }
+    return layerIndex;
+  }
+
+  /**
+   * Setup collision filtering based on Jolt docs example but with 32 layers
    */
   private setupCollisionFiltering(settings: JoltSettings): void {
     if (!this.jolt) throw new Error("Jolt not initialized");
 
-    // Layer that objects can be in, determines which other objects it can collide with
+    // Create object layer pair filter for all 32 layers
     const objectFilter = new this.jolt.ObjectLayerPairFilterTable(
-      NUM_OBJECT_LAYERS
+      MAX_COLLISION_LAYERS
     );
-    objectFilter.EnableCollision(LAYER_NON_MOVING, LAYER_MOVING);
-    objectFilter.EnableCollision(LAYER_MOVING, LAYER_MOVING);
 
-    // Each broadphase layer results in a separate bounding volume tree in the broad phase
-    const BP_LAYER_NON_MOVING = new this.jolt.BroadPhaseLayer(0);
+    // Enable all combinations by default - we'll filter using collision masks at the body level
+    // This is simpler than trying to pre-calculate all possible layer combinations
+    for (let i = 0; i < MAX_COLLISION_LAYERS; i++) {
+      for (let j = 0; j < MAX_COLLISION_LAYERS; j++) {
+        objectFilter.EnableCollision(i, j);
+      }
+    }
+
+    // Create broadphase layers - group collision layers for performance
+    // Static (layer 0) vs Moving (layers 1-31) is the most important distinction
+    const BP_LAYER_STATIC = new this.jolt.BroadPhaseLayer(0);
     const BP_LAYER_MOVING = new this.jolt.BroadPhaseLayer(1);
     const NUM_BROAD_PHASE_LAYERS = 2;
+
     const bpInterface = new this.jolt.BroadPhaseLayerInterfaceTable(
-      NUM_OBJECT_LAYERS,
+      MAX_COLLISION_LAYERS,
       NUM_BROAD_PHASE_LAYERS
     );
-    bpInterface.MapObjectToBroadPhaseLayer(
-      LAYER_NON_MOVING,
-      BP_LAYER_NON_MOVING
-    );
-    bpInterface.MapObjectToBroadPhaseLayer(LAYER_MOVING, BP_LAYER_MOVING);
+
+    // Map collision layers to broadphase layers
+    // Layer 0 (static) -> static broadphase, others -> moving broadphase
+    for (let i = 0; i < MAX_COLLISION_LAYERS; i++) {
+      const bpLayer = i === 0 ? BP_LAYER_STATIC : BP_LAYER_MOVING;
+      bpInterface.MapObjectToBroadPhaseLayer(i, bpLayer);
+    }
 
     settings.mObjectLayerPairFilter = objectFilter;
     settings.mBroadPhaseLayerInterface = bpInterface;
@@ -97,7 +127,7 @@ class PhysicsSystem {
         settings.mBroadPhaseLayerInterface,
         NUM_BROAD_PHASE_LAYERS,
         settings.mObjectLayerPairFilter,
-        NUM_OBJECT_LAYERS
+        MAX_COLLISION_LAYERS
       );
   }
 
@@ -147,33 +177,33 @@ class PhysicsSystem {
       const position = JoltUtils.vec3ToJoltR(this.jolt, transform.position);
       const rotation = JoltUtils.quatToJolt(this.jolt, transform.rotation);
 
+      // Determine motion type
       let motionType: number;
-      let layer: number;
-
       switch (physicsBody.motionType) {
         case MotionType.Static:
           motionType = this.jolt.EMotionType_Static;
-          layer = LAYER_NON_MOVING;
           break;
         case MotionType.Dynamic:
           motionType = this.jolt.EMotionType_Dynamic;
-          layer = LAYER_MOVING;
           break;
         case MotionType.Kinematic:
           motionType = this.jolt.EMotionType_Kinematic;
-          layer = LAYER_MOVING;
           break;
         default:
           motionType = this.jolt.EMotionType_Dynamic;
-          layer = LAYER_MOVING;
       }
+
+      // Get Jolt layer from collision layer
+      const joltLayer = this.getJoltLayerFromCollisionLayer(
+        physicsBody.collisionLayer
+      );
 
       const creationSettings = new this.jolt.BodyCreationSettings(
         shape,
         position,
         rotation,
         motionType,
-        layer
+        joltLayer
       );
       const body = this.bodyInterface.CreateBody(creationSettings);
 
@@ -287,7 +317,12 @@ class PhysicsSystem {
             ctx
           );
           if (body) {
-            this.physicsObjects.push({ entity, body });
+            this.physicsObjects.push({
+              entity,
+              body,
+              collisionLayer: physicsBody.collisionLayer,
+              collisionMask: physicsBody.collisionMask,
+            });
 
             // Immediately sync the initial position to prevent flickering at origin
             if (physicsBody.motionType === MotionType.Dynamic) {
@@ -390,7 +425,7 @@ export function createPhysicsSystem() {
 }
 
 /**
- * Helper functions for creating physics objects (like demo's createBox, createSphere)
+ * Helper functions for creating physics objects using the new collision layer system
  */
 export const PhysicsHelpers = {
   /**
@@ -398,7 +433,7 @@ export const PhysicsHelpers = {
    */
   createFloor: (size = 50) => ({
     motionType: MotionType.Static,
-    layer: LAYER_NON_MOVING,
+    // Static objects use the static collision layer by default
   }),
 
   /**
@@ -406,8 +441,8 @@ export const PhysicsHelpers = {
    */
   createDynamicBox: (mass = 1.0) => ({
     motionType: MotionType.Dynamic,
-    layer: LAYER_MOVING,
     mass,
+    // Dynamic objects use the dynamic collision layer by default
   }),
 
   /**
@@ -415,7 +450,7 @@ export const PhysicsHelpers = {
    */
   createDynamicSphere: (mass = 1.0) => ({
     motionType: MotionType.Dynamic,
-    layer: LAYER_MOVING,
     mass,
+    // Dynamic objects use the dynamic collision layer by default
   }),
 } as const;

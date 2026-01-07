@@ -1,4 +1,6 @@
 import { defineComponent } from "../../ECS/Component";
+import type { CollisionLayer, CollisionMask } from "../utils/CollisionLayers";
+import { CommonLayers, CollisionMasks } from "../utils/CollisionLayers";
 
 /**
  * Motion types for physics bodies
@@ -29,7 +31,8 @@ export type SyncMode = (typeof SyncMode)[keyof typeof SyncMode];
 export type PhysicsBody = {
   readonly bodyId?: number; // Jolt BodyID reference (set by physics system)
   readonly motionType: MotionType; // Body motion type
-  readonly layer: number; // Collision layer
+  readonly collisionLayer: CollisionLayer; // Which collision layer this body is on (32-bit)
+  readonly collisionMask: CollisionMask; // Which layers this body can collide with (32-bit mask)
   readonly syncMode: SyncMode; // Transform synchronization strategy
   readonly mass?: number; // Body mass (for dynamic bodies)
   readonly gravityFactor?: number; // Gravity multiplier (1.0 = normal)
@@ -45,7 +48,8 @@ export const PhysicsBody = defineComponent<PhysicsBody>("PhysicsBody");
 export function createPhysicsBody(config: {
   bodyId?: number;
   motionType: MotionType;
-  layer?: number;
+  collisionLayer?: CollisionLayer;
+  collisionMask?: CollisionMask;
   syncMode?: SyncMode;
   mass?: number;
   gravityFactor?: number;
@@ -60,10 +64,27 @@ export function createPhysicsBody(config: {
       ? SyncMode.TransformToPhysics
       : SyncMode.None);
 
+  // Default collision layer based on motion type
+  const defaultLayer =
+    config.motionType === MotionType.Static
+      ? CommonLayers.STATIC
+      : config.motionType === MotionType.Dynamic
+      ? CommonLayers.DYNAMIC
+      : CommonLayers.KINEMATIC;
+
+  // Default collision mask based on motion type
+  const defaultMask =
+    config.motionType === MotionType.Static
+      ? CollisionMasks.static()
+      : config.motionType === MotionType.Dynamic
+      ? CollisionMasks.dynamic()
+      : CollisionMasks.dynamic(); // Kinematic uses same as dynamic for now
+
   return {
     bodyId: config.bodyId,
     motionType: config.motionType,
-    layer: config.layer ?? 0,
+    collisionLayer: config.collisionLayer ?? defaultLayer,
+    collisionMask: config.collisionMask ?? defaultMask,
     syncMode,
     mass: config.mass,
     gravityFactor: config.gravityFactor ?? 1.0,

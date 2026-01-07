@@ -28,6 +28,25 @@ export class EntityBuilder {
   }
 
   /**
+   * Modify an existing component on the entity.
+   * If the component doesn't exist, it will be created with the modifier function.
+   */
+  public modify<T>(
+    type: ComponentType<T>,
+    modifier: (existing: T | undefined, e: Entity, entities: EntityList) => T
+  ): this {
+    const make = (e: Entity, entities: EntityList): T => {
+      const existing = entities.has(e, type)
+        ? entities.get(e, type)
+        : undefined;
+      return modifier(existing, e, entities);
+    };
+
+    this.ops.push({ type, make });
+    return this;
+  }
+
+  /**
    * Add a child prefab.
    * You can pass an existing EntityBuilder or a builder callback.
    */
