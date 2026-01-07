@@ -1,8 +1,8 @@
 import type { IAssetStore } from "../Assets/AssetStore";
 import type { ILogger } from "../ILogger";
-import type { SyncSystemFn } from "../SystemCtx";
+import type { SyncSystemFn, AsyncSystemFn } from "../SystemCtx";
 import { Renderable } from "./renderComponents";
-import { ThreeRenderer } from "./ThreeRenderer";
+import { ThreeRenderer, type RendererType } from "./ThreeRenderer";
 import type { CameraInstance } from "../Camera/CameraComponents";
 import type { createCameraSystem } from "../Camera/CameraSystem";
 import type { createSkyboxSystem } from "../Skybox/SkyboxSystem";
@@ -17,17 +17,24 @@ export function createThreeRendererSystem(opts: {
   assets: IAssetStore;
   cameraSystem: CameraSystemInstance | undefined;
   skyboxSystem: SkyboxSystemInstance | undefined;
+  rendererType: RendererType | undefined;
 }) {
   let three = new ThreeRenderer({
     canvas: opts.canvas,
     logger: opts.logger,
     clearColor: opts.clearColor,
     assets: opts.assets,
+    rendererType: opts.rendererType,
   });
 
   const { cameraSystem, skyboxSystem } = opts;
 
-  const init: SyncSystemFn = (ctx) => {
+  const init: AsyncSystemFn = async (ctx) => {
+    // Initialize renderer (required for WebGPU)
+    await three.init();
+    opts.logger.info(
+      `✅ ${three.rendererType.toUpperCase()} renderer initialized`
+    );
     ctx.entities.signals.onAdd(Renderable, async (e, r) => {
       await three.upsertRenderable(ctx.entities, e, r);
     });

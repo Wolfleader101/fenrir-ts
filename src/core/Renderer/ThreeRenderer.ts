@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import * as THREE_WEBGPU from "three/webgpu";
 
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import type { Entity, EntityList } from "../ECS";
@@ -52,10 +53,23 @@ function isNoneMat(
   return d.kind === "none";
 }
 
+export type RendererType = "webgl" | "webgpu";
+
+export interface ThreeRendererOptions {
+  canvas?: HTMLCanvasElement;
+  logger: ILogger;
+  width?: number;
+  height?: number;
+  clearColor?: number;
+  assets: IAssetStore;
+  rendererType?: RendererType;
+}
+
 export class ThreeRenderer {
   public readonly scene = new THREE.Scene();
-  public readonly renderer: THREE.WebGLRenderer;
+  public readonly renderer: THREE.WebGLRenderer | THREE_WEBGPU.WebGPURenderer;
   public readonly camera: THREE.PerspectiveCamera; // Kept for backward compatibility
+  public readonly rendererType: RendererType;
 
   private readonly objects = new Map<ObjKey, THREE.Object3D>();
 
@@ -64,19 +78,13 @@ export class ThreeRenderer {
 
   private readonly assets: IAssetStore;
   private currentSkybox: SkyboxInstance | null = null;
+  private isInitialized = false;
 
   // optional: ref counts if you want to dispose caches safely later
   // private readonly geomRef = new Map<string, number>();
   // private readonly matRef = new Map<string, number>();
 
-  constructor(opts: {
-    canvas?: HTMLCanvasElement;
-    logger: ILogger;
-    width?: number;
-    height?: number;
-    clearColor?: number;
-    assets: IAssetStore;
-  }) {
+  constructor(opts: ThreeRendererOptions) {
     const {
       canvas,
       width = window.innerWidth,
@@ -84,11 +92,20 @@ export class ThreeRenderer {
     } = opts;
 
     this.assets = opts.assets;
+    this.rendererType = opts.rendererType || "webgl";
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-    });
+    // Create renderer based on type
+    if (this.rendererType === "webgpu") {
+      this.renderer = new THREE_WEBGPU.WebGPURenderer({
+        canvas,
+        antialias: true,
+      });
+    } else {
+      this.renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+      });
+    }
 
     this.renderer.setSize(width, height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -108,6 +125,28 @@ export class ThreeRenderer {
     const dir = new THREE.DirectionalLight(0xffffff, 1.0);
     dir.position.set(10, 20, 10);
     this.scene.add(dir);
+  }
+
+  /**
+   * Initialize the renderer (required for WebGPU, no-op for WebGL)
+   */
+  public async init(): Promise<void> {
+    if (this.isInitialized) return;
+
+    if (this.rendererType === "webgpu") {
+      // WebGPU requires async initialization
+      await (this.renderer as THREE_WEBGPU.WebGPURenderer).init();
+    }
+    // WebGL renderer is ready immediately, no initialization needed
+
+    this.isInitialized = true;
+  }
+
+  /**
+   * Check if renderer is initialized
+   */
+  public get initialized(): boolean {
+    return this.isInitialized;
   }
 
   public resize(width: number, height: number) {

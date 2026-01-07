@@ -64,6 +64,7 @@ const renderer = createThreeRendererSystem({
   assets: assetStore,
   cameraSystem,
   skyboxSystem,
+  rendererType: "webgpu",
 });
 
 // Animation system
