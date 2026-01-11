@@ -85,7 +85,7 @@ export function createThreeRendererSystem(opts: {
 
       // Filter to get camera instances
       const cameraInstances: Array<[number, CameraInstance]> = [];
-      for (const [entity, camera, instance] of cameras) {
+      for (const [entity, _camera, instance] of cameras) {
         cameraInstances.push([entity, instance]);
       }
 

@@ -10,4 +10,4 @@ export { CommonMaterials } from "./components/PhysicsMaterial";
 
 // Re-export key types for convenience
 export type { SimplePhysicsWorld } from "./PhysicsSystem";
-export type { JoltModule } from "./utils/JoltWrapper";
+export type { JoltModule, JoltDebugModule } from "./utils/JoltWrapper";

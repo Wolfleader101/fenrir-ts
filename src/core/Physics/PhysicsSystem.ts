@@ -281,7 +281,7 @@ class PhysicsSystem {
       this.bodyInterface = this.physicsSystem.GetBodyInterface();
 
       // Store in context for other systems (simplified PhysicsWorld interface)
-      const simplePhysicsWorld: SimplePhysicsWorld = {
+      const _simplePhysicsWorld: SimplePhysicsWorld = {
         jolt: this.jolt,
         joltInterface: this.joltInterface,
         physicsSystem: this.physicsSystem,
@@ -454,7 +454,7 @@ export const PhysicsHelpers = {
   /**
    * Create a static box (like demo's createFloor)
    */
-  createFloor: (size = 50) => ({
+  createFloor: (_size = 50) => ({
     motionType: MotionType.Static,
     // Static objects use the static collision layer by default
   }),

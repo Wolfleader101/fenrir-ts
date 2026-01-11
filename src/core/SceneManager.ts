@@ -14,7 +14,7 @@ export class SceneManager {
   }
 
   public getActiveScene(): Scene {
-    return this.scenes[this.activeSceneIndex];
+    return this.scenes[this.activeSceneIndex]!;
   }
 
   public changeActiveScene(name: string): void {
@@ -72,7 +72,7 @@ export class SceneManager {
     if (!scene) {
       this.logger?.error(`Scene with name '${name}' does not exist`);
       // mirror your C++ "return default" style
-      return this.scenes[0];
+      return this.scenes[0]!;
     }
     return scene;
   }

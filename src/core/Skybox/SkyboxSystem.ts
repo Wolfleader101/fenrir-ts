@@ -207,15 +207,13 @@ class SkyboxSystem {
   /**
    * Cleanup all skyboxes
    */
-  async cleanup(ctx: SystemCtx): Promise<void> {
+  async cleanup(_ctx: SystemCtx): Promise<void> {
     // WeakMap doesn't have .values() method, so we can't iterate directly
     // The WeakMap will automatically clean up when scenes are garbage collected
     // For explicit cleanup, we'd need to track scenes separately
 
     // Reset the WeakMap
     this.skyboxInstances = new WeakMap();
-
-    ctx.logger.info("Skybox system cleaned up");
   }
 }
 

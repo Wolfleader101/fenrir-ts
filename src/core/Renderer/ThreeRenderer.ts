@@ -263,14 +263,14 @@ export class ThreeRenderer {
    */
   public renderWithCameras(
     cameras: Array<[Entity, CameraInstance]>,
-    ecsScene?: Scene,
+    _ecsScene?: Scene,
     skyboxInstance?: SkyboxInstance | null
   ) {
     // Update skybox if needed
     this.updateSkybox(skyboxInstance ?? null);
 
     // Render each camera in order
-    for (const [entity, cameraInstance] of cameras) {
+    for (const [_entity, cameraInstance] of cameras) {
       const camera = cameraInstance.threeCamera;
 
       // Apply viewport if camera has one

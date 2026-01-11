@@ -31,6 +31,93 @@ export type JoltSettings = Jolt.JoltSettings;
 export type JoltEMotionType = Jolt.EMotionType;
 export type JoltEActivation = Jolt.EActivation;
 
+export type JoltRMat44 = Jolt.RMat44;
+
+/**
+ * Color class used by debug renderer
+ */
+export interface JoltColor {
+  mU32: number;
+}
+
+/**
+ * Extended types for debug renderer (only available in debug builds)
+ * These properties are not in the standard Jolt type definitions
+ */
+export interface JoltDebugModule extends JoltModule {
+  readonly DebugRendererJS: new () => JoltDebugRendererJS;
+  readonly DebugRendererVertexTraits: {
+    prototype: {
+      mPositionOffset: number;
+      mNormalOffset: number;
+      mUVOffset: number;
+      mSize: number;
+    };
+  };
+  readonly DebugRendererTriangleTraits: {
+    prototype: {
+      mVOffset: number;
+      mSize: number;
+    };
+  };
+  readonly EDrawMode_Wireframe: number;
+  readonly ECullMode_Off: number;
+  readonly ECullMode_CullBackFace: number;
+  readonly ECullMode_CullFrontFace: number;
+  readonly Color: { new (): JoltColor };
+  readonly HEAPF32: Float32Array;
+  readonly HEAPU32: Uint32Array;
+}
+
+export interface JoltDebugRendererJS {
+  Initialize(): void;
+  DrawBodies(physicsSystem: JoltPhysicsSystem, drawSettings: unknown): void;
+  DrawConstraints(physicsSystem: JoltPhysicsSystem): void;
+  DrawConstraintLimits(physicsSystem: JoltPhysicsSystem): void;
+  DrawLine: (inFrom: number, inTo: number, inColor: number) => void;
+  DrawTriangle: (
+    inV1: number,
+    inV2: number,
+    inV3: number,
+    inColor: number,
+    inCastShadow: number
+  ) => void;
+  DrawText3D: (
+    inPosition: number,
+    inStringPtr: number,
+    inStringLen: number,
+    inColor: number,
+    inHeight: number
+  ) => void;
+  DrawGeometryWithID: (
+    inModelMatrix: number,
+    inWorldSpaceBounds: number,
+    inLODScaleSq: number,
+    inModelColor: number,
+    inGeometryID: number,
+    inCullMode: number,
+    inCastShadow: number,
+    inDrawMode: number
+  ) => void;
+  CreateTriangleBatchID: (
+    inTriangles: number,
+    inTriangleCount: number
+  ) => number;
+  CreateTriangleBatchIDWithIndex: (
+    inVertices: number,
+    inVertexCount: number,
+    inIndices: number,
+    inIndexCount: number
+  ) => number;
+}
+
+/**
+ * Type guard to check if Jolt module has debug renderer
+ */
+export function isDebugJolt(jolt: JoltModule): jolt is JoltDebugModule {
+  return "DebugRendererJS" in jolt;
+}
+
 /**
  * Wrapper utilities for converting between Three.js and Jolt types
  *
