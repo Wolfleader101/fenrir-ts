@@ -107,6 +107,8 @@ export class ThreeRenderer {
       });
     }
 
+    this.renderer.shadowMap.enabled = true;
+
     this.renderer.setSize(width, height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
@@ -119,6 +121,7 @@ export class ThreeRenderer {
     this.camera.lookAt(0, 0, 0);
 
     // Basic default lighting (optional)
+    // TODO these shouldnt be here, lights should be added as components on entities
     const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
     this.scene.add(hemi);
 
