@@ -4,6 +4,7 @@ import type { SyncSystemFn, AsyncSystemFn, SystemCtx } from "../SystemCtx";
 import type { Entity } from "../ECS";
 import { PhysicsBody, MotionType } from "./components/PhysicsBody";
 import { PhysicsShape, ShapeType } from "./components/PhysicsShape";
+import { PhysicsMaterial } from "./components/PhysicsMaterial";
 import { Transform } from "../ECS/DefaultComponents";
 import {
   JoltUtils,
@@ -138,6 +139,7 @@ class PhysicsSystem {
     entity: Entity,
     physicsBody: PhysicsBody,
     physicsShape: PhysicsShape,
+    physicsMaterial: PhysicsMaterial | undefined,
     transform: Transform,
     ctx: SystemCtx
   ): JoltBody | null {
@@ -205,6 +207,26 @@ class PhysicsSystem {
         motionType,
         joltLayer
       );
+
+      // Apply physics material properties if available
+      if (physicsMaterial) {
+        creationSettings.mRestitution = physicsMaterial.restitution;
+        creationSettings.mFriction = physicsMaterial.friction;
+
+        // Apply damping if specified
+        if (physicsMaterial.linearDamping !== undefined) {
+          creationSettings.mLinearDamping = physicsMaterial.linearDamping;
+        }
+        if (physicsMaterial.angularDamping !== undefined) {
+          creationSettings.mAngularDamping = physicsMaterial.angularDamping;
+        }
+
+        // Apply gravity factor if specified in physics body
+        if (physicsBody.gravityFactor !== undefined) {
+          creationSettings.mGravityFactor = physicsBody.gravityFactor;
+        }
+      }
+
       const body = this.bodyInterface.CreateBody(creationSettings);
 
       // Cleanup temporary objects
@@ -276,9 +298,6 @@ class PhysicsSystem {
         isInitialized: true,
       };
 
-      // Cast to match existing PhysicsWorld interface in SystemCtx
-      ctx.physics = simplePhysicsWorld as unknown as typeof ctx.physics;
-
       ctx.logger.info("Physics system initialized successfully");
     } catch (error) {
       ctx.logger.error("Failed to initialize physics", { error });
@@ -309,10 +328,14 @@ class PhysicsSystem {
             return;
           }
 
+          // Get optional physics material
+          const physicsMaterial = ctx.entities.get(entity, PhysicsMaterial);
+
           const body = this.createPhysicsBody(
             entity,
             physicsBody,
             physicsShape,
+            physicsMaterial,
             transform,
             ctx
           );
