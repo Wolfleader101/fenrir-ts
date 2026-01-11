@@ -1,14 +1,14 @@
 import { Vector3, Spherical, MathUtils } from "three";
-import type { SyncSystemFn, SystemCtx } from "../core/SystemCtx";
-import { EntityBuilder } from "../core/EntityBuilder";
-import { Transform } from "../core/ECS/DefaultComponents";
+import type { SyncSystemFn } from "@/core/SystemCtx";
+import { EntityBuilder } from "@/core/EntityBuilder";
+import { Transform } from "@/core/ECS/DefaultComponents";
 import {
   Camera,
   ActiveCamera,
   CameraTarget,
   CameraInstance,
-} from "../core/Camera/CameraComponents";
-import "../core/EntityBuilder/extensions/cameraExtensions";
+} from "@/core/Camera/CameraComponents";
+import "@/core/EntityBuilder/extensions/cameraExtensions";
 
 /**
  * ECS-based orbital camera controller
@@ -41,13 +41,6 @@ export interface ECSCameraControllerConfig {
 const ACTIVE_CAMERA_QUERY = [
   Camera,
   ActiveCamera,
-  Transform,
-  CameraInstance,
-] as const;
-const CAMERA_TARGET_QUERY = [
-  Camera,
-  ActiveCamera,
-  CameraTarget,
   Transform,
   CameraInstance,
 ] as const;

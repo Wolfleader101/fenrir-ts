@@ -1,12 +1,21 @@
 import { Vector3 } from "three";
 
-import type { SystemFn } from "@/core/SystemCtx";
-import { Spin } from "./spin";
+import type { AsyncSystemFn } from "@/core/SystemCtx";
+import { Spin } from "../shared/spinComponent.ts";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 import { assetKey } from "@/core/Assets/AssetStore";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
 
-export const createTestScene = async (assetStore: IAssetStore) => {
+/**
+ * Animation Demo Scene
+ *
+ * Demonstrates:
+ * - Loading and displaying GLTF models
+ * - Animation playback control
+ * - Custom spinning behavior
+ * - Entity Builder pattern
+ */
+export const createAnimationDemo = async (assetStore: IAssetStore) => {
   const duckUrl = "/models/Duck.glb";
   const foxUrl = "/models/CesiumMan.glb";
   const duckKey = assetKey("duck");
@@ -41,7 +50,7 @@ export const createTestScene = async (assetStore: IAssetStore) => {
       .model(foxKey)
       .animate(foxKey, { playing });
 
-  const init: SystemFn = (ctx) => {
+  const init: AsyncSystemFn = (ctx) => {
     const entities = ctx.scene.entityList;
 
     duckEntity.spawn(entities);

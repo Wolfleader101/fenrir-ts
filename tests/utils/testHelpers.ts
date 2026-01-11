@@ -4,8 +4,10 @@ import { Scheduler } from "@/core/Scheduler";
 import { EventBus } from "@/core/EventBus";
 import { Time } from "@/core/Time";
 import { EntityList } from "@/core/ECS/EntityList";
-import type { SystemCtx, SystemFn } from "@/core/SystemCtx";
+import type { SystemCtx } from "@/core/SystemCtx";
 import type { Entity } from "@/core/ECS/EntityList";
+import { SceneManager } from "@/core/SceneManager";
+import { NullLogger } from "@/core/NullLogger";
 
 /**
  * Creates a mock SystemCtx for testing systems
@@ -15,8 +17,11 @@ export function createMockSystemCtx(
 ): SystemCtx {
   return {
     time: new Time(),
-    scene: {},
     events: new EventBus(),
+    logger: new NullLogger(),
+    scenes: new SceneManager(),
+    scene: new SceneManager().getActiveScene(),
+    entities: new EntityList(),
     stop: vi.fn(),
     ...overrides,
   };
@@ -28,8 +33,9 @@ export function createMockSystemCtx(
 export function createTestEngine(): Engine {
   return new Engine({
     scheduler: new Scheduler(),
-    scene: {},
     events: new EventBus(),
+    sceneManager: new SceneManager(),
+    logger: new NullLogger(),
   });
 }
 
@@ -104,7 +110,7 @@ export function createSpySystem(_name: string = "spy") {
     calls.push(ctx);
   });
 
-  return { system: system as SystemFn, calls };
+  return { system, calls };
 }
 
 /**
@@ -113,7 +119,7 @@ export function createSpySystem(_name: string = "spy") {
 export function createStatefulSystem<T extends Record<string, any>>(
   state: T,
   modifier: (state: T, ctx: SystemCtx) => Partial<T>
-): SystemFn {
+) {
   return (ctx: SystemCtx) => {
     const updates = modifier(state, ctx);
     Object.assign(state, updates);
