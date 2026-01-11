@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Entity, EntityList } from "../ECS";
-import type { SystemFn } from "../SystemCtx";
+import type { SystemCtx, SystemFn } from "../SystemCtx";
 import { Animation } from "./AnimationComponent";
 import { Renderable } from "../Renderer/renderComponents";
 import type { IAssetStore } from "../Assets/AssetStore";
@@ -23,28 +23,31 @@ export function createAnimationSystem(opts: {
   // Map of entity -> mixer data
   const mixers = new Map<Entity, AnimationMixerData>();
 
-  const init: SystemFn = (ctx) => {
+  const init: SystemFn = (ctx: SystemCtx) => {
     // Handle animation components being added
-    ctx.entities.signals.onAdd(Animation, async (entity, animState) => {
+    ctx.entities.signals.onAdd(Animation, async (_entity, _animState) => {
       // Don't set up immediately - renderer might still be loading assets
       // Setup will happen in preUpdate when all async operations are complete
       // await setupAnimationMixer(ctx.entities, entity, animState);
     });
 
     // Handle animation components being removed
-    ctx.entities.signals.onRemove(Animation, (entity) => {
+    ctx.entities.signals.onRemove(Animation, (entity: Entity) => {
       cleanupAnimationMixer(entity);
     });
 
     // Handle animation state changes
-    ctx.entities.signals.onReplace(Animation, async (entity, animState) => {
-      await setupAnimationMixer(ctx.entities, entity, animState);
-    });
+    ctx.entities.signals.onReplace(
+      Animation,
+      async (entity: Entity, animState: Animation) => {
+        await setupAnimationMixer(ctx.entities, entity, animState);
+      }
+    );
   };
 
   let hasInitializedExisting = false;
 
-  const preUpdate: SystemFn = (ctx) => {
+  const preUpdate: SystemFn = (ctx: SystemCtx) => {
     // On first preUpdate, set up existing animations (renderer should be ready now)
     if (!hasInitializedExisting) {
       // Collect entities first, then setup synchronously to avoid async iteration issues
@@ -52,9 +55,12 @@ export function createAnimationSystem(opts: {
         entity: Entity;
         animState: Animation;
       }> = [];
-      ctx.entities.each([Animation] as const, (entity, animState) => {
-        animationEntities.push({ entity, animState });
-      });
+      ctx.entities.each(
+        [Animation] as const,
+        (entity: Entity, animState: Animation) => {
+          animationEntities.push({ entity, animState });
+        }
+      );
 
       // Setup animations synchronously
       for (const { entity, animState } of animationEntities) {

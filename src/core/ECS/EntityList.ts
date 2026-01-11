@@ -1,11 +1,5 @@
-import { Quaternion, Vector3 } from "three";
 import type { ComponentType } from "./Component";
-import {
-  applyDefaultComponents,
-  Name,
-  Relationship,
-  Transform,
-} from "./DefaultComponents";
+import { applyDefaultComponents, Relationship } from "./DefaultComponents";
 import { Pool } from "./Pool";
 import { ComponentSignals } from "./Signals";
 import { View, type ComponentTuple } from "./View";
@@ -75,7 +69,7 @@ export class EntityList {
     if (this.freeHead !== INVALID_ID) {
       // pop from free list
       id = this.freeHead;
-      this.freeHead = this.nextFree[id];
+      this.freeHead = this.nextFree[id]!;
 
       // mark as "alive": by convention, nextFree[id] points to itself when alive
       this.nextFree[id] = id;
@@ -86,7 +80,7 @@ export class EntityList {
       this.nextFree.push(id); // alive marker
     }
 
-    const e = packEntity(id, this.generations[id]);
+    const e = packEntity(id, this.generations[id]!);
 
     // defaults
     applyDefaultComponents(this, e);
@@ -119,7 +113,7 @@ export class EntityList {
     }
 
     // bump generation (wraps naturally under GEN_MASK)
-    this.generations[id] = (this.generations[id] + 1) & GEN_MASK;
+    this.generations[id] = (this.generations[id]! + 1) & GEN_MASK;
 
     // push id onto free list
     this.nextFree[id] = this.freeHead;
@@ -240,7 +234,7 @@ export class EntityList {
     // entityId must refer to a currently alive entity in the smallest pool.
     // Pools only store alive entity ids (because destroy removes from all pools).
     // So this is safe.
-    return this.pack(entityId, this.generations[entityId]);
+    return this.pack(entityId, this.generations[entityId]!);
   }
 
   // ---------- Views ----------

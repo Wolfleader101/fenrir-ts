@@ -24,9 +24,9 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
     this.pools = types.map((t) => entityList.pool(t)) as Pool<any>[];
 
     // Choose smallest pool once
-    let smallest = this.pools[0];
+    let smallest = this.pools[0]!;
     for (let i = 1; i < this.pools.length; i++) {
-      if (this.pools[i].size() < smallest.size()) smallest = this.pools[i];
+      if (this.pools[i]!.size() < smallest.size()) smallest = this.pools[i]!;
     }
     this.drive = smallest;
   }
@@ -41,18 +41,18 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
       case 0:
         return;
       case 1:
-        return this.each1(drive, pools[0], fn as any);
+        return this.each1(drive, pools[0]!, fn as any);
       case 2:
-        return this.each2(drive, pools[0], pools[1], fn as any);
+        return this.each2(drive, pools[0]!, pools[1]!, fn as any);
       case 3:
-        return this.each3(drive, pools[0], pools[1], pools[2], fn as any);
+        return this.each3(drive, pools[0]!, pools[1]!, pools[2]!, fn as any);
       case 4:
         return this.each4(
           drive,
-          pools[0],
-          pools[1],
-          pools[2],
-          pools[3],
+          pools[0]!,
+          pools[1]!,
+          pools[2]!,
+          pools[3]!,
           fn as any
         );
       default:
@@ -214,7 +214,7 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
 
       // Resolve dense indices for each pool
       for (let p = 0; p < pools.length; p++) {
-        const pool = pools[p];
+        const pool = pools[p]!;
         const idx = pool === drive ? i : pool.indexOf(id);
         if (idx === -1) {
           ok = false;
@@ -225,7 +225,7 @@ export class View<TTypes extends readonly ComponentType<any>[]> {
 
       if (ok) {
         for (let p = 0; p < pools.length; p++) {
-          comps[p] = pools[p].getAt(indices[p]);
+          comps[p] = pools[p]!.getAt(indices[p]!);
         }
         fn(this.entityList.entityFromId(id), ...comps);
       }

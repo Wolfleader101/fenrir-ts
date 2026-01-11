@@ -1,4 +1,4 @@
-import type { SystemFn } from "../SystemCtx";
+import type { SystemCtx, SystemFn } from "../SystemCtx";
 import { InputEvent } from "./InputEvents";
 import { InputState } from "./InputState";
 
@@ -8,7 +8,7 @@ export function createInputStateSystem(): {
 } {
   const state = new InputState();
 
-  const preUpdate: SystemFn = (ctx) => {
+  const preUpdate: SystemFn = (ctx: SystemCtx) => {
     state.beginFrame();
 
     for (const ev of ctx.events.read(InputEvent.Focus)) {

@@ -50,7 +50,7 @@ class CameraSystem {
       this.createCameraInstance(ctx.entities, entity, camera);
     });
 
-    ctx.entities.signals.onRemove(Camera, (entity, camera) => {
+    ctx.entities.signals.onRemove(Camera, (entity, _camera) => {
       this.removeCameraInstance(ctx.entities, entity);
     });
 
@@ -81,7 +81,7 @@ class CameraSystem {
       this.canvasHeight = newHeight;
 
       // Update all camera aspect ratios that don't have explicit overrides
-      ctx.entities.each(CAMERA_INSTANCE_QUERY, (entity, camera, instance) => {
+      ctx.entities.each(CAMERA_INSTANCE_QUERY, (_entity, camera, instance) => {
         if (!camera.aspectRatio) {
           this.updateCameraProjection(
             camera,
@@ -104,7 +104,7 @@ class CameraSystem {
   update(ctx: SystemCtx): void {
     ctx.entities.each(
       CAMERA_TARGET_QUERY,
-      (entity, camera, instance, target, transform) => {
+      (_entity, _camera, instance, target, transform) => {
         instance.threeCamera.position.copy(transform.position);
         instance.threeCamera.lookAt(target.target);
         instance.threeCamera.up.copy(target.up);
@@ -167,7 +167,6 @@ class CameraSystem {
    */
   private removeCameraInstance(entities: EntityList, entity: Entity): void {
     if (entities.has(entity, CameraInstance)) {
-      const instance = entities.get(entity, CameraInstance);
       // Clean up Three.js camera resources if needed
       entities.remove(entity, CameraInstance);
     }
@@ -251,7 +250,7 @@ class CameraSystem {
   private updateCameras(ctx: SystemCtx): void {
     ctx.entities.each(
       CAMERA_TRANSFORM_QUERY,
-      (entity, camera, instance, transform) => {
+      (entity, _camera, instance, transform) => {
         // Skip if camera has a target (handled in update phase)
         if (ctx.entities.has(entity, CameraTarget)) return;
 
@@ -275,7 +274,7 @@ class CameraSystem {
     let activeEntity: Entity | null = null;
     let highestPriority = -Infinity;
 
-    entities.each(ACTIVE_CAMERA_QUERY, (entity, camera, active, instance) => {
+    entities.each(ACTIVE_CAMERA_QUERY, (entity, camera, active, _instance) => {
       if (camera.enabled && active.priority > highestPriority) {
         highestPriority = active.priority;
         activeEntity = entity;
@@ -340,7 +339,7 @@ class CameraSystem {
    */
   exit(ctx: SystemCtx): void {
     // Clean up all camera instances
-    ctx.entities.each(CAMERA_INSTANCE_QUERY, (entity, camera, instance) => {
+    ctx.entities.each(CAMERA_INSTANCE_QUERY, (entity, _camera, _instance) => {
       // Three.js cameras don't need explicit disposal, but we remove the component
       ctx.entities.remove(entity, CameraInstance);
     });

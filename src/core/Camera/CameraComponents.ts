@@ -1,6 +1,5 @@
 import { Vector3, PerspectiveCamera, OrthographicCamera } from "three";
 import { defineComponent } from "../ECS";
-import type { Entity } from "../ECS";
 
 export type CameraProjectionType = "perspective" | "orthographic";
 

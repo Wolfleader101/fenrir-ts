@@ -29,7 +29,7 @@ export class Pool<T> {
   public get(entityId: number): T {
     const idx = this.indexOf(entityId);
     if (idx === -1) throw new Error(`Component missing on entity ${entityId}`);
-    return this.dense[idx];
+    return this.dense[idx]!;
   }
 
   public tryGet(entityId: number): T | undefined {
@@ -39,11 +39,11 @@ export class Pool<T> {
 
   /** Get by dense index (fast path) */
   public getAt(denseIndex: number): T {
-    return this.dense[denseIndex];
+    return this.dense[denseIndex]!;
   }
 
   public entityAt(denseIndex: number): number {
-    return this.denseEntities[denseIndex];
+    return this.denseEntities[denseIndex]!;
   }
 
   public entities(): readonly number[] {
@@ -87,10 +87,10 @@ export class Pool<T> {
 
     if (idx !== lastIndex) {
       // Only do swap if not removing the last element
-      const lastEntity = this.denseEntities[lastIndex];
+      const lastEntity = this.denseEntities[lastIndex]!;
 
       // move last into idx
-      this.dense[idx] = this.dense[lastIndex];
+      this.dense[idx] = this.dense[lastIndex]!;
       this.denseEntities[idx] = lastEntity;
 
       // update sparse for moved entity (remember sparse stores denseIndex + 1)
@@ -115,7 +115,7 @@ export class Pool<T> {
     const entities = this.denseEntities;
     const comps = this.dense;
     for (let i = 0; i < entities.length; i++) {
-      fn(entities[i], comps[i]);
+      fn(entities[i]!, comps[i]!);
     }
   }
 }
