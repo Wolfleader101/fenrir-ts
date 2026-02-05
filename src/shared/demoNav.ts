@@ -15,6 +15,7 @@ const DEMO_PAGES: readonly DemoPage[] = [
   { href: "animation.html", title: "Animation Demo" },
   { href: "bouncing-ball.html", title: "Bouncing Ball" },
   { href: "stacking-blocks.html", title: "Stacking Blocks" },
+  { href: "monaco-editor.html", title: "Monaco Editor Demo" },
 ] as const;
 
 /**
@@ -47,7 +48,7 @@ export const initDemoNav = (currentPage: string): void => {
  */
 export const initDemoInfo = (
   title: string,
-  features: readonly string[]
+  features: readonly string[],
 ): void => {
   const infoElement = document.getElementById("info");
   if (!infoElement) {
