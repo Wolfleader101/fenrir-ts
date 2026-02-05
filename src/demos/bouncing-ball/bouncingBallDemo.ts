@@ -13,20 +13,13 @@ import { SkyboxUtils } from "@/core/Skybox";
  * - Colorful bouncing balls
  * - Material properties (rubber for bounce)
  */
-export function createBouncingBallDemo(assetStore?: IAssetStore) {
+export function createBouncingBallDemo(assetStore: IAssetStore) {
   const init: AsyncSystemFn = async (ctx) => {
     const entities = ctx.scene.entityList;
 
     ctx.logger.info("🎾 Setting up bouncing ball demo");
 
-    // Set up skybox
-    if (assetStore) {
-      try {
-        await SkyboxUtils.setupDefaultSkybox(ctx.scene, assetStore);
-      } catch (error) {
-        ctx.logger.warn("Failed to setup skybox", { error });
-      }
-    }
+    await SkyboxUtils.setupDefaultSkybox(ctx.scene, assetStore);
 
     // Create ground
     EntityBuilder.create()

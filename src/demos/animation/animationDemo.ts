@@ -5,6 +5,7 @@ import { Spin } from "../shared/spinComponent.ts";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 import { assetKey } from "@/core/Assets/AssetStore";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
+import { SkyboxUtils } from "@/core/Skybox/index.ts";
 
 /**
  * Animation Demo Scene
@@ -25,11 +26,11 @@ export const createAnimationDemo = async (assetStore: IAssetStore) => {
   console.log("🔧 Testing AssetStore with custom loaders:");
   console.log(
     "📦 Supported model extensions:",
-    assetStore.getSupportedModelExtensions()
+    assetStore.getSupportedModelExtensions(),
   );
   console.log(
     "🖼️ Supported texture extensions:",
-    assetStore.getSupportedTextureExtensions()
+    assetStore.getSupportedTextureExtensions(),
   );
 
   // preload assets using default GLTF loader
@@ -50,7 +51,9 @@ export const createAnimationDemo = async (assetStore: IAssetStore) => {
       .model(foxKey)
       .animate(foxKey, { playing });
 
-  const init: AsyncSystemFn = (ctx) => {
+  const init: AsyncSystemFn = async (ctx) => {
+    await SkyboxUtils.setupDefaultSkybox(ctx.scene, assetStore);
+
     const entities = ctx.scene.entityList;
 
     duckEntity.spawn(entities);
