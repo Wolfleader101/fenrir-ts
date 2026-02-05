@@ -38,17 +38,17 @@ function matKey(d: MaterialDesc): string {
 }
 
 function isModelGeom(
-  d: GeometryDesc
+  d: GeometryDesc,
 ): d is Extract<GeometryDesc, { kind: "model" }> {
   return d.kind === "model";
 }
 function isAssetMat(
-  d: MaterialDesc
+  d: MaterialDesc,
 ): d is Extract<MaterialDesc, { kind: "asset" }> {
   return d.kind === "asset";
 }
 function isNoneMat(
-  d: MaterialDesc
+  d: MaterialDesc,
 ): d is Extract<MaterialDesc, { kind: "none" }> {
   return d.kind === "none";
 }
@@ -162,7 +162,7 @@ export class ThreeRenderer {
   public async upsertRenderable(
     entities: EntityList,
     e: Entity,
-    r: Renderable
+    r: Renderable,
   ) {
     const k = keyFor(e, r.id);
     const existing = this.objects.get(k);
@@ -264,7 +264,7 @@ export class ThreeRenderer {
   public renderWithCameras(
     cameras: Array<[Entity, CameraInstance]>,
     _ecsScene?: Scene,
-    skyboxInstance?: SkyboxInstance | null
+    skyboxInstance?: SkyboxInstance | null,
   ) {
     // Update skybox if needed
     this.updateSkybox(skyboxInstance ?? null);
@@ -274,20 +274,20 @@ export class ThreeRenderer {
       const camera = cameraInstance.threeCamera;
 
       // Apply viewport if camera has one
-      const viewport = (camera as any).viewport;
+      const viewport = camera.viewport;
       if (viewport) {
         const canvas = this.renderer.domElement;
         this.renderer.setViewport(
           viewport.x * canvas.width,
           viewport.y * canvas.height,
           viewport.width * canvas.width,
-          viewport.height * canvas.height
+          viewport.height * canvas.height,
         );
         this.renderer.setScissor(
           viewport.x * canvas.width,
           viewport.y * canvas.height,
           viewport.width * canvas.width,
-          viewport.height * canvas.height
+          viewport.height * canvas.height,
         );
         this.renderer.setScissorTest(true);
       } else {
@@ -296,7 +296,7 @@ export class ThreeRenderer {
           0,
           0,
           this.renderer.domElement.width,
-          this.renderer.domElement.height
+          this.renderer.domElement.height,
         );
         this.renderer.setScissorTest(false);
       }
@@ -310,7 +310,7 @@ export class ThreeRenderer {
       0,
       0,
       this.renderer.domElement.width,
-      this.renderer.domElement.height
+      this.renderer.domElement.height,
     );
     this.renderer.setScissorTest(false);
   }
@@ -318,7 +318,10 @@ export class ThreeRenderer {
   /**
    * Legacy render method (kept for backward compatibility)
    */
-  public render() {
+  public render(skyboxInstance: SkyboxInstance | null) {
+    // Update skybox if provided
+    this.updateSkybox(skyboxInstance);
+
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -326,7 +329,7 @@ export class ThreeRenderer {
    * Render with a specific camera
    */
   public renderWithCamera(
-    camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
+    camera: THREE.PerspectiveCamera | THREE.OrthographicCamera,
   ) {
     this.renderer.render(this.scene, camera);
   }
@@ -334,7 +337,7 @@ export class ThreeRenderer {
   /** Get the rendered Three.js object for an entity/renderable ID */
   public getRenderedObject(
     entity: Entity,
-    renderableId: number
+    renderableId: number,
   ): THREE.Object3D | undefined {
     const k = keyFor(entity, renderableId);
     const obj = this.objects.get(k);
@@ -398,7 +401,7 @@ export class ThreeRenderer {
   }
 
   private async getMaterial(
-    desc: MaterialDesc
+    desc: MaterialDesc,
   ): Promise<THREE.Material | null> {
     if (isNoneMat(desc)) {
       return null; // Object3D uses its own material
@@ -462,7 +465,7 @@ export class ThreeRenderer {
       position: THREE.Vector3;
       rotation: THREE.Quaternion;
       scale: THREE.Vector3;
-    }
+    },
   ) {
     obj.position.copy(wt.position);
     obj.quaternion.copy(wt.rotation);

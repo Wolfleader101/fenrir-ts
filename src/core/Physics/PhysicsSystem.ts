@@ -72,13 +72,13 @@ class PhysicsSystem {
    * Get Jolt object layer from collision layer bit
    */
   private getJoltLayerFromCollisionLayer(
-    collisionLayer: CollisionLayer
+    collisionLayer: CollisionLayer,
   ): number {
     // Convert collision layer bit to layer index (0-31)
     const layerIndex = Math.log2(collisionLayer);
     if (layerIndex < 0 || layerIndex >= 32 || !Number.isInteger(layerIndex)) {
       throw new Error(
-        `Invalid collision layer: ${collisionLayer}. Must be a power of 2 (1, 2, 4, 8, etc.)`
+        `Invalid collision layer: ${collisionLayer}. Must be a power of 2 (1, 2, 4, 8, etc.)`,
       );
     }
     return layerIndex;
@@ -92,7 +92,7 @@ class PhysicsSystem {
 
     // Create object layer pair filter for all 32 layers
     const objectFilter = new this.jolt.ObjectLayerPairFilterTable(
-      MAX_COLLISION_LAYERS
+      MAX_COLLISION_LAYERS,
     );
 
     // Enable all combinations by default - we'll filter using collision masks at the body level
@@ -111,7 +111,7 @@ class PhysicsSystem {
 
     const bpInterface = new this.jolt.BroadPhaseLayerInterfaceTable(
       MAX_COLLISION_LAYERS,
-      NUM_BROAD_PHASE_LAYERS
+      NUM_BROAD_PHASE_LAYERS,
     );
 
     // Map collision layers to broadphase layers
@@ -128,7 +128,7 @@ class PhysicsSystem {
         settings.mBroadPhaseLayerInterface,
         NUM_BROAD_PHASE_LAYERS,
         settings.mObjectLayerPairFilter,
-        MAX_COLLISION_LAYERS
+        MAX_COLLISION_LAYERS,
       );
   }
 
@@ -141,7 +141,7 @@ class PhysicsSystem {
     physicsShape: PhysicsShape,
     physicsMaterial: PhysicsMaterial | undefined,
     transform: Transform,
-    ctx: SystemCtx
+    ctx: SystemCtx,
   ): JoltBody | null {
     if (!this.jolt || !this.bodyInterface) {
       ctx.logger.error("Physics not initialized");
@@ -157,7 +157,7 @@ class PhysicsSystem {
           const params = physicsShape.parameters as { halfExtents: Vector3 };
           const halfExtents = JoltUtils.vec3ToJolt(
             this.jolt,
-            params.halfExtents
+            params.halfExtents,
           );
           shape = new this.jolt.BoxShape(halfExtents, 0.05);
           this.jolt.destroy(halfExtents);
@@ -197,7 +197,7 @@ class PhysicsSystem {
 
       // Get Jolt layer from collision layer
       const joltLayer = this.getJoltLayerFromCollisionLayer(
-        physicsBody.collisionLayer
+        physicsBody.collisionLayer,
       );
 
       const creationSettings = new this.jolt.BodyCreationSettings(
@@ -205,7 +205,7 @@ class PhysicsSystem {
         position,
         rotation,
         motionType,
-        joltLayer
+        joltLayer,
       );
 
       // Apply physics material properties if available
@@ -237,8 +237,8 @@ class PhysicsSystem {
       if (!body) {
         ctx.logger.error(
           `Failed to create physics body for entity ${ctx.entities.idOf(
-            entity
-          )}`
+            entity,
+          )}`,
         );
         return null;
       }
@@ -247,13 +247,13 @@ class PhysicsSystem {
       this.bodyInterface.AddBody(body.GetID(), this.jolt.EActivation_Activate);
 
       ctx.logger.debug(
-        `Created physics body for entity ${ctx.entities.idOf(entity)}`
+        `Created physics body for entity ${ctx.entities.idOf(entity)}`,
       );
       return body;
     } catch (error) {
       ctx.logger.error(
         `Error creating physics body for entity ${ctx.entities.idOf(entity)}`,
-        { error }
+        { error },
       );
       return null;
     }
@@ -281,22 +281,22 @@ class PhysicsSystem {
       this.bodyInterface = this.physicsSystem.GetBodyInterface();
 
       // Store in context for other systems (simplified PhysicsWorld interface)
-      const _simplePhysicsWorld: SimplePhysicsWorld = {
-        jolt: this.jolt,
-        joltInterface: this.joltInterface,
-        physicsSystem: this.physicsSystem,
-        bodyInterface: this.bodyInterface,
-        config: { gravity: new Vector3(0, -9.81, 0) },
-        utils: {
-          vec3ToJolt: JoltUtils.vec3ToJolt,
-          vec3ToJoltR: JoltUtils.vec3ToJoltR,
-          quatToJolt: JoltUtils.quatToJolt,
-          joltVec3ToThree: JoltUtils.joltVec3ToThree,
-          joltRVec3ToThree: JoltUtils.joltRVec3ToThree,
-          joltQuatToThree: JoltUtils.joltQuatToThree,
-        },
-        isInitialized: true,
-      };
+      // const _simplePhysicsWorld: SimplePhysicsWorld = {
+      //   jolt: this.jolt,
+      //   joltInterface: this.joltInterface,
+      //   physicsSystem: this.physicsSystem,
+      //   bodyInterface: this.bodyInterface,
+      //   config: { gravity: new Vector3(0, -9.81, 0) },
+      //   utils: {
+      //     vec3ToJolt: JoltUtils.vec3ToJolt,
+      //     vec3ToJoltR: JoltUtils.vec3ToJoltR,
+      //     quatToJolt: JoltUtils.quatToJolt,
+      //     joltVec3ToThree: JoltUtils.joltVec3ToThree,
+      //     joltRVec3ToThree: JoltUtils.joltRVec3ToThree,
+      //     joltQuatToThree: JoltUtils.joltQuatToThree,
+      //   },
+      //   isInitialized: true,
+      // };
 
       ctx.logger.info("Physics system initialized successfully");
     } catch (error) {
@@ -337,7 +337,7 @@ class PhysicsSystem {
             physicsShape,
             physicsMaterial,
             transform,
-            ctx
+            ctx,
           );
           if (body) {
             this.physicsObjects.push({
@@ -355,7 +355,7 @@ class PhysicsSystem {
               JoltUtils.joltQuatToThree(rotation, transform.rotation);
             }
           }
-        }
+        },
       );
 
       // Fixed timestep physics simulation using Time class accumulator

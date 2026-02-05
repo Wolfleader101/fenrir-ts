@@ -33,7 +33,7 @@ export function createThreeRendererSystem(opts: {
     // Initialize renderer (required for WebGPU)
     await three.init();
     opts.logger.info(
-      `✅ ${three.rendererType.toUpperCase()} renderer initialized`
+      `✅ ${three.rendererType.toUpperCase()} renderer initialized`,
     );
     ctx.entities.signals.onAdd(Renderable, async (e, r) => {
       await three.upsertRenderable(ctx.entities, e, r);
@@ -93,12 +93,13 @@ export function createThreeRendererSystem(opts: {
         // Render with ECS cameras
         three.renderWithCameras(cameraInstances, ctx.scene, skyboxInstance);
       } else {
-        // Fallback to legacy rendering if no ECS cameras
-        three.render();
+        // Fallback to legacy rendering if no ECS cameras, but still pass skybox
+        three.render(skyboxInstance);
       }
     } else {
       // Legacy rendering without camera/skybox systems
-      three.render();
+      const skyboxInstance = skyboxSystem?.getSkyboxInstance(ctx.scene) ?? null;
+      three.render(skyboxInstance);
     }
   };
 
