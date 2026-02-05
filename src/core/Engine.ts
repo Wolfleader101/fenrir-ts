@@ -109,6 +109,76 @@ export class Engine {
     await this.scheduler.runAsyncStage(Schedule.Exit, ctx);
   }
 
+  public pause(): void {
+    if (!this.running) return;
+
+    this.running = false;
+
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+
+    // Pause time tracking to prevent time accumulation during pause
+    this.time.pause();
+  }
+
+  public resume(): void {
+    if (this.running) return;
+
+    this.running = true;
+
+    // Resume time tracking before starting the loop
+    this.time.resume();
+
+    const ctx = this.createSystemCtx();
+
+    const loop = () => {
+      if (!this.running) return;
+
+      this.time.update();
+
+      // Pre-render/update phase
+      this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
+
+      // Fixed timestep updates
+      while (this.time.accumulator >= this.time.tickRate) {
+        this.scheduler.runSyncStage(Schedule.Tick, ctx);
+        this.time.accumulator -= this.time.tickRate;
+      }
+
+      // Variable updates & rendering
+      this.scheduler.runSyncStage(Schedule.Update, ctx);
+      this.scheduler.runSyncStage(Schedule.PostUpdate, ctx);
+
+      // Frame boundary: update event queues
+      this.events.update();
+
+      this.rafId = requestAnimationFrame(loop);
+    };
+
+    this.rafId = requestAnimationFrame(loop);
+  }
+
+  public async reset(): Promise<void> {
+    const wasRunning = this.running;
+
+    // Stop the engine
+    await this.stop();
+
+    // Reset scene
+    const activeScene = this.sceneManager.getActiveScene();
+    activeScene.entityList.clear();
+
+    // Reset time
+    this.time.reset();
+
+    // If it was running, start it again
+    if (wasRunning) {
+      await this.run();
+    }
+  }
+
   public getTime(): Time {
     return this.time;
   }
@@ -127,14 +197,31 @@ export class Engine {
 
   public addSystems<S extends SyncStage>(
     stage: S,
-    systems: readonly SyncSystemFn[]
+    systems: readonly SyncSystemFn[],
   ): this;
   public addSystems<S extends AsyncStage>(
     stage: S,
-    systems: readonly AsyncSystemFn[]
+    systems: readonly AsyncSystemFn[],
   ): this;
   public addSystems(stage: ScheduleStage, systems: readonly any[]) {
     this.scheduler.addSystems(stage as any, systems);
     return this;
+  }
+
+  public replaceSystems<S extends SyncStage>(
+    stage: S,
+    systems: readonly SyncSystemFn[],
+  ): this;
+  public replaceSystems<S extends AsyncStage>(
+    stage: S,
+    systems: readonly AsyncSystemFn[],
+  ): this;
+  public replaceSystems(stage: ScheduleStage, systems: readonly any[]) {
+    this.scheduler.replaceSystems(stage as any, systems);
+    return this;
+  }
+
+  public getScheduler(): Scheduler {
+    return this.scheduler;
   }
 }

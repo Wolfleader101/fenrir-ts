@@ -52,11 +52,11 @@ export class Scheduler {
 
   public addSystems<S extends SyncStage>(
     stage: S,
-    systems: readonly SyncSystemFn[]
+    systems: readonly SyncSystemFn[],
   ): this;
   public addSystems<S extends AsyncStage>(
     stage: S,
-    systems: readonly AsyncSystemFn[]
+    systems: readonly AsyncSystemFn[],
   ): this;
   public addSystems(stage: ScheduleStage, systems: readonly any[]) {
     systems.forEach((s) => this.addSystem(stage as any, s));
@@ -65,6 +65,25 @@ export class Scheduler {
 
   public getSystems(stage: ScheduleStage) {
     return this.stages[stage];
+  }
+
+  public replaceSystems<S extends SyncStage>(
+    stage: S,
+    systems: readonly SyncSystemFn[],
+  ): this;
+  public replaceSystems<S extends AsyncStage>(
+    stage: S,
+    systems: readonly AsyncSystemFn[],
+  ): this;
+  public replaceSystems(stage: ScheduleStage, systems: readonly any[]) {
+    // TODO come up with better way of replacing, technically this doesnt work right now
+    this.stages[stage as keyof StageRecord] = [...systems] as any;
+    return this;
+  }
+
+  public clearSystems(stage: ScheduleStage): this {
+    this.stages[stage as keyof StageRecord] = [] as any;
+    return this;
   }
 
   public runSyncStage<S extends SyncStage>(stage: S, ctx: SystemCtx) {

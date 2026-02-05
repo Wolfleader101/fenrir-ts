@@ -19,4 +19,10 @@ export type SystemCtx = {
 
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
+
+/**
+ *
+ * @deprecated This type is deprecated and just an alias.
+ * Please use {@link SyncSystemFn} or {@link AsyncSystemFn} instead.
+ */
 export type SystemFn = SyncSystemFn;

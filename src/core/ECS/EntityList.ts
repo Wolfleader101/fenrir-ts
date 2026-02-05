@@ -151,6 +151,21 @@ export class EntityList {
   public capacity(): number {
     return this.generations.length;
   }
+
+  /**
+   * Clear all entities from the entity list
+   */
+  public clear(): void {
+    // Destroy all alive entities
+    for (let id = 0; id < this.generations.length; id++) {
+      if (this.nextFree[id] === id) {
+        // Entity is alive
+        const entity = this.pack(id, this.generations[id]!);
+        this.destroyEntity(entity);
+      }
+    }
+  }
+
   // ---------- Components ----------
 
   private getPool<T>(type: ComponentType<T>): Pool<T> {
@@ -260,7 +275,7 @@ export class EntityList {
 
   public each<TTypes extends readonly ComponentType<any>[]>(
     types: TTypes,
-    fn: (entity: Entity, ...components: ComponentTuple<TTypes>) => void
+    fn: (entity: Entity, ...components: ComponentTuple<TTypes>) => void,
   ): void {
     this.view(types).each(fn);
   }

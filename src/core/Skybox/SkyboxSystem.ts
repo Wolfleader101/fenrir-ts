@@ -53,7 +53,7 @@ class SkyboxSystem {
    */
   private async ensureSkyboxForScene(
     scene: Scene,
-    ctx: SystemCtx
+    ctx: SystemCtx,
   ): Promise<void> {
     const skyboxDescriptor = scene.skybox!;
 
@@ -83,7 +83,7 @@ class SkyboxSystem {
    */
   private async createSkyboxInstance(
     descriptor: SkyboxDescriptor,
-    ctx: SystemCtx
+    ctx: SystemCtx,
   ): Promise<SkyboxInstance | null> {
     try {
       let background: THREE.Texture | THREE.CubeTexture | THREE.Color;
@@ -101,7 +101,7 @@ class SkyboxSystem {
         isEquirectangularTextures(descriptor.textures)
       ) {
         const texture = await this.createEquirectangularTexture(
-          descriptor.textures
+          descriptor.textures,
         );
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -155,7 +155,7 @@ class SkyboxSystem {
         undefined, // onProgress
         (error) => {
           reject(error);
-        }
+        },
       );
     });
   }
@@ -164,7 +164,7 @@ class SkyboxSystem {
    * Create texture from equirectangular image
    */
   private async createEquirectangularTexture(
-    textures: any
+    textures: any,
   ): Promise<THREE.Texture> {
     const texture = await this.assets.getTexture(textures.texture);
     texture.mapping = THREE.EquirectangularReflectionMapping;

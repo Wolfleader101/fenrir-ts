@@ -29,7 +29,7 @@ export class SkyboxUtils {
         negZ?: string;
       };
       enabled?: boolean;
-    } = {}
+    } = {},
   ): Promise<void> {
     const basePath = options.basePath ?? "skybox";
     const faces = options.faces ?? {};
@@ -43,7 +43,6 @@ export class SkyboxUtils {
       posZ: `${basePath}/${faces.posZ ?? "front.png"}`,
       negZ: `${basePath}/${faces.negZ ?? "back.png"}`,
     };
-
     // Load all textures
     await Promise.all([
       assets.loadTexture(faceTextures.posX as AssetKey, faceTextures.posX),
@@ -77,7 +76,7 @@ export class SkyboxUtils {
     texturePath: string,
     options: {
       enabled?: boolean;
-    } = {}
+    } = {},
   ): Promise<void> {
     const assetKey = texturePath as AssetKey;
 
@@ -101,7 +100,7 @@ export class SkyboxUtils {
     assets: IAssetStore,
     options: {
       enabled?: boolean;
-    } = {}
+    } = {},
   ): Promise<void> {
     // Load the default skybox textures
     await this.setupCubemapSkybox(scene, assets, {
