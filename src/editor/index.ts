@@ -38,18 +38,12 @@ export {
 } from "./SandboxProvider";
 export { LiveEngineController } from "./LiveEngineController";
 
-// Presentation Layer (MVP)
+// UI Layer (Signal-based MVP)
+export { EditorStore, type EditorStoreState } from "./ui/stores";
 export {
-  type IEditorModel,
-  type EditorState,
-  type StateChangeListener,
-  EditorModel,
-  type IEditorView,
-  DefaultEditorView,
-  WebComponentEditorView,
-  EditorPresenter,
-} from "./presentation";
-
-// UI Components (if needed)
-export { UIController } from "./UIController";
-export { ErrorDisplay } from "./ErrorDisplay";
+  MainEditorPresenter,
+  ControlBarPresenter,
+  StatusBadgePresenter,
+  ErrorModalPresenter,
+  type ControlAction,
+} from "./ui/presenters";

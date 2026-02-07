@@ -1,6 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { tailwindStyles } from "../utils";
+import { tailwindStyles } from "../../utils";
 
 export type BadgeVariant =
   | "default"

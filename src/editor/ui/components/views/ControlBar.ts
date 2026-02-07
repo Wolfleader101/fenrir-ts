@@ -2,12 +2,12 @@ import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { SignalWatcher } from "@lit-labs/signals";
 import { Play, Pause, RotateCcw, Save } from "lucide";
-import { slottedIcon, initIcons, tailwindStyles } from "../utils";
+import { slottedIcon, initIcons, tailwindStyles } from "../../utils";
 import type {
   ControlBarPresenter,
   ControlAction,
   StatusBadgePresenter,
-} from "../presenters";
+} from "../../presenters";
 import "../primitives/Button";
 import "../primitives/Panel";
 import "./StatusBadge";

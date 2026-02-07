@@ -1,8 +1,8 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { SignalWatcher } from "@lit-labs/signals";
-import { tailwindStyles } from "../utils";
-import type { ErrorModalPresenter } from "../presenters";
+import { tailwindStyles } from "../../utils";
+import type { ErrorModalPresenter } from "../../presenters";
 import "../primitives/Modal";
 
 /**
@@ -33,7 +33,8 @@ export class ErrorModal extends SignalWatcher(LitElement) {
         <pre
           class="text-sm font-mono text-gray-300 whitespace-pre-wrap bg-gray-950 p-4 rounded-md border border-gray-800 overflow-x-auto"
         >
-${message}</pre
+${message}
+</pre
         >
       </ed-modal>
     `;

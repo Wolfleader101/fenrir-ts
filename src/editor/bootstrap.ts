@@ -13,15 +13,12 @@ import {
   UtilitiesPlugin,
   LiveEngineController,
   createErrorBus,
-  EditorModel,
-  WebComponentEditorView,
-  EditorPresenter,
   type SandboxPlugin,
 } from "@/editor";
 // Import and register Web Components
-import "@/editor/components";
-import { wireComponentsWithSignals } from "@/editor/wireComponents";
-import type { ControlAction } from "@/editor/components/presenters";
+import "@/editor/ui/components";
+import { EditorStore } from "@/editor/ui/stores";
+import { MainEditorPresenter } from "@/editor/ui/presenters";
 
 export interface EditorBootstrapOptions {
   readonly engine: Engine;
@@ -36,7 +33,7 @@ export interface EditorBootstrapOptions {
 export interface BootstrappedEditor {
   readonly editor: monaco.editor.IStandaloneCodeEditor;
   readonly model: monaco.editor.ITextModel;
-  readonly presenter: EditorPresenter;
+  readonly mainPresenter: MainEditorPresenter;
   readonly errorBus: ReturnType<typeof createErrorBus>;
 }
 
@@ -109,7 +106,7 @@ export const bootstrapEditor = async (
   // Create error bus
   const errorBus = createErrorBus();
 
-  // Create editor components
+  // Create editor services
   const transpiler = new TypeScriptTranspiler(model);
   const codeExecutor = new CodeExecutor();
 
@@ -126,20 +123,12 @@ export const bootstrapEditor = async (
 
   const engineController = new LiveEngineController(engine);
 
-  // Create MVP components (old EditorModel - we'll sync with new store)
-  const editorModel = new EditorModel("stopped");
+  // Create signal-based store (single source of truth)
+  const store = new EditorStore("stopped");
 
-  // Use Web Components-based view
-  const editorView = new WebComponentEditorView({
-    controlBar: document.querySelector("ed-control-bar"),
-    errorModal: document.querySelector("ed-error-modal"),
-    logFn: (msg: string) => logger.info(msg),
-    warnFn: (msg: string) => logger.warn(msg),
-  });
-
-  const presenter = new EditorPresenter(
-    editorModel,
-    editorView,
+  // Create main presenter (orchestrates everything)
+  const mainPresenter = new MainEditorPresenter({
+    store,
     engineController,
     transpiler,
     codeExecutor,
@@ -147,55 +136,24 @@ export const bootstrapEditor = async (
     errorBus,
     buildContext,
     assets,
-  );
-
-  // Wire up signal-based components with presenters
-  const handleControlAction = (action: ControlAction): void => {
-    switch (action) {
-      case "start":
-        presenter.handleStart();
-        break;
-      case "pause":
-        presenter.handlePause();
-        break;
-      case "resume":
-        presenter.handleResume();
-        break;
-      case "restart":
-        presenter.handleRestart();
-        break;
-      case "save":
-        presenter.handleSave();
-        break;
-    }
-  };
-
-  const handleErrorClose = (): void => {
-    presenter.handleCloseError();
-  };
-
-  // Wire up the new signal-based architecture
-  const { store } = wireComponentsWithSignals({
-    onControlAction: handleControlAction,
-    onErrorClose: handleErrorClose,
+    logger,
   });
 
-  // Sync the old EditorModel with the new signal-based store
-  editorModel.subscribe((state) => {
-    store.setEngineState(state.engineState);
-    if (state.hasError && state.errorMessage) {
-      store.setError(state.errorMessage);
-    } else {
-      store.clearError();
-    }
-    if (state.currentScript) {
-      store.setScript(state.currentScript);
-    }
-  });
+  // Wire up components to presenters
+  const controlBar = document.querySelector("ed-control-bar");
+  if (controlBar) {
+    controlBar.presenter = mainPresenter.control;
+    controlBar.statusPresenter = mainPresenter.status;
+  }
+
+  const errorModal = document.querySelector("ed-error-modal");
+  if (errorModal) {
+    errorModal.presenter = mainPresenter.error;
+  }
 
   // Ctrl+S keyboard shortcut
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
-    await presenter.handleSave();
+    await mainPresenter.handleSave();
   });
 
   logger.info("✏️ Monaco Editor initialized!");
@@ -205,7 +163,7 @@ export const bootstrapEditor = async (
   return {
     editor,
     model,
-    presenter,
+    mainPresenter,
     errorBus,
   };
 };

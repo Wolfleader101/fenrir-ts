@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { AlertTriangle, X } from "lucide";
-import { icon, initIcons, tailwindStyles } from "../utils";
+import { icon, initIcons, tailwindStyles } from "../../utils";
 
 /**
  * EditorModal - Modal dialog primitive with backdrop

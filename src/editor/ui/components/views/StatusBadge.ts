@@ -2,8 +2,8 @@ import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { SignalWatcher } from "@lit-labs/signals";
 import { Circle, CirclePause, CircleDot } from "lucide";
-import { icon, initIcons, tailwindStyles } from "../utils";
-import type { StatusBadgePresenter } from "../presenters";
+import { icon, initIcons, tailwindStyles } from "../../utils";
+import type { StatusBadgePresenter } from "../../presenters";
 
 import "../primitives/Badge";
 

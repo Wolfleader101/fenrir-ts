@@ -1,5 +1,5 @@
 import { Signal } from "signal-polyfill";
-import type { EngineState, UserScript } from "../types";
+import type { EngineState, UserScript } from "../../types";
 
 /**
  * EditorStore - Signal-based reactive store for editor state
@@ -39,44 +39,13 @@ export class EditorStore {
   }
 
   /**
-   * Update engine state
+   * Update state with partial update
+   * Business logic should be in presenters, not here
    */
-  setEngineState(engineState: EngineState): void {
+  setState(update: Partial<EditorStoreState>): void {
     this.state.set({
       ...this.state.get(),
-      engineState,
-    });
-  }
-
-  /**
-   * Set an error message
-   */
-  setError(errorMessage: string): void {
-    this.state.set({
-      ...this.state.get(),
-      hasError: true,
-      errorMessage,
-    });
-  }
-
-  /**
-   * Clear any error state
-   */
-  clearError(): void {
-    this.state.set({
-      ...this.state.get(),
-      hasError: false,
-      errorMessage: null,
-    });
-  }
-
-  /**
-   * Set the current script
-   */
-  setScript(currentScript: UserScript | null): void {
-    this.state.set({
-      ...this.state.get(),
-      currentScript,
+      ...update,
     });
   }
 }

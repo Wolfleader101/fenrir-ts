@@ -42,6 +42,7 @@
     "lucide": "^0.563.0",
     "monaco-editor": "0.55.1",
     "signal-polyfill": "^0.2.2",
+    "signal-utils": "^0.21.1",
     "tailwindcss": "^4.1.18",
     "three": "^0.182.0"
   }
