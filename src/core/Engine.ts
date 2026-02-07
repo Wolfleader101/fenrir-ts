@@ -60,6 +60,11 @@ export class Engine {
 
     this.running = true;
 
+    // Reset time to prevent large deltaTime on first frame
+    // This prevents physics from simulating the entire time between
+    // engine construction and engine.run() being called
+    this.time.reset();
+
     const ctx = this.createSystemCtx();
 
     // Run async initialization stages sequentially

@@ -14,10 +14,14 @@ import {
   LiveEngineController,
   createErrorBus,
   EditorModel,
-  DefaultEditorView,
+  WebComponentEditorView,
   EditorPresenter,
   type SandboxPlugin,
 } from "@/editor";
+// Import and register Web Components
+import "@/editor/components";
+import { wireComponentsWithSignals } from "@/editor/wireComponents";
+import type { ControlAction } from "@/editor/components/presenters";
 
 export interface EditorBootstrapOptions {
   readonly engine: Engine;
@@ -122,20 +126,15 @@ export const bootstrapEditor = async (
 
   const engineController = new LiveEngineController(engine);
 
-  // Create MVP components
+  // Create MVP components (old EditorModel - we'll sync with new store)
   const editorModel = new EditorModel("stopped");
 
-  const editorView = new DefaultEditorView({
-    btnStart: document.getElementById("btn-start") as HTMLButtonElement,
-    btnPause: document.getElementById("btn-pause") as HTMLButtonElement,
-    btnResume: document.getElementById("btn-resume") as HTMLButtonElement,
-    btnRestart: document.getElementById("btn-restart") as HTMLButtonElement,
-    btnSave: document.getElementById("btn-save") as HTMLButtonElement,
-    statusElement: document.getElementById("status") as HTMLDivElement,
-    errorPanel: document.getElementById("error-panel") as HTMLDivElement,
-    errorMessage: document.getElementById("error-message") as HTMLPreElement,
-    logFn: (msg) => logger.info(msg),
-    warnFn: (msg) => logger.warn(msg),
+  // Use Web Components-based view
+  const editorView = new WebComponentEditorView({
+    controlBar: document.querySelector("ed-control-bar"),
+    errorModal: document.querySelector("ed-error-modal"),
+    logFn: (msg: string) => logger.info(msg),
+    warnFn: (msg: string) => logger.warn(msg),
   });
 
   const presenter = new EditorPresenter(
@@ -150,24 +149,49 @@ export const bootstrapEditor = async (
     assets,
   );
 
-  // Wire up UI event handlers
-  const btnStart = document.getElementById("btn-start") as HTMLButtonElement;
-  const btnPause = document.getElementById("btn-pause") as HTMLButtonElement;
-  const btnResume = document.getElementById("btn-resume") as HTMLButtonElement;
-  const btnRestart = document.getElementById(
-    "btn-restart",
-  ) as HTMLButtonElement;
-  const btnSave = document.getElementById("btn-save") as HTMLButtonElement;
-  const btnCloseError = document.getElementById(
-    "btn-close-error",
-  ) as HTMLButtonElement;
+  // Wire up signal-based components with presenters
+  const handleControlAction = (action: ControlAction): void => {
+    switch (action) {
+      case "start":
+        presenter.handleStart();
+        break;
+      case "pause":
+        presenter.handlePause();
+        break;
+      case "resume":
+        presenter.handleResume();
+        break;
+      case "restart":
+        presenter.handleRestart();
+        break;
+      case "save":
+        presenter.handleSave();
+        break;
+    }
+  };
 
-  btnStart.addEventListener("click", () => presenter.handleStart());
-  btnPause.addEventListener("click", () => presenter.handlePause());
-  btnResume.addEventListener("click", () => presenter.handleResume());
-  btnRestart.addEventListener("click", () => presenter.handleRestart());
-  btnSave.addEventListener("click", () => presenter.handleSave());
-  btnCloseError.addEventListener("click", () => presenter.handleCloseError());
+  const handleErrorClose = (): void => {
+    presenter.handleCloseError();
+  };
+
+  // Wire up the new signal-based architecture
+  const { store } = wireComponentsWithSignals({
+    onControlAction: handleControlAction,
+    onErrorClose: handleErrorClose,
+  });
+
+  // Sync the old EditorModel with the new signal-based store
+  editorModel.subscribe((state) => {
+    store.setEngineState(state.engineState);
+    if (state.hasError && state.errorMessage) {
+      store.setError(state.errorMessage);
+    } else {
+      store.clearError();
+    }
+    if (state.currentScript) {
+      store.setScript(state.currentScript);
+    }
+  });
 
   // Ctrl+S keyboard shortcut
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {

@@ -46,6 +46,7 @@ export {
   EditorModel,
   type IEditorView,
   DefaultEditorView,
+  WebComponentEditorView,
   EditorPresenter,
 } from "./presentation";
 

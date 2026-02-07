@@ -21,7 +21,8 @@ export interface IEditorView {
 }
 
 /**
- * DefaultEditorView - Default implementation using DOM manipulation
+ * DefaultEditorView - Legacy DOM implementation
+ * @deprecated Use WebComponentEditorView instead
  */
 export class DefaultEditorView implements IEditorView {
   private readonly btnStart: HTMLButtonElement;
@@ -85,6 +86,64 @@ export class DefaultEditorView implements IEditorView {
 
   hideError(): void {
     this.errorPanel.classList.add("hidden");
+  }
+
+  logInfo(message: string): void {
+    this.logFn(message);
+  }
+
+  logWarning(message: string): void {
+    this.warnFn(message);
+  }
+}
+
+/**
+ * WebComponentEditorView - Modern Web Components implementation
+ * Uses custom elements for reactive UI updates
+ */
+export class WebComponentEditorView implements IEditorView {
+  private readonly controlBar: HTMLElement | null;
+  private readonly errorModal: HTMLElement | null;
+  private readonly logFn: (message: string) => void;
+  private readonly warnFn: (message: string) => void;
+
+  constructor(options: {
+    controlBar: HTMLElement | null;
+    errorModal: HTMLElement | null;
+    logFn: (message: string) => void;
+    warnFn: (message: string) => void;
+  }) {
+    this.controlBar = options.controlBar;
+    this.errorModal = options.errorModal;
+    this.logFn = options.logFn;
+    this.warnFn = options.warnFn;
+  }
+
+  updateButtonStates(state: EngineState): void {
+    if (this.controlBar && "updateState" in this.controlBar) {
+      (
+        this.controlBar as { updateState: (state: EngineState) => void }
+      ).updateState(state);
+    }
+  }
+
+  updateStatus(state: EngineState): void {
+    // Status is handled by control bar component
+    this.updateButtonStates(state);
+  }
+
+  showError(message: string): void {
+    if (this.errorModal && "showError" in this.errorModal) {
+      (this.errorModal as { showError: (msg: string) => void }).showError(
+        message,
+      );
+    }
+  }
+
+  hideError(): void {
+    if (this.errorModal && "hideError" in this.errorModal) {
+      (this.errorModal as { hideError: () => void }).hideError();
+    }
   }
 
   logInfo(message: string): void {

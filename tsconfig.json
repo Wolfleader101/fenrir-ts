@@ -9,6 +9,7 @@
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "experimentalDecorators": true,
 
     /* Strictness */
     "strict": true,
@@ -30,7 +31,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "useDefineForClassFields": true,
+    "useDefineForClassFields": false,
 
     /* Path mapping */
     "baseUrl": ".",
