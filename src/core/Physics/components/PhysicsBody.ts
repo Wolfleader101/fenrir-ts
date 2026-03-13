@@ -39,6 +39,7 @@ export type PhysicsBody = {
   readonly gravityFactor?: number; // Gravity multiplier (1.0 = normal)
   readonly allowSleeping?: boolean; // Can body go to sleep for optimization
   readonly isSensor?: boolean; // Is this a trigger/sensor body
+  readonly lockRotation?: [boolean, boolean, boolean]; // Lock rotation on X, Y, Z axes
 
   // Runtime state (mutable, set by PhysicsSystem)
   bodyId?: JoltBodyID; // Jolt BodyID reference
@@ -60,6 +61,7 @@ export function createPhysicsBody(config: {
   gravityFactor?: number;
   allowSleeping?: boolean;
   isSensor?: boolean;
+  lockRotation?: [boolean, boolean, boolean];
 }): PhysicsBody {
   const syncMode =
     config.syncMode ??
@@ -95,5 +97,6 @@ export function createPhysicsBody(config: {
     gravityFactor: config.gravityFactor ?? 1.0,
     allowSleeping: config.allowSleeping ?? true,
     isSensor: config.isSensor ?? false,
+    lockRotation: config.lockRotation,
   };
 }

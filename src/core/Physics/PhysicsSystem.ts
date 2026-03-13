@@ -240,6 +240,24 @@ class PhysicsSystem {
         creationSettings.mMassPropertiesOverride.mMass = physicsBody.mass;
       }
 
+      // Apply rotation lock if specified
+      if (physicsBody.lockRotation) {
+        const [lockX, lockY, lockZ] = physicsBody.lockRotation;
+        // Jolt uses AllowedDOFs enum to control which axes can translate/rotate
+        // Build allowed DOFs: always allow all translation, selectively allow rotation
+        let dofs =
+          this.jolt.EAllowedDOFs_TranslationX |
+          this.jolt.EAllowedDOFs_TranslationY |
+          this.jolt.EAllowedDOFs_TranslationZ;
+
+        // lock = true means DON'T add that rotation axis
+        if (!lockX) dofs |= this.jolt.EAllowedDOFs_RotationX;
+        if (!lockY) dofs |= this.jolt.EAllowedDOFs_RotationY;
+        if (!lockZ) dofs |= this.jolt.EAllowedDOFs_RotationZ;
+
+        creationSettings.mAllowedDOFs = dofs;
+      }
+
       const body = this.bodyInterface.CreateBody(creationSettings);
 
       // Cleanup temporary objects

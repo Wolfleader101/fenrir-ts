@@ -33,6 +33,8 @@ export type JoltEActivation = Jolt.EActivation;
 
 export type JoltRMat44 = Jolt.RMat44;
 
+export type JoltAllowedDOFs = Jolt.EAllowedDOFs;
+
 /**
  * Color class used by debug renderer
  */

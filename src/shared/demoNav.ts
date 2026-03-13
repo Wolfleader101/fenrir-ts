@@ -17,6 +17,7 @@ const DEMO_PAGES: readonly DemoPage[] = [
   { href: "stacking-blocks.html", title: "Stacking Blocks" },
   { href: "pixi2d.html", title: "2D Demo (PixiJS)" },
   { href: "platformer.html", title: "2D Platformer" },
+  { href: "platformer-physics.html", title: "2D Platformer (Physics)" },
   { href: "monaco-editor.html", title: "Monaco Editor Demo" },
 ] as const;
 
