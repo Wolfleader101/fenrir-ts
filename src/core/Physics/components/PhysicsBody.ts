@@ -1,6 +1,7 @@
 import { defineComponent } from "../../ECS/Component";
 import type { CollisionLayer, CollisionMask } from "../utils/CollisionLayers";
 import { CommonLayers, CollisionMasks } from "../utils/CollisionLayers";
+import type { JoltBody, JoltBodyID } from "../utils/JoltWrapper";
 
 /**
  * Motion types for physics bodies
@@ -29,7 +30,7 @@ export type SyncMode = (typeof SyncMode)[keyof typeof SyncMode];
  * Core physics body component that stores Jolt body reference and metadata
  */
 export type PhysicsBody = {
-  readonly bodyId?: number; // Jolt BodyID reference (set by physics system)
+  // Configuration (readonly)
   readonly motionType: MotionType; // Body motion type
   readonly collisionLayer: CollisionLayer; // Which collision layer this body is on (32-bit)
   readonly collisionMask: CollisionMask; // Which layers this body can collide with (32-bit mask)
@@ -38,6 +39,10 @@ export type PhysicsBody = {
   readonly gravityFactor?: number; // Gravity multiplier (1.0 = normal)
   readonly allowSleeping?: boolean; // Can body go to sleep for optimization
   readonly isSensor?: boolean; // Is this a trigger/sensor body
+
+  // Runtime state (mutable, set by PhysicsSystem)
+  bodyId?: JoltBodyID; // Jolt BodyID reference
+  joltBody?: JoltBody; // Direct reference to Jolt body for physics operations
 };
 
 export const PhysicsBody = defineComponent<PhysicsBody>("PhysicsBody");
@@ -46,7 +51,7 @@ export const PhysicsBody = defineComponent<PhysicsBody>("PhysicsBody");
  * Helper function to create a physics body configuration
  */
 export function createPhysicsBody(config: {
-  bodyId?: number;
+  bodyId?: JoltBodyID;
   motionType: MotionType;
   collisionLayer?: CollisionLayer;
   collisionMask?: CollisionMask;
@@ -61,24 +66,24 @@ export function createPhysicsBody(config: {
     (config.motionType === MotionType.Dynamic
       ? SyncMode.PhysicsToTransform
       : config.motionType === MotionType.Kinematic
-      ? SyncMode.TransformToPhysics
-      : SyncMode.None);
+        ? SyncMode.TransformToPhysics
+        : SyncMode.None);
 
   // Default collision layer based on motion type
   const defaultLayer =
     config.motionType === MotionType.Static
       ? CommonLayers.STATIC
       : config.motionType === MotionType.Dynamic
-      ? CommonLayers.DYNAMIC
-      : CommonLayers.KINEMATIC;
+        ? CommonLayers.DYNAMIC
+        : CommonLayers.KINEMATIC;
 
   // Default collision mask based on motion type
   const defaultMask =
     config.motionType === MotionType.Static
       ? CollisionMasks.static()
       : config.motionType === MotionType.Dynamic
-      ? CollisionMasks.dynamic()
-      : CollisionMasks.dynamic(); // Kinematic uses same as dynamic for now
+        ? CollisionMasks.dynamic()
+        : CollisionMasks.dynamic(); // Kinematic uses same as dynamic for now
 
   return {
     bodyId: config.bodyId,

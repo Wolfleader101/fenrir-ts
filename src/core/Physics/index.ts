@@ -3,7 +3,10 @@ export * from "./components";
 export * from "./utils";
 
 // Export the new unified PhysicsSystem
-export { createPhysicsSystem, PhysicsHelpers } from "./PhysicsSystem";
+export { createPhysicsSystem, PhysicsBodyPresets } from "./PhysicsSystem";
+
+// Export PhysicsHelpers class
+export { PhysicsHelpers } from "./PhysicsHelpers";
 
 // Export CommonMaterials for extensions
 export { CommonMaterials } from "./components/PhysicsMaterial";

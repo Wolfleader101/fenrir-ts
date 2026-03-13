@@ -126,38 +126,35 @@ class SkyboxSystem {
   }
 
   /**
-   * Create cube texture from individual face textures
+   * Create cube texture from individual face textures loaded from AssetStore
    */
   private async createCubeTexture(textures: any): Promise<THREE.CubeTexture> {
-    // Use Three.js CubeTextureLoader for proper format handling
-    const loader = new THREE.CubeTextureLoader();
+    // Load all six textures from the asset store
+    const [posX, negX, posY, negY, posZ, negZ] = await Promise.all([
+      this.assets.getTexture(textures.posX),
+      this.assets.getTexture(textures.negX),
+      this.assets.getTexture(textures.posY),
+      this.assets.getTexture(textures.negY),
+      this.assets.getTexture(textures.posZ),
+      this.assets.getTexture(textures.negZ),
+    ]);
 
-    // Create array of texture paths in the correct order for CubeTextureLoader
-    // Order: [positive-x, negative-x, positive-y, negative-y, positive-z, negative-z]
-    const urls = [
-      textures.posX, // right
-      textures.negX, // left
-      textures.posY, // top
-      textures.negY, // bottom
-      textures.posZ, // front
-      textures.negZ, // back
-    ];
+    // Create a CubeTexture manually from the individual textures
+    const cubeTexture = new THREE.CubeTexture([
+      posX.image, // right
+      negX.image, // left
+      posY.image, // top
+      negY.image, // bottom
+      posZ.image, // front
+      negZ.image, // back
+    ]);
 
-    // Load the cube texture directly
-    return new Promise((resolve, reject) => {
-      loader.load(
-        urls,
-        (cubeTexture) => {
-          cubeTexture.mapping = THREE.CubeReflectionMapping;
-          cubeTexture.flipY = false; // Important: don't flip Y for cube textures
-          resolve(cubeTexture);
-        },
-        undefined, // onProgress
-        (error) => {
-          reject(error);
-        },
-      );
-    });
+    cubeTexture.mapping = THREE.CubeReflectionMapping;
+    cubeTexture.colorSpace = THREE.SRGBColorSpace;
+    cubeTexture.flipY = false; // Important: don't flip Y for cube textures
+    cubeTexture.needsUpdate = true;
+
+    return cubeTexture;
   }
 
   /**

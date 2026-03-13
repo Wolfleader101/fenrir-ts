@@ -1,8 +1,10 @@
 import { Vector3 } from "three";
-import type { AsyncSystemFn } from "@/core/SystemCtx";
+import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 import { SkyboxUtils } from "@/core/Skybox";
+import { PhysicsBody } from "@/core/Physics";
+import { InputEvent } from "@/core/InputSystem/InputEvents";
 
 /**
  * Bouncing Ball Demo
@@ -12,6 +14,7 @@ import { SkyboxUtils } from "@/core/Skybox";
  * - Static ground plane
  * - Colorful bouncing balls
  * - Material properties (rubber for bounce)
+ * - Physics impulses (press SPACE to push balls up)
  */
 export function createBouncingBallDemo(assetStore: IAssetStore) {
   const init: AsyncSystemFn = async (ctx) => {
@@ -104,7 +107,52 @@ export function createBouncingBallDemo(assetStore: IAssetStore) {
       .spawn(entities);
 
     ctx.logger.info("✅ Bouncing ball demo created");
+    ctx.logger.info("⌨️  Press E to apply upward impulse to all balls");
   };
 
-  return { init };
+  /**
+   * System that applies impulses to balls when E is pressed
+   * This tests the PhysicsHelpers functionality using engine events
+   */
+  const update: SyncSystemFn = (ctx) => {
+    // Check if physics helpers are available
+    if (!ctx.physics) {
+      ctx.logger.warn("⚠️ Physics helpers not available on ctx");
+      return;
+    }
+
+    // Read keyboard events from the event bus
+    const keyDownEvents = ctx.events.read(InputEvent.KeyDown);
+
+    for (const event of keyDownEvents) {
+      ctx.logger.info(
+        `🔵 KeyDown event: ${event.code}, repeat: ${event.repeat}`,
+      );
+
+      // Check if E was pressed (and not a repeat)
+      if (event.code === "KeyE" && !event.repeat) {
+        ctx.logger.info("🚀 E pressed - applying impulse to all balls!");
+
+        // Apply upward impulse to all physics bodies
+        let ballCount = 0;
+        ctx.entities.each([PhysicsBody], (entity, physicsBody) => {
+          ballCount++;
+
+          const entityId = ctx.entities.idOf(entity);
+          ctx.logger.info(
+            `  🎾 Entity ${entityId}, hasJoltBody: ${!!physicsBody.joltBody}`,
+          );
+
+          // Apply upward impulse (impulse = mass × velocity change)
+          // For 1-3kg balls, an impulse of 20-50 gives nice visible jump
+          const impulse = new Vector3(0, 30, 0);
+          ctx.physics!.applyImpulse(physicsBody, impulse);
+        });
+
+        ctx.logger.info(`✅ Applied impulse to ${ballCount} balls`);
+      }
+    }
+  };
+
+  return { init, update };
 }

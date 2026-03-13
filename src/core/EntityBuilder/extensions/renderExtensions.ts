@@ -7,14 +7,14 @@ import {
 } from "@/core/Renderer/renderComponents";
 
 export type ModelRenderableOpts = {
-  id?: number;
-  flags?: RenderFlags;
+  readonly id?: number;
+  readonly flags?: RenderFlags;
 };
 
 export type PrimitiveRenderableOpts = {
-  id?: number;
-  material?: MaterialDesc;
-  flags?: RenderFlags;
+  readonly id?: number;
+  readonly material?: MaterialDesc;
+  readonly flags?: RenderFlags;
 };
 
 declare module "../EntityBuilder" {
@@ -22,17 +22,17 @@ declare module "../EntityBuilder" {
     model(key: AssetKey, opts?: ModelRenderableOpts): EntityBuilder;
     renderBox(
       size?: [number, number, number],
-      opts?: PrimitiveRenderableOpts
+      opts?: PrimitiveRenderableOpts,
     ): EntityBuilder;
     renderSphere(
       radius?: number,
       widthSeg?: number,
       heightSeg?: number,
-      opts?: PrimitiveRenderableOpts
+      opts?: PrimitiveRenderableOpts,
     ): EntityBuilder;
     renderPlane(
       size?: [number, number],
-      opts?: PrimitiveRenderableOpts
+      opts?: PrimitiveRenderableOpts,
     ): EntityBuilder;
   }
 }
@@ -50,7 +50,7 @@ EntityBuilder.extend({
   renderBox(
     this: EntityBuilder,
     size: [number, number, number] = [1, 1, 1],
-    opts?: PrimitiveRenderableOpts
+    opts?: PrimitiveRenderableOpts,
   ) {
     return this.with(Renderable, {
       id: opts?.id ?? 0,
@@ -69,7 +69,7 @@ EntityBuilder.extend({
     radius: number = 1,
     widthSeg: number = 32,
     heightSeg: number = 16,
-    opts?: PrimitiveRenderableOpts
+    opts?: PrimitiveRenderableOpts,
   ) {
     return this.with(Renderable, {
       id: opts?.id ?? 0,
@@ -86,7 +86,7 @@ EntityBuilder.extend({
   renderPlane(
     this: EntityBuilder,
     size: [number, number] = [1, 1],
-    opts?: PrimitiveRenderableOpts
+    opts?: PrimitiveRenderableOpts,
   ) {
     return this.with(Renderable, {
       id: opts?.id ?? 0,
@@ -100,3 +100,6 @@ EntityBuilder.extend({
     });
   },
 });
+
+// Export types and empty object to make this a module with exports
+export {};

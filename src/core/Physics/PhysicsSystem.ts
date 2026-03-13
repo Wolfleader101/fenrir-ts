@@ -23,6 +23,7 @@ import {
   type CollisionLayer,
   type CollisionMask,
 } from "./utils/CollisionLayers";
+import { PhysicsHelpers } from "./PhysicsHelpers";
 
 /**
  * Simplified PhysicsWorld interface for the new system
@@ -67,6 +68,7 @@ class PhysicsSystem {
   private bodyInterface: JoltBodyInterface | null = null;
   private joltInterface: JoltInterface | null = null;
   private physicsObjects: PhysicsObject[] = [];
+  private physicsHelpers: PhysicsHelpers | null = null;
 
   /**
    * Get Jolt object layer from collision layer bit
@@ -220,11 +222,22 @@ class PhysicsSystem {
         if (physicsMaterial.angularDamping !== undefined) {
           creationSettings.mAngularDamping = physicsMaterial.angularDamping;
         }
+      }
 
-        // Apply gravity factor if specified in physics body
-        if (physicsBody.gravityFactor !== undefined) {
-          creationSettings.mGravityFactor = physicsBody.gravityFactor;
-        }
+      // Apply gravity factor if specified in physics body
+      if (physicsBody.gravityFactor !== undefined) {
+        creationSettings.mGravityFactor = physicsBody.gravityFactor;
+      }
+
+      // Override mass if explicitly specified in PhysicsBody component
+      // Otherwise Jolt will calculate mass from shape volume × material density
+      if (
+        physicsBody.mass !== undefined &&
+        motionType === this.jolt.EMotionType_Dynamic
+      ) {
+        creationSettings.mOverrideMassProperties =
+          this.jolt.EOverrideMassProperties_CalculateInertia;
+        creationSettings.mMassPropertiesOverride.mMass = physicsBody.mass;
       }
 
       const body = this.bodyInterface.CreateBody(creationSettings);
@@ -280,23 +293,11 @@ class PhysicsSystem {
       this.physicsSystem = this.joltInterface.GetPhysicsSystem();
       this.bodyInterface = this.physicsSystem.GetBodyInterface();
 
-      // Store in context for other systems (simplified PhysicsWorld interface)
-      // const _simplePhysicsWorld: SimplePhysicsWorld = {
-      //   jolt: this.jolt,
-      //   joltInterface: this.joltInterface,
-      //   physicsSystem: this.physicsSystem,
-      //   bodyInterface: this.bodyInterface,
-      //   config: { gravity: new Vector3(0, -9.81, 0) },
-      //   utils: {
-      //     vec3ToJolt: JoltUtils.vec3ToJolt,
-      //     vec3ToJoltR: JoltUtils.vec3ToJoltR,
-      //     quatToJolt: JoltUtils.quatToJolt,
-      //     joltVec3ToThree: JoltUtils.joltVec3ToThree,
-      //     joltRVec3ToThree: JoltUtils.joltRVec3ToThree,
-      //     joltQuatToThree: JoltUtils.joltQuatToThree,
-      //   },
-      //   isInitialized: true,
-      // };
+      // Create physics helpers instance with body interface for activation
+      this.physicsHelpers = new PhysicsHelpers(this.jolt, this.bodyInterface);
+
+      // Expose on context
+      ctx.physics = this.physicsHelpers;
 
       ctx.logger.info("Physics system initialized successfully");
     } catch (error) {
@@ -340,6 +341,15 @@ class PhysicsSystem {
             ctx,
           );
           if (body) {
+            // Store Jolt body reference in the component for direct access
+            const bodyId = body.GetID();
+            physicsBody.bodyId = bodyId;
+            physicsBody.joltBody = body;
+
+            ctx.logger.info(
+              `✅ Stored joltBody on entity ${ctx.entities.idOf(entity)}, bodyId: ${bodyId}, hasRef: ${!!physicsBody.joltBody}`,
+            );
+
             this.physicsObjects.push({
               entity,
               body,
@@ -427,6 +437,14 @@ class PhysicsSystem {
       ctx.logger.error("Error cleaning up physics", { error });
     }
   }
+
+  /**
+   * Get physics helpers instance
+   * Available after initialize() has been called
+   */
+  getPhysics(): PhysicsHelpers | null {
+    return this.physicsHelpers;
+  }
 }
 
 /**
@@ -444,13 +462,18 @@ export function createPhysicsSystem() {
     init,
     tick,
     exit,
+    /**
+     * Get physics helpers instance
+     * Available after init() has been called
+     */
+    getPhysics: (): PhysicsHelpers | null => physicsSystem.getPhysics(),
   } as const;
 }
 
 /**
- * Helper functions for creating physics objects using the new collision layer system
+ * Helper functions for creating physics body configurations
  */
-export const PhysicsHelpers = {
+export const PhysicsBodyPresets = {
   /**
    * Create a static box (like demo's createFloor)
    */

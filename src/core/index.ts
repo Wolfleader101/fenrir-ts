@@ -48,6 +48,16 @@ export type { InputEvent } from "./InputSystem/InputEvents";
 // Physics
 export { PhysicsBody, PhysicsShape, PhysicsMaterial } from "./Physics";
 
+// Renderer2D (PixiJS)
+export { Renderable2D } from "./Renderer2D";
+export type {
+  SpriteDesc,
+  GraphicsDesc,
+  TextDesc,
+  ContainerDesc,
+  Render2DFlags,
+} from "./Renderer2D";
+
 // Skybox
 export { SkyboxUtils } from "./Skybox/SkyboxUtils";
 export type { SkyboxDescriptor } from "./Skybox/SkyboxComponents";

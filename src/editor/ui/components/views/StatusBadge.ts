@@ -7,12 +7,15 @@ import type { StatusBadgePresenter } from "../../presenters";
 
 import "../primitives/Badge";
 
+// Type helper to work around TypeScript issue with SignalWatcher
+const SignalWatcherBase = SignalWatcher(LitElement) as typeof LitElement;
+
 /**
  * StatusBadge - Displays current engine state with appropriate styling
  * View component that renders data from StatusBadgePresenter
  */
 @customElement("ed-status-badge")
-export class StatusBadge extends SignalWatcher(LitElement) {
+export class StatusBadge extends SignalWatcherBase {
   static override styles = [tailwindStyles];
 
   @property({ attribute: false })

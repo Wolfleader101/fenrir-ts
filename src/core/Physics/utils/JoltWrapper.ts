@@ -80,14 +80,14 @@ export interface JoltDebugRendererJS {
     inV2: number,
     inV3: number,
     inColor: number,
-    inCastShadow: number
+    inCastShadow: number,
   ) => void;
   DrawText3D: (
     inPosition: number,
     inStringPtr: number,
     inStringLen: number,
     inColor: number,
-    inHeight: number
+    inHeight: number,
   ) => void;
   DrawGeometryWithID: (
     inModelMatrix: number,
@@ -97,17 +97,17 @@ export interface JoltDebugRendererJS {
     inGeometryID: number,
     inCullMode: number,
     inCastShadow: number,
-    inDrawMode: number
+    inDrawMode: number,
   ) => void;
   CreateTriangleBatchID: (
     inTriangles: number,
-    inTriangleCount: number
+    inTriangleCount: number,
   ) => number;
   CreateTriangleBatchIDWithIndex: (
     inVertices: number,
     inVertexCount: number,
     inIndices: number,
-    inIndexCount: number
+    inIndexCount: number,
   ) => number;
 }
 
@@ -148,7 +148,7 @@ export class JoltUtils {
       joltQuat.GetX(),
       joltQuat.GetY(),
       joltQuat.GetZ(),
-      joltQuat.GetW()
+      joltQuat.GetW(),
     );
   }
 }

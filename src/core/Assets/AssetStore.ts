@@ -121,11 +121,33 @@ export class AssetStore implements IAssetStore {
   }
 
   private getFileExtension(url: string): string {
-    return url.split(".").pop()?.toLowerCase() || "";
+    // Handle data URLs (e.g. data:image/png;base64,...)
+    if (url.startsWith("data:")) {
+      // data:<mimeType>[;...],...
+      const mime = url.slice(
+        5,
+        url.indexOf(";") === -1 ? url.indexOf(",") : url.indexOf(";"),
+      );
+      // mime like "image/png"
+      const subtype = mime.split("/")[1]?.toLowerCase();
+      // map common image subtypes to your extension list
+      if (!subtype) return "";
+      if (subtype === "jpeg") return "jpg";
+      return subtype; // png, webp, gif, bmp, etc.
+    }
+
+    // Strip query + hash
+    const clean = url.split("#")[0]!.split("?")[0]!;
+
+    // If it’s a path with no dot, no extension
+    const lastDot = clean.lastIndexOf(".");
+    if (lastDot === -1) return "";
+
+    return clean.slice(lastDot + 1).toLowerCase();
   }
 
   private findModelLoaderByExtension(
-    extension: string
+    extension: string,
   ): ModelLoaderConfig | null {
     for (const config of this.modelLoaders.values()) {
       if (config.extensions.includes(extension)) {
@@ -136,7 +158,7 @@ export class AssetStore implements IAssetStore {
   }
 
   private findTextureLoaderByExtension(
-    extension: string
+    extension: string,
   ): TextureLoaderConfig | null {
     for (const config of this.textureLoaders.values()) {
       if (config.extensions.includes(extension)) {
@@ -154,8 +176,8 @@ export class AssetStore implements IAssetStore {
       const supportedExts = this.getSupportedModelExtensions();
       throw new Error(
         `Unsupported model format: .${ext}. Supported extensions: ${supportedExts.join(
-          ", "
-        )}`
+          ", ",
+        )}`,
       );
     }
 
@@ -172,8 +194,8 @@ export class AssetStore implements IAssetStore {
       const supportedExts = this.getSupportedTextureExtensions();
       throw new Error(
         `Unsupported texture format: .${ext}. Supported extensions: ${supportedExts.join(
-          ", "
-        )}`
+          ", ",
+        )}`,
       );
     }
 

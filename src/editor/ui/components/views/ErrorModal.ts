@@ -5,12 +5,15 @@ import { tailwindStyles } from "../../utils";
 import type { ErrorModalPresenter } from "../../presenters";
 import "../primitives/Modal";
 
+// Type helper to work around TypeScript issue with SignalWatcher
+const SignalWatcherBase = SignalWatcher(LitElement) as typeof LitElement;
+
 /**
  * ErrorModal - Displays error messages with syntax highlighting
  * View component that renders error state from ErrorModalPresenter
  */
 @customElement("ed-error-modal")
-export class ErrorModal extends SignalWatcher(LitElement) {
+export class ErrorModal extends SignalWatcherBase {
   static override styles = [tailwindStyles];
 
   @property({ attribute: false })

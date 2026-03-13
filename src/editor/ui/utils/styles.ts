@@ -1,5 +1,4 @@
-import { unsafeCSS } from "lit";
-import globalStyles from "@/style.css?inline";
+import { css, unsafeCSS } from "lit";
 
 /**
  * Import Tailwind CSS styles for use in LitElement shadow DOM
@@ -10,4 +9,6 @@ import globalStyles from "@/style.css?inline";
  * static override styles = [tailwindStyles];
  * ```
  */
-export const tailwindStyles = unsafeCSS(globalStyles);
+export const tailwindStyles = css`
+  @import "tailwindcss";
+`;

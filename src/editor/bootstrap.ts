@@ -20,13 +20,45 @@ import "@/editor/ui/components";
 import { EditorStore } from "@/editor/ui/stores";
 import { MainEditorPresenter } from "@/editor/ui/presenters";
 
+// Import type definition resources as raw strings
+import fenrirDts from "./resources/fenrir.d.ts?raw";
+import threeShimDts from "./resources/three-shim.d.ts?raw";
+import fenrirGlobalsDts from "./resources/fenrir-globals.d.ts?raw";
+import defaultScriptContent from "./resources/defaultScript.ts?raw";
+
+/**
+ * Monaco Editor Workers Configuration
+ *
+ * Worker loader functions that must be provided by the consuming application.
+ * The actual worker imports depend on your bundler's worker loading mechanism.
+ *
+ * @example Vite
+ * ```ts
+ * import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+ * // ... other workers
+ *
+ * const monacoWorkers = {
+ *   jsonWorker: () => new jsonWorker(),
+ *   // ... other workers
+ * };
+ * ```
+ */
+export interface MonacoWorkerLoaders {
+  readonly jsonWorker: () => Worker;
+  readonly cssWorker: () => Worker;
+  readonly htmlWorker: () => Worker;
+  readonly tsWorker: () => Worker;
+  readonly editorWorker: () => Worker;
+}
+
 export interface EditorBootstrapOptions {
   readonly engine: Engine;
   readonly assets: IAssetStore;
   readonly logger: ILogger;
   readonly buildContext: () => SystemCtx;
+  readonly monacoWorkers: MonacoWorkerLoaders;
   readonly editorContainerId?: string;
-  readonly defaultScriptUrl?: string;
+  readonly defaultScript?: string;
   readonly additionalPlugins?: SandboxPlugin[];
 }
 
@@ -49,13 +81,30 @@ export const bootstrapEditor = async (
     assets,
     logger,
     buildContext,
+    monacoWorkers,
     editorContainerId = "editor-container",
-    defaultScriptUrl = "/defaultScript.ts",
+    defaultScript = defaultScriptContent,
     additionalPlugins = [],
   } = options;
 
-  // Load default script
-  const defaultScript = await fetch(defaultScriptUrl).then((r) => r.text());
+  // Configure Monaco workers (must be done before creating editor)
+  self.MonacoEnvironment = {
+    getWorker(_moduleId: unknown, label: string) {
+      if (label === "json") {
+        return monacoWorkers.jsonWorker();
+      }
+      if (label === "css" || label === "scss" || label === "less") {
+        return monacoWorkers.cssWorker();
+      }
+      if (label === "html" || label === "handlebars" || label === "razor") {
+        return monacoWorkers.htmlWorker();
+      }
+      if (label === "typescript" || label === "javascript") {
+        return monacoWorkers.tsWorker();
+      }
+      return monacoWorkers.editorWorker();
+    },
+  };
 
   // Create Monaco model
   const uri = monaco.Uri.parse("file:///main.ts");
@@ -83,15 +132,9 @@ export const bootstrapEditor = async (
     model,
   });
 
-  // Load TypeScript definitions
-  const [fenrirDts, threeShim, fenrirGlobals] = await Promise.all([
-    fetch("/fenrir.d.ts").then((r) => r.text()),
-    fetch("/three-shim.d.ts").then((r) => r.text()),
-    fetch("/fenrir-globals.d.ts").then((r) => r.text()),
-  ]);
-
+  // Add TypeScript definitions from embedded resources
   typescript.typescriptDefaults.addExtraLib(
-    threeShim,
+    threeShimDts,
     "file:///types/three-shim.d.ts",
   );
   typescript.typescriptDefaults.addExtraLib(
@@ -99,7 +142,7 @@ export const bootstrapEditor = async (
     "file:///types/fenrir.d.ts",
   );
   typescript.typescriptDefaults.addExtraLib(
-    fenrirGlobals,
+    fenrirGlobalsDts,
     "file:///types/fenrir-globals.d.ts",
   );
 

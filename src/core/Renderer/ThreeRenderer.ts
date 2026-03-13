@@ -94,6 +94,14 @@ export class ThreeRenderer {
     this.assets = opts.assets;
     this.rendererType = opts.rendererType || "webgl";
 
+    // Validate canvas if provided
+    if (canvas && !(canvas instanceof HTMLCanvasElement)) {
+      throw new Error(
+        "Invalid canvas element provided to ThreeRenderer. Expected HTMLCanvasElement, got: " +
+          typeof canvas,
+      );
+    }
+
     // Create renderer based on type
     if (this.rendererType === "webgpu") {
       this.renderer = new THREE_WEBGPU.WebGPURenderer({

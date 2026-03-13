@@ -8,14 +8,17 @@ import { ConsoleLogger } from "@/core/ConsoleLogger.ts";
 import { bootstrapEngine } from "@/core/Bootstrap.ts";
 import { spinSystemUpdate } from "../shared/spinComponent.ts";
 import { initDemoNav } from "@/shared/demoNav.ts";
-import { initMonacoWorkers } from "./initMonacoWorkers.ts";
 import { bootstrapEditor } from "@/editor";
+
+// Import Monaco workers (Vite-specific)
+import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
+import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
+import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 
 // Initialize navigation
 initDemoNav("monaco-editor.html");
-
-// Initialize Monaco workers
-initMonacoWorkers();
 
 // Initialize game engine
 const logger = new ConsoleLogger();
@@ -49,6 +52,13 @@ await bootstrapEditor({
   engine,
   assets,
   logger,
+  monacoWorkers: {
+    jsonWorker: () => new jsonWorker(),
+    cssWorker: () => new cssWorker(),
+    htmlWorker: () => new htmlWorker(),
+    tsWorker: () => new tsWorker(),
+    editorWorker: () => new editorWorker(),
+  },
   buildContext: () => ({
     scene: sceneManager.getActiveScene(),
     entities: sceneManager.getActiveScene().entityList,

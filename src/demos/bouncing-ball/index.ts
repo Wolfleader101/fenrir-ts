@@ -57,7 +57,7 @@ const demo = createBouncingBallDemo(assets);
 
 engine
   .addSystems(Schedule.Init, [cameraController.init, demo.init])
-  .addSystems(Schedule.Update, [cameraController.update])
+  .addSystems(Schedule.Update, [cameraController.update, demo.update])
   .addSystems(Schedule.Exit, [cameraController.exit]);
 
 // Start the engine

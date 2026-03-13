@@ -12,12 +12,15 @@ import "../primitives/Button";
 import "../primitives/Panel";
 import "./StatusBadge";
 
+// Type helper to work around TypeScript issue with SignalWatcher
+const SignalWatcherBase = SignalWatcher(LitElement) as typeof LitElement;
+
 /**
  * ControlBar - Editor control panel with play/pause/restart/save buttons
  * View component that renders controls based on ControlBarPresenter state
  */
 @customElement("ed-control-bar")
-export class ControlBar extends SignalWatcher(LitElement) {
+export class ControlBar extends SignalWatcherBase {
   static override styles = [tailwindStyles];
 
   @property({ attribute: false })

@@ -65,7 +65,7 @@ declare module "../EntityBuilder" {
     physicsCylinder(
       halfHeight: number,
       radius: number,
-      convexRadius?: number
+      convexRadius?: number,
     ): EntityBuilder;
 
     /**
@@ -106,13 +106,13 @@ EntityBuilder.prototype.physicsBody = function (config) {
     config.motionType === MotionType.Dynamic
       ? SyncMode.PhysicsToTransform
       : config.motionType === MotionType.Kinematic
-      ? SyncMode.TransformToPhysics
-      : SyncMode.None; // Static bodies don't need sync
+        ? SyncMode.TransformToPhysics
+        : SyncMode.None; // Static bodies don't need sync
 
   return this.with(
     PhysicsBody,
     createPhysicsBody({
-      bodyId: 0, // Will be set by PhysicsSystem
+      // bodyId and joltBody will be set by PhysicsSystem
       motionType: config.motionType,
       collisionLayer: config.collisionLayer,
       collisionMask: config.collisionMask,
@@ -121,7 +121,7 @@ EntityBuilder.prototype.physicsBody = function (config) {
       gravityFactor: config.gravityFactor,
       allowSleeping: config.allowSleeping,
       isSensor: config.isSensor,
-    })
+    }),
   );
 };
 
@@ -129,7 +129,7 @@ EntityBuilder.prototype.collisionLayer = function (layer) {
   return this.modify(PhysicsBody, (body) => {
     if (!body) {
       throw new Error(
-        "PhysicsBody component must be added before setting collision layer"
+        "PhysicsBody component must be added before setting collision layer",
       );
     }
     return {
@@ -143,7 +143,7 @@ EntityBuilder.prototype.collisionMask = function (mask) {
   return this.modify(PhysicsBody, (body) => {
     if (!body) {
       throw new Error(
-        "PhysicsBody component must be added before setting collision mask"
+        "PhysicsBody component must be added before setting collision mask",
       );
     }
     return {
@@ -173,11 +173,11 @@ EntityBuilder.prototype.physicsCapsule = function (halfHeight, radius) {
 EntityBuilder.prototype.physicsCylinder = function (
   halfHeight,
   radius,
-  convexRadius
+  convexRadius,
 ) {
   return this.with(
     PhysicsShape,
-    ShapeBuilder.cylinder(halfHeight, radius, convexRadius)
+    ShapeBuilder.cylinder(halfHeight, radius, convexRadius),
   );
 };
 
@@ -215,3 +215,6 @@ EntityBuilder.prototype.kinematicBox = function (halfExtents) {
     .physicsBox(halfExtents)
     .physicsMaterial("default");
 };
+
+// Export empty object to make this a module with exports
+export {};

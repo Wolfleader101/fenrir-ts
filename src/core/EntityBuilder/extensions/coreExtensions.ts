@@ -16,7 +16,7 @@ EntityBuilder.extend({
     this: EntityBuilder,
     pos = new Vector3(),
     rot = new Quaternion(),
-    scale = new Vector3(1, 1, 1)
+    scale = new Vector3(1, 1, 1),
   ) {
     return this.with(Transform, {
       position: pos,
@@ -29,3 +29,6 @@ EntityBuilder.extend({
     return this.with(Name, { name: value });
   },
 });
+
+// Export empty object to make this a module with exports
+export {};

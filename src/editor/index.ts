@@ -47,3 +47,18 @@ export {
   ErrorModalPresenter,
   type ControlAction,
 } from "./ui/presenters";
+
+// UI Components (Web Components)
+export {
+  EditorBadge,
+  EditorButton,
+  EditorModal,
+  EditorPanel,
+  StatusBadge,
+  ControlBar,
+  ErrorModal,
+  type BadgeVariant,
+  type BadgeSize,
+  type ButtonVariant,
+  type PanelShadow,
+} from "./ui/components";

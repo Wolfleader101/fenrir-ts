@@ -1,0 +1,31 @@
+# Source files
+src/
+tests/
+
+# Build configuration
+vite.config.ts
+vite.config.lib.ts
+tsconfig.json
+tsconfig.types.json
+
+# Demo files
+*.html
+public/
+
+# Development files
+.vscode/
+.vercel/
+.kilocode/
+
+# Test files
+coverage/
+*.test.ts
+*.spec.ts
+
+# Editor files
+.DS_Store
+*.log
+
+# Other
+node_modules/
+pnpm-lock.yaml

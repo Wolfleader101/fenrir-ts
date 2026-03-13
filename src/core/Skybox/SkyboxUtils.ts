@@ -6,6 +6,14 @@ import {
   createEquirectangularSkybox,
 } from "./SkyboxComponents";
 
+// Import default skybox textures as embedded assets
+import rightUrl from "./assets/right.png";
+import leftUrl from "./assets/left.png";
+import topUrl from "./assets/top.png";
+import bottomUrl from "./assets/bottom.png";
+import frontUrl from "./assets/front.png";
+import backUrl from "./assets/back.png";
+
 /**
  * Utility functions for skybox management and common skybox configurations
  */
@@ -93,7 +101,7 @@ export class SkyboxUtils {
   }
 
   /**
-   * Set up the default skybox using the existing textures in public/textures/skybox/
+   * Set up the default skybox using embedded asset textures
    */
   static async setupDefaultSkybox(
     scene: Scene,
@@ -102,19 +110,38 @@ export class SkyboxUtils {
       enabled?: boolean;
     } = {},
   ): Promise<void> {
-    // Load the default skybox textures
-    await this.setupCubemapSkybox(scene, assets, {
-      basePath: "textures/skybox",
-      faces: {
-        posX: "right.png",
-        negX: "left.png",
-        posY: "top.png",
-        negY: "bottom.png",
-        posZ: "front.png",
-        negZ: "back.png",
-      },
-      ...options,
+    // Define the default skybox textures using embedded assets
+    const faceTextures = {
+      posX: "skybox/right.png",
+      negX: "skybox/left.png",
+      posY: "skybox/top.png",
+      negY: "skybox/bottom.png",
+      posZ: "skybox/front.png",
+      negZ: "skybox/back.png",
+    };
+
+    // Load all textures using embedded asset URLs
+    await Promise.all([
+      assets.loadTexture(faceTextures.posX as AssetKey, rightUrl),
+      assets.loadTexture(faceTextures.negX as AssetKey, leftUrl),
+      assets.loadTexture(faceTextures.posY as AssetKey, topUrl),
+      assets.loadTexture(faceTextures.negY as AssetKey, bottomUrl),
+      assets.loadTexture(faceTextures.posZ as AssetKey, frontUrl),
+      assets.loadTexture(faceTextures.negZ as AssetKey, backUrl),
+    ]);
+
+    // Create and set skybox
+    const skybox = createCubemapSkybox({
+      posX: faceTextures.posX as AssetKey,
+      negX: faceTextures.negX as AssetKey,
+      posY: faceTextures.posY as AssetKey,
+      negY: faceTextures.negY as AssetKey,
+      posZ: faceTextures.posZ as AssetKey,
+      negZ: faceTextures.negZ as AssetKey,
+      enabled: options.enabled,
     });
+
+    scene.setSkybox(skybox);
   }
 
   /**

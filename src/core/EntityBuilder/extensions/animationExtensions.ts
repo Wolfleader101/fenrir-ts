@@ -38,3 +38,6 @@ EntityBuilder.extend({
     });
   },
 });
+
+// Export types and empty object to make this a module with exports
+export {};

@@ -4,6 +4,7 @@ import type { ILogger } from "./ILogger";
 import type { Scene } from "./Scene";
 import type { SceneManager } from "./SceneManager";
 import type { Time } from "./Time";
+import type { PhysicsHelpers } from "./Physics/PhysicsHelpers";
 
 export type SystemCtx = {
   time: Time;
@@ -13,6 +14,9 @@ export type SystemCtx = {
 
   readonly scene: Scene;
   readonly entities: EntityList;
+
+  // Physics helpers (set by PhysicsSystem when initialized)
+  physics?: PhysicsHelpers;
 
   stop(): void;
 };
