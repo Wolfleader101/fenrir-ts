@@ -603,8 +603,8 @@ const { assets, systems } = bootstrapEngine(engine, logger, {
 });
 
 // Load assets
-await assets.loadTexture('player', '/assets/player.png');
-await assets.loadTexture('enemy', '/assets/enemy.png');
+await assets.loadTexture2D('player', '/assets/player.png');
+await assets.loadTexture2D('enemy', '/assets/enemy.png');
 
 // Create entities
 const player = engine.scenes.getActiveScene().entities.spawn()
@@ -692,7 +692,7 @@ To convert a 3D game to 2D:
 2. Replace `Renderable` components with `Renderable2D`
 3. Update `Transform` usage (ignore z-axis)
 4. Replace 3D geometries with 2D sprites/graphics
-5. Update asset loading (use 2D textures instead of 3D models)
+5. Update asset loading to Pixi-native textures with `loadTexture2D(...)`
 
 ## Performance Considerations
 

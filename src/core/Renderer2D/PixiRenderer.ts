@@ -205,7 +205,7 @@ export class PixiRenderer {
    * Create a sprite from descriptor
    */
   private async createSprite(desc: SpriteDesc): Promise<PIXI.Sprite> {
-    const texture = await this.assets.getTexture(desc.texture);
+    const texture = await this.assets.getTexture2D(desc.texture);
     const sprite = new PIXI.Sprite(texture);
 
     if (desc.anchor) {
@@ -289,8 +289,8 @@ export class PixiRenderer {
   ): Promise<void> {
     // Update sprite
     if (r.sprite && obj instanceof PIXI.Sprite) {
-      const texture = await this.assets.getTexture(r.sprite.texture);
-      obj.texture = texture as any;
+      const texture = await this.assets.getTexture2D(r.sprite.texture);
+      obj.texture = texture;
 
       if (r.sprite.tint !== undefined) {
         obj.tint = r.sprite.tint;

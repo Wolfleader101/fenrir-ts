@@ -203,15 +203,19 @@ describe("ThreeRenderer", () => {
     mockAssets = {
       loadModel: vi.fn(),
       loadTexture: vi.fn(),
+      loadTexture2D: vi.fn(),
       getGeometry: vi.fn(),
       getAnimations: vi.fn(),
       getMaterials: vi.fn(),
       getTexture: vi.fn(),
+      getTexture2D: vi.fn(),
       get: vi.fn(),
       registerModelLoader: vi.fn(),
       registerTextureLoader: vi.fn(),
+      registerTexture2DLoader: vi.fn(),
       getSupportedModelExtensions: vi.fn(),
       getSupportedTextureExtensions: vi.fn(),
+      getSupportedTexture2DExtensions: vi.fn(),
       clear: vi.fn(),
     } as IAssetStore;
 

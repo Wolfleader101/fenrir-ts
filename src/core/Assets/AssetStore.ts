@@ -1,6 +1,8 @@
 import * as THREE from "three";
+import type { Texture as PixiTexture } from "pixi.js";
 import type { AssetLoader } from "./AssetLoader";
 import { createGltfLoader } from "./loaders/gltfLoader";
+import { createPixiTextureLoader } from "./loaders/pixiTextureLoader";
 import { createTextureLoader } from "./loaders/textureLoader";
 
 export type AssetKey = string & { __assetKey?: true };
@@ -12,36 +14,40 @@ export type LoadedModel = {
   materials: THREE.Material[];
 };
 
-type LoadedAsset = LoadedModel | THREE.Texture;
+type LoadedAsset = LoadedModel | THREE.Texture | PixiTexture;
+type AssetKind = "model" | "texture3d" | "texture2d";
+
+type LoaderConfig<T> = {
+  loader: AssetLoader<T>;
+  extensions: string[];
+};
 
 // Loader configuration for model loaders
-export interface ModelLoaderConfig {
-  loader: AssetLoader<LoadedModel>;
-  extensions: string[];
-}
+export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
 
 // Loader configuration for texture loaders
-export interface TextureLoaderConfig {
-  loader: AssetLoader<THREE.Texture>;
-  extensions: string[];
-}
+export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
+export type PixiTextureLoaderConfig = LoaderConfig<PixiTexture>;
 
 // Configuration options for AssetStore constructor
 export interface AssetStoreConfig {
   modelLoaders?: { [name: string]: ModelLoaderConfig };
   textureLoaders?: { [name: string]: TextureLoaderConfig };
+  texture2DLoaders?: { [name: string]: PixiTextureLoaderConfig };
 }
 
 export interface IAssetStore {
   // Intuitive loading methods
   loadModel(key: AssetKey, url: string): Promise<void>;
   loadTexture(key: AssetKey, url: string): Promise<void>;
+  loadTexture2D(key: AssetKey, url: string): Promise<void>;
 
   // Typed getters for different asset parts
   getGeometry(key: AssetKey): Promise<THREE.Object3D>;
   getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
   getMaterials(key: AssetKey): Promise<THREE.Material[]>;
   getTexture(key: AssetKey): Promise<THREE.Texture>;
+  getTexture2D(key: AssetKey): Promise<PixiTexture>;
 
   // Generic getter (for advanced use)
   get(key: AssetKey): Promise<LoadedAsset>;
@@ -49,16 +55,20 @@ export interface IAssetStore {
   // Loader management
   registerModelLoader(name: string, config: ModelLoaderConfig): void;
   registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+  registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void;
   getSupportedModelExtensions(): string[];
   getSupportedTextureExtensions(): string[];
+  getSupportedTexture2DExtensions(): string[];
 
   clear(): void;
 }
 
 export class AssetStore implements IAssetStore {
   private cache = new Map<string, Promise<LoadedAsset>>();
+  private assetKinds = new Map<string, AssetKind>();
   private modelLoaders = new Map<string, ModelLoaderConfig>();
   private textureLoaders = new Map<string, TextureLoaderConfig>();
+  private texture2DLoaders = new Map<string, PixiTextureLoaderConfig>();
 
   constructor(config: AssetStoreConfig = {}) {
     // Register default loaders
@@ -76,6 +86,14 @@ export class AssetStore implements IAssetStore {
         this.registerTextureLoader(name, loaderConfig);
       });
     }
+
+    if (config.texture2DLoaders) {
+      Object.entries(config.texture2DLoaders).forEach(
+        ([name, loaderConfig]) => {
+          this.registerTexture2DLoader(name, loaderConfig);
+        },
+      );
+    }
   }
 
   private registerDefaultLoaders(): void {
@@ -86,6 +104,11 @@ export class AssetStore implements IAssetStore {
 
     this.registerTextureLoader("texture", {
       loader: createTextureLoader(),
+      extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
+    });
+
+    this.registerTexture2DLoader("pixi-texture", {
+      loader: createPixiTextureLoader(),
       extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
     });
   }
@@ -104,6 +127,13 @@ export class AssetStore implements IAssetStore {
     this.textureLoaders.set(name, config);
   }
 
+  registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void {
+    if (this.texture2DLoaders.has(name)) {
+      console.warn(`2D texture loader '${name}' is being overridden`);
+    }
+    this.texture2DLoaders.set(name, config);
+  }
+
   getSupportedModelExtensions(): string[] {
     const extensions = new Set<string>();
     this.modelLoaders.forEach((config) => {
@@ -115,6 +145,14 @@ export class AssetStore implements IAssetStore {
   getSupportedTextureExtensions(): string[] {
     const extensions = new Set<string>();
     this.textureLoaders.forEach((config) => {
+      config.extensions.forEach((ext) => extensions.add(ext));
+    });
+    return Array.from(extensions).sort();
+  }
+
+  getSupportedTexture2DExtensions(): string[] {
+    const extensions = new Set<string>();
+    this.texture2DLoaders.forEach((config) => {
       config.extensions.forEach((ext) => extensions.add(ext));
     });
     return Array.from(extensions).sort();
@@ -168,6 +206,17 @@ export class AssetStore implements IAssetStore {
     return null;
   }
 
+  private findTexture2DLoaderByExtension(
+    extension: string,
+  ): PixiTextureLoaderConfig | null {
+    for (const config of this.texture2DLoaders.values()) {
+      if (config.extensions.includes(extension)) {
+        return config;
+      }
+    }
+    return null;
+  }
+
   async loadModel(key: AssetKey, url: string): Promise<void> {
     const ext = this.getFileExtension(url);
     const loaderConfig = this.findModelLoaderByExtension(ext);
@@ -183,6 +232,7 @@ export class AssetStore implements IAssetStore {
 
     const promise = loaderConfig.loader({ url });
     this.cache.set(key, promise);
+    this.assetKinds.set(key, "model");
     await promise;
   }
 
@@ -201,6 +251,26 @@ export class AssetStore implements IAssetStore {
 
     const promise = loaderConfig.loader({ url });
     this.cache.set(key, promise);
+    this.assetKinds.set(key, "texture3d");
+    await promise;
+  }
+
+  async loadTexture2D(key: AssetKey, url: string): Promise<void> {
+    const ext = this.getFileExtension(url);
+    const loaderConfig = this.findTexture2DLoaderByExtension(ext);
+
+    if (!loaderConfig) {
+      const supportedExts = this.getSupportedTexture2DExtensions();
+      throw new Error(
+        `Unsupported 2D texture format: .${ext}. Supported extensions: ${supportedExts.join(
+          ", ",
+        )}`,
+      );
+    }
+
+    const promise = loaderConfig.loader({ url });
+    this.cache.set(key, promise);
+    this.assetKinds.set(key, "texture2d");
     await promise;
   }
 
@@ -230,10 +300,18 @@ export class AssetStore implements IAssetStore {
 
   async getTexture(key: AssetKey): Promise<THREE.Texture> {
     const asset = await this.get(key);
-    if (!this.isModel(asset)) {
-      return asset;
+    if (this.assetKinds.get(key) === "texture3d") {
+      return asset as THREE.Texture;
     }
     throw new Error(`Asset "${key}" is not a texture`);
+  }
+
+  async getTexture2D(key: AssetKey): Promise<PixiTexture> {
+    const asset = await this.get(key);
+    if (this.assetKinds.get(key) === "texture2d") {
+      return asset as PixiTexture;
+    }
+    throw new Error(`Asset "${key}" is not a 2D texture`);
   }
 
   async get(key: AssetKey): Promise<LoadedAsset> {
@@ -256,5 +334,6 @@ export class AssetStore implements IAssetStore {
 
   clear(): void {
     this.cache.clear();
+    this.assetKinds.clear();
   }
 }

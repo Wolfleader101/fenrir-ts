@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Color, CubeTexture, OrthographicCamera, PerspectiveCamera, Quaternion, Texture, Vector3 } from 'three';
+import type { Texture as PixiTexture } from 'pixi.js';
 import * as THREE_WEBGPU from 'three/webgpu';
 
 /**
@@ -203,7 +204,7 @@ export type LoadedModel = {
 	animations: THREE.AnimationClip[];
 	materials: THREE.Material[];
 };
-export type LoadedAsset = LoadedModel | THREE.Texture;
+export type LoadedAsset = LoadedModel | THREE.Texture | PixiTexture;
 export interface ModelLoaderConfig {
 	loader: AssetLoader<LoadedModel>;
 	extensions: string[];
@@ -212,18 +213,26 @@ export interface TextureLoaderConfig {
 	loader: AssetLoader<THREE.Texture>;
 	extensions: string[];
 }
+export interface PixiTextureLoaderConfig {
+	loader: AssetLoader<PixiTexture>;
+	extensions: string[];
+}
 export interface IAssetStore {
 	loadModel(key: AssetKey, url: string): Promise<void>;
 	loadTexture(key: AssetKey, url: string): Promise<void>;
+	loadTexture2D(key: AssetKey, url: string): Promise<void>;
 	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
 	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
 	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
 	getTexture(key: AssetKey): Promise<THREE.Texture>;
+	getTexture2D(key: AssetKey): Promise<PixiTexture>;
 	get(key: AssetKey): Promise<LoadedAsset>;
 	registerModelLoader(name: string, config: ModelLoaderConfig): void;
 	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+	registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void;
 	getSupportedModelExtensions(): string[];
 	getSupportedTextureExtensions(): string[];
+	getSupportedTexture2DExtensions(): string[];
 	clear(): void;
 }
 export type SkyboxType = "cubemap" | "equirectangular" | "color";

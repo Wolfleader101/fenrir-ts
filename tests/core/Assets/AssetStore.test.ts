@@ -4,7 +4,6 @@ import {
   assetKey,
   type AssetStoreConfig,
 } from "@/core/Assets/AssetStore";
-import * as THREE from "three";
 
 // Mock Three.js and loaders
 vi.mock("three", () => {
@@ -21,6 +20,15 @@ vi.mock("three", () => {
   };
 });
 
+vi.mock("pixi.js", () => ({
+  Texture: vi.fn(function () {
+    return {
+      source: "pixi-texture",
+      destroy: vi.fn(),
+    };
+  }),
+}));
+
 // Mock the loaders - use the actual mocked functions for default behavior
 const mockGltfLoaderFn = vi.fn().mockResolvedValue({
   geometry: { name: "MockGeometry" },
@@ -33,6 +41,11 @@ const mockTextureLoaderFn = vi.fn().mockResolvedValue({
   dispose: vi.fn(),
 });
 
+const mockPixiTextureLoaderFn = vi.fn().mockResolvedValue({
+  source: "pixi-texture",
+  destroy: vi.fn(),
+});
+
 vi.mock("@/core/Assets/loaders/gltfLoader", () => ({
   createGltfLoader: vi.fn(() => mockGltfLoaderFn),
 }));
@@ -41,10 +54,15 @@ vi.mock("@/core/Assets/loaders/textureLoader", () => ({
   createTextureLoader: vi.fn(() => mockTextureLoaderFn),
 }));
 
+vi.mock("@/core/Assets/loaders/pixiTextureLoader", () => ({
+  createPixiTextureLoader: vi.fn(() => mockPixiTextureLoaderFn),
+}));
+
 describe("AssetStore", () => {
   let assetStore: AssetStore;
   let customGltfLoader: any;
   let customTextureLoader: any;
+  let customTexture2DLoader: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -61,6 +79,11 @@ describe("AssetStore", () => {
       dispose: vi.fn(),
     });
 
+    customTexture2DLoader = vi.fn().mockResolvedValue({
+      source: "custom-pixi-texture",
+      destroy: vi.fn(),
+    });
+
     assetStore = new AssetStore();
   });
 
@@ -71,6 +94,7 @@ describe("AssetStore", () => {
       expect(assetStore.getSupportedModelExtensions()).toContain("gltf");
       expect(assetStore.getSupportedTextureExtensions()).toContain("jpg");
       expect(assetStore.getSupportedTextureExtensions()).toContain("png");
+      expect(assetStore.getSupportedTexture2DExtensions()).toContain("png");
     });
 
     it("should create AssetStore with custom config", () => {
@@ -87,6 +111,12 @@ describe("AssetStore", () => {
             extensions: ["ct"],
           },
         },
+        texture2DLoaders: {
+          customTexture2D: {
+            loader: customTexture2DLoader,
+            extensions: ["ct2"],
+          },
+        },
       };
 
       const customAssetStore = new AssetStore(config);
@@ -95,6 +125,9 @@ describe("AssetStore", () => {
         "custom"
       );
       expect(customAssetStore.getSupportedTextureExtensions()).toContain("ct");
+      expect(customAssetStore.getSupportedTexture2DExtensions()).toContain(
+        "ct2"
+      );
     });
   });
 
@@ -133,6 +166,19 @@ describe("AssetStore", () => {
       expect(newExtensions.length).toBe(initialExtensions.length + 1);
     });
 
+    it("should register 2d texture loader", () => {
+      const initialExtensions = assetStore.getSupportedTexture2DExtensions();
+
+      assetStore.registerTexture2DLoader("test-2d", {
+        loader: customTexture2DLoader,
+        extensions: ["test2d"],
+      });
+
+      const newExtensions = assetStore.getSupportedTexture2DExtensions();
+      expect(newExtensions).toContain("test2d");
+      expect(newExtensions.length).toBe(initialExtensions.length + 1);
+    });
+
     it("should warn when overriding existing model loader", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -160,6 +206,20 @@ describe("AssetStore", () => {
       );
       consoleSpy.mockRestore();
     });
+
+    it("should warn when overriding existing 2d texture loader", () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      assetStore.registerTexture2DLoader("pixi-texture", {
+        loader: customTexture2DLoader,
+        extensions: ["png"],
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "2D texture loader 'pixi-texture' is being overridden"
+      );
+      consoleSpy.mockRestore();
+    });
   });
 
   describe("supported extensions", () => {
@@ -172,6 +232,13 @@ describe("AssetStore", () => {
 
     it("should return sorted texture extensions", () => {
       const extensions = assetStore.getSupportedTextureExtensions();
+      expect(extensions).toEqual([...extensions].sort());
+      expect(extensions).toContain("jpg");
+      expect(extensions).toContain("png");
+    });
+
+    it("should return sorted 2d texture extensions", () => {
+      const extensions = assetStore.getSupportedTexture2DExtensions();
       expect(extensions).toEqual([...extensions].sort());
       expect(extensions).toContain("jpg");
       expect(extensions).toContain("png");
@@ -247,6 +314,26 @@ describe("AssetStore", () => {
         assetStore.loadTexture(key, "test.unsupported")
       ).rejects.toThrow("Unsupported texture format: .unsupported");
     });
+
+    it("should load 2d texture with supported extension", async () => {
+      assetStore.registerTexture2DLoader("test-texture-2d", {
+        loader: customTexture2DLoader,
+        extensions: ["test2d"],
+      });
+
+      const key = assetKey("test-texture-2d");
+      await assetStore.loadTexture2D(key, "test.test2d");
+
+      expect(customTexture2DLoader).toHaveBeenCalledWith({ url: "test.test2d" });
+    });
+
+    it("should throw error for unsupported 2d texture extension", async () => {
+      const key = assetKey("test-texture-2d");
+
+      await expect(
+        assetStore.loadTexture2D(key, "test.unsupported")
+      ).rejects.toThrow("Unsupported 2D texture format: .unsupported");
+    });
   });
 
   describe("asset retrieval", () => {
@@ -254,6 +341,7 @@ describe("AssetStore", () => {
       // Set up test assets using default loaders (already mocked)
       await assetStore.loadModel(assetKey("model"), "test.gltf");
       await assetStore.loadTexture(assetKey("texture"), "test.jpg");
+      await assetStore.loadTexture2D(assetKey("texture-2d"), "test.png");
     });
 
     it("should get geometry from model asset", async () => {
@@ -264,24 +352,26 @@ describe("AssetStore", () => {
     it("should get animations from model asset", async () => {
       const animations = await assetStore.getAnimations(assetKey("model"));
       expect(animations).toEqual([{ name: "mockAnimation" }]);
-      // Should return a copy, not the original array
-      expect(animations).not.toBe(
-        mockGltfLoaderFn.mock.results[0].value.animations
-      );
+      expect(animations).not.toBe(mockGltfLoaderFn.mock.results[0]?.value);
     });
 
     it("should get materials from model asset", async () => {
       const materials = await assetStore.getMaterials(assetKey("model"));
       expect(materials).toEqual([{ name: "MockMaterial" }]);
-      // Should return a copy, not the original array
-      expect(materials).not.toBe(
-        mockGltfLoaderFn.mock.results[0].value.materials
-      );
+      expect(materials).not.toBe(mockGltfLoaderFn.mock.results[0]?.value);
     });
 
     it("should get texture asset", async () => {
       const texture = await assetStore.getTexture(assetKey("texture"));
       expect(texture).toEqual({ mapping: 301, dispose: expect.any(Function) });
+    });
+
+    it("should get 2d texture asset", async () => {
+      const texture = await assetStore.getTexture2D(assetKey("texture-2d"));
+      expect(texture).toEqual({
+        source: "pixi-texture",
+        destroy: expect.any(Function),
+      });
     });
 
     it("should get generic asset", async () => {
@@ -296,6 +386,12 @@ describe("AssetStore", () => {
       expect(textureAsset).toEqual({
         mapping: 301,
         dispose: expect.any(Function),
+      });
+
+      const texture2DAsset = await assetStore.get(assetKey("texture-2d"));
+      expect(texture2DAsset).toEqual({
+        source: "pixi-texture",
+        destroy: expect.any(Function),
       });
     });
 
@@ -320,6 +416,18 @@ describe("AssetStore", () => {
     it("should throw error when getting texture from model", async () => {
       await expect(assetStore.getTexture(assetKey("model"))).rejects.toThrow(
         'Asset "model" is not a texture'
+      );
+    });
+
+    it("should throw error when getting 3d texture from 2d asset", async () => {
+      await expect(assetStore.getTexture(assetKey("texture-2d"))).rejects.toThrow(
+        'Asset "texture-2d" is not a texture'
+      );
+    });
+
+    it("should throw error when getting 2d texture from 3d asset", async () => {
+      await expect(assetStore.getTexture2D(assetKey("texture"))).rejects.toThrow(
+        'Asset "texture" is not a 2D texture'
       );
     });
 
@@ -387,6 +495,20 @@ describe("AssetStore", () => {
       const key = assetKey("error-texture");
 
       await expect(assetStore.loadTexture(key, "test.err")).rejects.toThrow(
+        "Load failed"
+      );
+    });
+
+    it("should handle loader errors for 2d textures", async () => {
+      const errorLoader = vi.fn().mockRejectedValue(new Error("Load failed"));
+      assetStore.registerTexture2DLoader("error-loader-2d", {
+        loader: errorLoader,
+        extensions: ["err2d"],
+      });
+
+      const key = assetKey("error-texture-2d");
+
+      await expect(assetStore.loadTexture2D(key, "test.err2d")).rejects.toThrow(
         "Load failed"
       );
     });

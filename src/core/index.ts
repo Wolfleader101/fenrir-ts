@@ -37,13 +37,14 @@ export * from "./builderExtensions";
 export type { IAssetStore } from "./Assets/AssetStore";
 export { assetKey } from "./Assets/AssetStore";
 export type { AssetLoader } from "./Assets/AssetLoader";
+export type { PixiTextureLoaderConfig } from "./Assets/AssetStore";
 
 // Camera
 export { Camera } from "./Camera/CameraComponents";
 
 // Input
 export { InputState } from "./InputSystem/InputState";
-export type { InputEvent } from "./InputSystem/InputEvents";
+export { InputEvent } from "./InputSystem/InputEvents";
 
 // Physics
 export { PhysicsBody, PhysicsShape, PhysicsMaterial } from "./Physics";
