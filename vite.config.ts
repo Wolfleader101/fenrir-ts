@@ -34,6 +34,18 @@ export default defineConfig({
         source: "/monaco-editor",
         destination: "/monaco-editor.html",
       },
+      {
+        source: "/pixi2d",
+        destination: "/pixi2d.html",
+      },
+      {
+        source: "/platformer-physics",
+        destination: "/platformer-physics.html",
+      },
+      {
+        source: "platformer",
+        destination: "/platformer.html",
+      },
     ],
   },
   resolve: {
