@@ -35,9 +35,9 @@ export * from "./builderExtensions";
 
 // Assets
 export type { IAssetStore } from "./Assets/AssetStore";
-export { assetKey } from "./Assets/AssetStore";
+export { AssetStore, assetKey } from "./Assets/AssetStore";
 export type { AssetLoader } from "./Assets/AssetLoader";
-export type { PixiTextureLoaderConfig } from "./Assets/AssetStore";
+export type { PixiTextureLoaderConfig, Texture2DHandle, Texture2DState } from "./Assets/AssetStore";
 
 // Camera
 export { Camera } from "./Camera/CameraComponents";

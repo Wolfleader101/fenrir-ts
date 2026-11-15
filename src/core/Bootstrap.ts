@@ -1,5 +1,4 @@
 import type { Engine } from "./Engine.ts";
-import type { IAssetStore } from "./Assets/AssetStore.ts";
 import { AssetStore } from "./Assets/AssetStore.ts";
 import { createObjLoader } from "./Assets/loaders/objLoader.ts";
 import { createHdrTextureLoader } from "./Assets/loaders/hdrTextureLoader.ts";
@@ -27,7 +26,7 @@ export type BootstrapConfig = {
 };
 
 export type BootstrapResult = {
-  assets: IAssetStore;
+  assets: AssetStore;
   systems: {
     input: ReturnType<typeof createInputStateSystem>;
     renderer?: ReturnType<typeof createThreeRendererSystem>;
