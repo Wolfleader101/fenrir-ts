@@ -18,6 +18,10 @@ export type SystemCtx = {
   // Physics helpers (set by PhysicsSystem when initialized)
   physics?: PhysicsHelpers;
 
+  /** Provided by Engine and aborted when the run stops or rolls back. */
+  readonly signal?: AbortSignal;
+  /** Provided by Engine. Registers cleanup for this run, in reverse order of acquisition. */
+  onCleanup?(cleanup: () => void | Promise<void>): void;
   stop(): void;
 };
 

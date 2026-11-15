@@ -15,9 +15,9 @@ export class Time {
     this.prevTime = this.startTime;
   }
 
-  public update() {
+  public update(maxDelta = Infinity) {
     const currentTime = performance.now();
-    this.deltaTime = (currentTime - this.prevTime) * 0.001; // ms to seconds
+    this.deltaTime = Math.min(maxDelta, (currentTime - this.prevTime) * 0.001); // ms to seconds
     this.prevTime = currentTime;
 
     this.accumulator += this.deltaTime;
@@ -49,6 +49,10 @@ export class Time {
     this.paused = false;
     this.pauseStartTime = 0;
     this.totalPausedTime = 0;
+  }
+
+  public get fixedDeltaTime(): number {
+    return this.tickRate;
   }
 
   public get delta(): number {

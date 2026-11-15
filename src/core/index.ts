@@ -7,6 +7,7 @@
 
 // Core engine
 export { Engine } from "./Engine";
+export type { EngineOptions } from "./Engine";
 export { Time } from "./Time";
 export { Scene } from "./Scene";
 export { SceneManager } from "./SceneManager";

@@ -386,11 +386,7 @@ class PhysicsSystem {
         },
       );
 
-      // Fixed timestep physics simulation using Time class accumulator
-      while (ctx.time.accumulator >= ctx.time.tickRate) {
-        this.joltInterface.Step(ctx.time.tickRate, 1);
-        ctx.time.accumulator -= ctx.time.tickRate;
-      }
+      this.joltInterface.Step(ctx.time.fixedDeltaTime, 1);
 
       // Update transform components from physics (like demo's transform update loop)
       for (let i = this.physicsObjects.length - 1; i >= 0; i--) {
