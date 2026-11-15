@@ -193,7 +193,7 @@ describe("Engine", () => {
         scenes: sceneManager,
         scene: expect.any(Object),
         entities: expect.any(Object),
-        stop: expect.any(Function),
+        signal: expect.any(AbortSignal),        onCleanup: expect.any(Function),        stop: expect.any(Function),
       });
     });
 
@@ -367,12 +367,12 @@ describe("Engine", () => {
       expect(mockCancelAnimationFrame).toHaveBeenCalledWith(456);
     });
 
-    it("should run exit stage when stopped", () => {
+    it("should run exit stage when stopped", async () => {
       const exitSystem = vi.fn();
       engine.addSystem(Schedule.Exit, exitSystem);
 
-      engine.run();
-      engine.stop();
+      await engine.run();
+      await engine.stop();
 
       expect(exitSystem).toHaveBeenCalledOnce();
     });
@@ -391,7 +391,7 @@ describe("Engine", () => {
         scenes: sceneManager,
         scene: expect.any(Object),
         entities: expect.any(Object),
-        stop: expect.any(Function),
+        signal: expect.any(AbortSignal),        onCleanup: expect.any(Function),        stop: expect.any(Function),
       });
 
       // The stop function in exit context should be a no-op
