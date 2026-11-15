@@ -50,8 +50,9 @@ export { InputEvent } from "./InputSystem/InputEvents";
 export { PhysicsBody, PhysicsShape, PhysicsMaterial } from "./Physics";
 
 // Renderer2D (PixiJS)
-export { Renderable2D } from "./Renderer2D";
+export { Renderable2D, PixiRenderer, createPixiRendererSystem } from "./Renderer2D";
 export type {
+  PixiRendererOptions,
   SpriteDesc,
   GraphicsDesc,
   TextDesc,

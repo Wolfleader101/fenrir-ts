@@ -1,13 +1,11 @@
 import * as PIXI from "pixi.js";
 import type { Entity, EntityList } from "../ECS";
-import { Transform } from "../ECS/DefaultComponents";
-import {
+import { Relationship, Transform } from "../ECS/DefaultComponents";
+import type {
   Renderable2D,
-  type SpriteDesc,
-  type GraphicsDesc,
-  type TextDesc,
-  type ContainerDesc,
-  type Render2DFlags,
+  SpriteDesc,
+  GraphicsDesc,
+  Render2DFlags,
 } from "./render2DComponents";
 import type { ILogger } from "../ILogger";
 import type { IAssetStore } from "../Assets/AssetStore";
@@ -22,208 +20,229 @@ export interface PixiRendererOptions {
   readonly height?: number;
   readonly clearColor?: number;
   readonly assets: IAssetStore;
+  /** An initialized application owned by the caller, with its automatic ticker stopped. */
+  readonly application?: PIXI.Application;
+  /** Initialization options for an engine-owned application. */
+  readonly applicationOptions?: Partial<Omit<PIXI.ApplicationOptions, "canvas" | "autoStart" | "sharedTicker">>;
 }
 
-/**
- * Core PixiJS renderer implementation for 2D games
- * Manages PIXI.Application and display object lifecycle
- */
+type RenderedObject = {
+  entity: Entity;
+  renderable: Renderable2D;
+  view: PIXI.Container;
+};
+
 export class PixiRenderer {
-  public readonly app: PIXI.Application;
-  private readonly objects = new Map<ObjKey, PIXI.Container>();
-  private readonly assets: IAssetStore;
-  private readonly logger: ILogger;
-  private readonly canvasElement?: HTMLCanvasElement;
-  private readonly clearColorValue: number;
-  private readonly widthValue: number;
-  private readonly heightValue: number;
+  private readonly options: PixiRendererOptions;
+  private application: PIXI.Application;
+  private readonly objects = new Map<ObjKey, RenderedObject>();
+  private readonly pending = new Map<ObjKey, symbol>();
   private isInitialized = false;
 
-  constructor(opts: PixiRendererOptions) {
-    const {
-      canvas,
-      width = window.innerWidth,
-      height = window.innerHeight,
-      clearColor = 0x101010,
-    } = opts;
-
-    this.assets = opts.assets;
-    this.logger = opts.logger;
-    this.canvasElement = canvas;
-    this.clearColorValue = clearColor;
-    this.widthValue = width;
-    this.heightValue = height;
-
-    // Create application (will be initialized later)
-    this.app = new PIXI.Application();
+  constructor(options: PixiRendererOptions) {
+    this.options = options;
+    this.application = options.application ?? new PIXI.Application();
   }
 
-  /**
-   * Initialize the PixiJS application
-   * Must be called before using the renderer
-   */
+  public get app(): PIXI.Application {
+    return this.application;
+  }
+
   public async init(): Promise<void> {
     if (this.isInitialized) return;
 
-    await this.app.init({
-      canvas: this.canvasElement,
-      width: this.widthValue,
-      height: this.heightValue,
-      backgroundColor: this.clearColorValue,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
+    const { application, applicationOptions, canvas, logger } = this.options;
+    if (application) {
+      if (!application.renderer || (canvas && application.canvas !== canvas)) {
+        throw new Error("The supplied Pixi application must be initialized for the engine canvas");
+      }
+      if (application.ticker?.started) {
+        throw new Error("Stop the supplied Pixi application's ticker before starting Fenrir");
+      }
+    } else {
+      await this.app.init({
+        width: this.options.width ?? window.innerWidth,
+        height: this.options.height ?? window.innerHeight,
+        backgroundColor: this.options.clearColor ?? 0x101010,
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
+        ...applicationOptions,
+        canvas,
+        autoStart: false,
+        sharedTicker: false,
+      });
+    }
 
     this.isInitialized = true;
-    this.logger.info("PixiRenderer initialized");
+    logger.info("PixiRenderer initialized");
   }
 
-  /**
-   * Check if renderer is initialized
-   */
   public get initialized(): boolean {
     return this.isInitialized;
   }
 
-  /**
-   * Resize the renderer
-   */
-  public resize(width: number, height: number): void {
-    this.app.renderer.resize(width, height);
+  public resize(width: number, height: number, resolution?: number): void {
+    this.app.renderer.resize(width, height, resolution);
   }
 
-  /**
-   * Create or update a renderable
-   */
-  public async upsertRenderable(
-    entities: EntityList,
-    e: Entity,
-    r: Renderable2D,
-  ): Promise<void> {
-    const k = keyFor(e, r.id);
-    let obj = this.objects.get(k);
+  /** Converts CSS client coordinates into logical coordinates in the Pixi screen. */
+  public clientToLogical(clientX: number, clientY: number): { x: number; y: number } | null {
+    const bounds = this.app.canvas.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return null;
+    const { width, height } = this.app.screen;
+    return {
+      x: (clientX - bounds.left) * width / bounds.width,
+      y: (clientY - bounds.top) * height / bounds.height,
+    };
+  }
 
-    // Create new object if needed
-    if (!obj) {
-      obj = await this.createDisplayObject(r);
-      this.objects.set(k, obj);
-      this.app.stage.addChild(obj);
-    } else {
-      // Update existing object
-      await this.updateDisplayObject(obj, r);
+  public async upsertRenderable(entities: EntityList, entity: Entity, renderable: Renderable2D): Promise<void> {
+    if (!this.isInitialized || !entities.isAlive(entity)) return;
+
+    const key = keyFor(entity, renderable.id);
+    const request = Symbol();
+    this.pending.set(key, request);
+    try {
+      const texture = renderable.sprite
+        ? await this.options.assets.getTexture2D(renderable.sprite.texture)
+        : undefined;
+      if (this.pending.get(key) !== request || !entities.isAlive(entity)) return;
+
+      const existing = this.objects.get(key);
+      let view = existing?.view;
+      if (!view || !this.updateDisplayObject(view, renderable, texture)) {
+        const replacement = this.createDisplayObject(renderable, texture);
+        if (view) this.destroyDisplayObject(view);
+        view = replacement;
+        this.app.stage.addChild(view);
+      }
+
+      this.objects.set(key, { entity, renderable, view });
+      this.applyFlags(view, renderable.flags);
+      if (entities.has(entity, Transform)) this.applyTransform(view, entities.get(entity, Transform));
+    } catch (error) {
+      if (this.pending.get(key) === request && entities.isAlive(entity)) throw error;
+    } finally {
+      if (this.pending.get(key) === request) this.pending.delete(key);
     }
+  }
 
-    this.applyFlags(obj, r.flags);
+  public removeRenderable(entity: Entity, renderId: number): void {
+    const key = keyFor(entity, renderId);
+    this.pending.delete(key);
+    const entry = this.objects.get(key);
+    if (!entry) return;
 
-    // Apply transform from Transform component
-    if (entities.has(e, Transform)) {
-      this.applyTransform(obj, entities.get(e, Transform));
+    this.objects.delete(key);
+    this.destroyDisplayObject(entry.view);
+  }
+
+  private destroyDisplayObject(view: PIXI.Container): void {
+    // Children with their own renderables belong to their own ECS entities.
+    for (const entry of this.objects.values()) {
+      if (entry.view.parent === view) this.app.stage.addChild(entry.view);
     }
+    view.removeFromParent();
+    view.destroy({ children: true });
   }
 
-  /**
-   * Remove a renderable
-   */
-  public removeRenderable(e: Entity, renderId: number): void {
-    const k = keyFor(e, renderId);
-    const obj = this.objects.get(k);
-    if (!obj) return;
-
-    this.app.stage.removeChild(obj);
-    obj.destroy({ children: true });
-    this.objects.delete(k);
-  }
-
-  /**
-   * Sync all transforms from Transform components
-   */
   public syncTransforms(entities: EntityList): void {
-    const Q = [Transform, Renderable2D] as const;
-
-    entities.each(Q, (e, transform, r) => {
-      const obj = this.objects.get(keyFor(e, r.id));
-      if (!obj) return;
-      this.applyTransform(obj, transform);
-    });
+    for (const { entity, renderable, view } of this.objects.values()) {
+      if (!entities.isAlive(entity)) {
+        this.removeRenderable(entity, renderable.id);
+      } else if (entities.has(entity, Transform)) {
+        this.applyTransform(view, entities.get(entity, Transform));
+      }
+    }
+    this.syncHierarchy(entities);
   }
 
-  /**
-   * Render the scene
-   */
+  private syncHierarchy(entities: EntityList): void {
+    const stage = this.app.stage;
+    const primaryViews = new Map<number, PIXI.Container>();
+    const declaredParents = new Map<number, PIXI.Container>();
+    for (const { entity, renderable, view } of this.objects.values()) {
+      if (!primaryViews.has(entity)) primaryViews.set(entity, view);
+      for (const child of renderable.container?.children ?? []) {
+        if (!declaredParents.has(child)) declaredParents.set(child, view);
+      }
+    }
+
+    const parents = new Map<PIXI.Container, PIXI.Container>();
+    for (const { entity, view } of this.objects.values()) {
+      const relationship = entities.has(entity, Relationship) ? entities.get(entity, Relationship) : undefined;
+      const parent = (relationship && primaryViews.get(relationship.parent)) ?? declaredParents.get(entity) ?? stage;
+      parents.set(view, parent);
+    }
+
+    const moves = new Map<PIXI.Container, PIXI.Container>();
+    for (const [view, parent] of parents) {
+      let target = parent;
+      const visited = new Set([view]);
+      for (let ancestor: PIXI.Container | undefined = parent; ancestor; ancestor = parents.get(ancestor)) {
+        if (visited.has(ancestor)) {
+          target = stage;
+          break;
+        }
+        visited.add(ancestor);
+      }
+      if (view.parent !== target) moves.set(view, target);
+    }
+
+    for (const view of moves.keys()) view.removeFromParent();
+    for (const [view, parent] of moves) parent.addChild(view);
+  }
+
   public render(): void {
     this.app.render();
   }
 
-  /**
-   * Dispose of all resources
-   */
-  public dispose(): void {
-    for (const obj of this.objects.values()) {
-      this.app.stage.removeChild(obj);
-      obj.destroy({ children: true });
-    }
+  public clearRenderables(): void {
+    this.pending.clear();
+    for (const { view } of this.objects.values()) view.removeFromParent();
+    for (const { view } of this.objects.values()) view.destroy({ children: true });
     this.objects.clear();
-    this.app.destroy(true);
   }
 
-  /**
-   * Get the rendered display object for an entity
-   */
-  public getRenderedObject(
-    entity: Entity,
-    renderableId: number,
-  ): PIXI.Container | undefined {
-    return this.objects.get(keyFor(entity, renderableId));
-  }
-
-  // Internal methods
-
-  /**
-   * Create a new display object based on descriptor
-   */
-  private async createDisplayObject(r: Renderable2D): Promise<PIXI.Container> {
-    if (r.sprite) {
-      return await this.createSprite(r.sprite);
+  public dispose(): void {
+    this.clearRenderables();
+    this.isInitialized = false;
+    if (!this.options.application && this.app.renderer) {
+      this.app.destroy({ removeView: !this.options.canvas });
+      this.application = new PIXI.Application();
     }
+  }
 
+  public getRenderedObject(entity: Entity, renderableId: number): PIXI.Container | undefined {
+    return this.objects.get(keyFor(entity, renderableId))?.view;
+  }
+
+  private createDisplayObject(r: Renderable2D, texture?: PIXI.Texture): PIXI.Container {
+    if (r.sprite && texture) {
+      const sprite = new PIXI.Sprite(texture);
+      this.updateSprite(sprite, r.sprite, texture);
+      return sprite;
+    }
     if (r.graphics) {
-      return this.createGraphics(r.graphics);
+      const graphics = new PIXI.Graphics();
+      this.drawGraphics(graphics, r.graphics);
+      return graphics;
     }
-
-    if (r.text) {
-      return this.createText(r.text);
-    }
-
-    if (r.container) {
-      return this.createContainer(r.container);
-    }
-
+    if (r.text) return new PIXI.Text({ text: r.text.content, style: r.text.style });
+    if (r.container) return new PIXI.Container();
     throw new Error("No valid renderable type specified in Renderable2D");
   }
 
-  /**
-   * Create a sprite from descriptor
-   */
-  private async createSprite(desc: SpriteDesc): Promise<PIXI.Sprite> {
-    const texture = await this.assets.getTexture2D(desc.texture);
-    const sprite = new PIXI.Sprite(texture);
-
-    if (desc.anchor) {
-      sprite.anchor.set(desc.anchor[0], desc.anchor[1]);
-    }
-
-    if (desc.tint !== undefined) {
-      sprite.tint = desc.tint;
-    }
-
-    return sprite;
+  private updateSprite(sprite: PIXI.Sprite, desc: SpriteDesc, texture: PIXI.Texture): void {
+    sprite.texture = texture;
+    if (desc.anchor) sprite.anchor.set(desc.anchor[0], desc.anchor[1]);
+    if (desc.tint !== undefined) sprite.tint = desc.tint;
   }
 
   /**
    * Create graphics from descriptor
    */
-  private createGraphics(desc: GraphicsDesc): PIXI.Graphics {
-    const graphics = new PIXI.Graphics();
+  private drawGraphics(graphics: PIXI.Graphics, desc: GraphicsDesc): void {
 
     // PixiJS v8: Define shape first, then apply fill/stroke
     switch (desc.shape) {
@@ -262,55 +281,24 @@ export class PixiRenderer {
       graphics.stroke({ color: desc.strokeColor, width: desc.strokeWidth });
     }
 
-    return graphics;
   }
 
-  /**
-   * Create text from descriptor
-   */
-  private createText(desc: TextDesc): PIXI.Text {
-    const style = new PIXI.TextStyle(desc.style || {});
-    return new PIXI.Text({ text: desc.content, style });
-  }
-
-  /**
-   * Create container from descriptor
-   */
-  private createContainer(_desc: ContainerDesc): PIXI.Container {
-    return new PIXI.Container();
-  }
-
-  /**
-   * Update an existing display object
-   */
-  private async updateDisplayObject(
-    obj: PIXI.Container,
-    r: Renderable2D,
-  ): Promise<void> {
-    // Update sprite
-    if (r.sprite && obj instanceof PIXI.Sprite) {
-      const texture = await this.assets.getTexture2D(r.sprite.texture);
-      obj.texture = texture;
-
-      if (r.sprite.tint !== undefined) {
-        obj.tint = r.sprite.tint;
-      }
-
-      if (r.sprite.anchor) {
-        obj.anchor.set(r.sprite.anchor[0], r.sprite.anchor[1]);
-      }
+  private updateDisplayObject(obj: PIXI.Container, r: Renderable2D, texture?: PIXI.Texture): boolean {
+    if (r.sprite && texture && obj instanceof PIXI.Sprite) {
+      this.updateSprite(obj, r.sprite, texture);
+      return true;
     }
-
-    // Update text
+    if (r.graphics && obj instanceof PIXI.Graphics) {
+      obj.clear();
+      this.drawGraphics(obj, r.graphics);
+      return true;
+    }
     if (r.text && obj instanceof PIXI.Text) {
       obj.text = r.text.content;
-      if (r.text.style) {
-        obj.style = new PIXI.TextStyle(r.text.style);
-      }
+      if (r.text.style) obj.style = new PIXI.TextStyle(r.text.style);
+      return true;
     }
-
-    // Graphics would need full recreation for now
-    // Could optimize later by tracking what changed
+    return Boolean(r.container) && obj.constructor === PIXI.Container;
   }
 
   /**
