@@ -5,7 +5,10 @@ export function defineEvent<T>(name: string): EventType<T> {
   return Symbol.for(`event:${name}`) as EventType<T>;
 }
 
+export type EventReader<T> = { read(): readonly T[] };
+
 export class EventQueue<T> {
+  private nextSequence = 0;
   private current: T[] = [];
   private previous: T[] = [];
 
@@ -15,6 +18,7 @@ export class EventQueue<T> {
 
   public send(ev: T) {
     this.current.push(ev);
+    this.nextSequence++;
     this.combinedDirty = true;
   }
 
@@ -40,6 +44,19 @@ export class EventQueue<T> {
       this.combinedDirty = false;
     }
     return this.combined;
+  }
+
+  /** A reader has its own cursor over the queue's two retained frame buffers. */
+  public createReader(): EventReader<T> {
+    let cursor = this.nextSequence - this.current.length - this.previous.length;
+    return {
+      read: () => {
+        const oldest = this.nextSequence - this.current.length - this.previous.length;
+        const offset = Math.max(0, cursor - oldest);
+        cursor = this.nextSequence;
+        return this.read().slice(offset);
+      },
+    };
   }
 
   public clearAll() {

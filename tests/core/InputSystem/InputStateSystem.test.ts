@@ -451,7 +451,7 @@ describe("InputStateSystem", () => {
       expect(state.isDown("Space")).toBe(true);
       expect(state.wasPressed("Space")).toBe(false); // Not pressed again
       expect(state.mouseX).toBe(60); // Updated position
-      expect(state.mouseDX).toBe(15); // Accumulated: 10 (from previous frame) + 5 (from current frame)
+      expect(state.mouseDX).toBe(5); // Only the new movement belongs to this frame.
     });
   });
 });

@@ -45,6 +45,17 @@ export type MouseWheelEvent = {
 
 export type FocusEvent = { hasFocus: boolean };
 
+/** Pointer position in CSS pixels relative to the canvas bounds. */
+export type CanvasPointerEvent = {
+  pointerId: number;
+  pointerType: string;
+  isPrimary: boolean;
+  button: number;
+  buttons: number;
+  x: number;
+  y: number;
+};
+
 export const InputEvent = {
   KeyDown: defineEvent<KeyEvent>("input.keyDown"),
   KeyUp: defineEvent<KeyEvent>("input.keyUp"),
@@ -53,6 +64,11 @@ export const InputEvent = {
   MouseUp: defineEvent<MouseButtonEvent>("input.mouseUp"),
   MouseMove: defineEvent<MouseMoveEvent>("input.mouseMove"),
   MouseWheel: defineEvent<MouseWheelEvent>("input.mouseWheel"),
+
+  PointerDown: defineEvent<CanvasPointerEvent>("input.pointerDown"),
+  PointerUp: defineEvent<CanvasPointerEvent>("input.pointerUp"),
+  PointerMove: defineEvent<CanvasPointerEvent>("input.pointerMove"),
+  PointerCancel: defineEvent<CanvasPointerEvent>("input.pointerCancel"),
 
   Focus: defineEvent<FocusEvent>("input.focus"),
 } as const;
