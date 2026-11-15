@@ -47,6 +47,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        /^pixi\.js(\/.*)?$/,
         /^three(\/.*)?$/,
         /^monaco-editor(\/.*)?$/,
         /^jolt-physics(\/.*)?$/,

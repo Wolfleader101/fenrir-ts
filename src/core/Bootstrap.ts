@@ -3,6 +3,8 @@ import type { IAssetStore } from "./Assets/AssetStore.ts";
 import { AssetStore } from "./Assets/AssetStore.ts";
 import { createObjLoader } from "./Assets/loaders/objLoader.ts";
 import { createHdrTextureLoader } from "./Assets/loaders/hdrTextureLoader.ts";
+import type { DomInputOptions } from "./InputSystem/DOMInputSystem.ts";
+import type { PixiRendererOptions } from "./Renderer2D/PixiRenderer.ts";
 import { createDomInputSystems } from "./InputSystem/DOMInputSystem.ts";
 import { createInputStateSystem } from "./InputSystem/InputStateSystem.ts";
 import { createThreeRendererSystem } from "./Renderer/ThreeRendererSystem.ts";
@@ -21,6 +23,8 @@ export type BootstrapConfig = {
   enableAnimations?: boolean;
   enableStats?: boolean;
   enable2D?: boolean;
+  pixi?: Pick<PixiRendererOptions, "application" | "applicationOptions">;
+  domInput?: DomInputOptions | false;
   statsParent?: HTMLElement;
   rendererType?: "webgl" | "webgpu";
   clearColor?: number;
@@ -85,10 +89,7 @@ export function bootstrapEngine(
   });
 
   // Core Input Systems
-  const domInput = createDomInputSystems({
-    target: window,
-    preventDefaults: true,
-  });
+  const domInput = config.domInput === false ? undefined : createDomInputSystems(config.domInput);
   const input = createInputStateSystem();
 
   // Camera and Skybox
@@ -102,6 +103,7 @@ export function bootstrapEngine(
   if (enable2D) {
     // Use 2D renderer (PixiJS)
     renderer2D = createPixiRendererSystem({
+      ...config.pixi,
       logger,
       canvas,
       clearColor,
@@ -138,7 +140,7 @@ export function bootstrapEngine(
 
   // Register systems with engine in correct order
   const initSystems = [
-    domInput.init,
+    ...(domInput ? [domInput.init] : []),
     ...(renderer ? [renderer.init] : []),
     ...(renderer2D ? [renderer2D.init] : []),
     ...(animations ? [animations.init] : []),
@@ -169,7 +171,7 @@ export function bootstrapEngine(
   ];
 
   const exitSystems = [
-    domInput.exit,
+    ...(domInput ? [domInput.exit] : []),
     ...(renderer ? [renderer.exit] : []),
     ...(renderer2D ? [renderer2D.exit] : []),
     ...(animations ? [animations.exit] : []),
