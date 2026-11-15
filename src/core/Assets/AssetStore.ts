@@ -14,6 +14,18 @@ export type LoadedModel = {
   materials: THREE.Material[];
 };
 
+export type Texture2DState =
+  | { readonly status: "loading" }
+  | { readonly status: "ready"; readonly texture: PixiTexture }
+  | { readonly status: "failed"; readonly error: unknown };
+
+export interface Texture2DHandle {
+  readonly state: Texture2DState;
+  readonly ready: Promise<PixiTexture>;
+  /** Observes the transition out of loading. Read state for the current value. */
+  subscribe(listener: (state: Texture2DState) => void): () => void;
+}
+
 type LoadedAsset = LoadedModel | THREE.Texture | PixiTexture;
 type AssetKind = "model" | "texture3d" | "texture2d";
 
@@ -65,6 +77,7 @@ export interface IAssetStore {
 
 export class AssetStore implements IAssetStore {
   private cache = new Map<string, Promise<LoadedAsset>>();
+  private textureRequests = new Map<AssetKey, { url: string; handle: Texture2DHandle }>();
   private assetKinds = new Map<string, AssetKind>();
   private modelLoaders = new Map<string, ModelLoaderConfig>();
   private textureLoaders = new Map<string, TextureLoaderConfig>();
@@ -231,6 +244,7 @@ export class AssetStore implements IAssetStore {
     }
 
     const promise = loaderConfig.loader({ url });
+    this.textureRequests.delete(key);
     this.cache.set(key, promise);
     this.assetKinds.set(key, "model");
     await promise;
@@ -250,28 +264,66 @@ export class AssetStore implements IAssetStore {
     }
 
     const promise = loaderConfig.loader({ url });
+    this.textureRequests.delete(key);
     this.cache.set(key, promise);
     this.assetKinds.set(key, "texture3d");
     await promise;
   }
 
   async loadTexture2D(key: AssetKey, url: string): Promise<void> {
-    const ext = this.getFileExtension(url);
-    const loaderConfig = this.findTexture2DLoaderByExtension(ext);
+    await this.requestTexture2D(key, url).ready;
+  }
 
-    if (!loaderConfig) {
-      const supportedExts = this.getSupportedTexture2DExtensions();
+  /** Reuses an active or ready request for the same key and URL. Request again to retry a failure. */
+  requestTexture2D(key: AssetKey, url: string): Texture2DHandle {
+    const existing = this.textureRequests.get(key);
+    if (existing?.url === url && existing.handle.state.status !== "failed") return existing.handle;
+
+    const ext = this.getFileExtension(url);
+    const loader = this.findTexture2DLoaderByExtension(ext)?.loader;
+    if (!loader) {
+      const supported = this.getSupportedTexture2DExtensions();
       throw new Error(
-        `Unsupported 2D texture format: .${ext}. Supported extensions: ${supportedExts.join(
-          ", ",
-        )}`,
+        `Unsupported 2D texture format: .${ext}. Supported extensions: ${supported.join(", ")}`,
       );
     }
 
-    const promise = loaderConfig.loader({ url });
-    this.cache.set(key, promise);
+    let state: Texture2DState = { status: "loading" };
+    const listeners = new Set<(state: Texture2DState) => void>();
+    const settle = (next: Texture2DState) => {
+      state = next;
+      const pending = [...listeners];
+      listeners.clear();
+      for (const listener of pending) {
+        try { listener(next); } catch (error) { console.error("Texture readiness listener failed", error); }
+      }
+    };
+
+    const ready = Promise.resolve().then(() => loader({ url })).then(
+      (texture) => {
+        settle({ status: "ready", texture });
+        return texture;
+      },
+      (error: unknown) => {
+        settle({ status: "failed", error });
+        throw error;
+      },
+    );
+    // Consumers can use state and subscribe without awaiting the load.
+    void ready.catch(() => {});
+
+    const handle: Texture2DHandle = {
+      get state() { return state; },
+      ready,
+      subscribe(listener) {
+        if (state.status === "loading") listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+    };
+    this.textureRequests.set(key, { url, handle });
+    this.cache.set(key, ready);
     this.assetKinds.set(key, "texture2d");
-    await promise;
+    return handle;
   }
 
   async getGeometry(key: AssetKey): Promise<THREE.Object3D> {
@@ -333,6 +385,7 @@ export class AssetStore implements IAssetStore {
   }
 
   clear(): void {
+    this.textureRequests.clear();
     this.cache.clear();
     this.assetKinds.clear();
   }
