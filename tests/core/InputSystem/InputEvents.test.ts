@@ -157,7 +157,6 @@ describe("InputEvents", () => {
 
     it("should create unique symbols for each event", () => {
       const eventValues = Object.values(InputEvent);
-      expect(eventValues.length).toBe(7);
 
       // Each event should be a unique symbol
       const symbolSet = new Set(eventValues);

@@ -12,8 +12,10 @@ export { Scene } from "./Scene";
 export { SceneManager } from "./SceneManager";
 export { Schedule, Scheduler } from "./Scheduler";
 export { EventBus } from "./EventBus";
-export { EventQueue } from "./EventQueue";
+export { EventQueue, defineEvent } from "./EventQueue";
 export { bootstrapEngine } from "./Bootstrap";
+
+export type { EventReader, EventType } from "./EventQueue";
 
 // Logging
 export type { ILogger } from "./ILogger";
@@ -45,6 +47,9 @@ export { Camera } from "./Camera/CameraComponents";
 // Input
 export { InputState } from "./InputSystem/InputState";
 export { InputEvent } from "./InputSystem/InputEvents";
+
+export type { CanvasPointerEvent } from "./InputSystem/InputEvents";
+export { createPointerInputSystems } from "./InputSystem/PointerInputSystem";
 
 // Physics
 export { PhysicsBody, PhysicsShape, PhysicsMaterial } from "./Physics";

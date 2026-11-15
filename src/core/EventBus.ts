@@ -20,6 +20,10 @@ export class EventBus {
     return this.getQueue(type).read();
   }
 
+  public createReader<T>(type: EventType<T>) {
+    return this.getQueue(type).createReader();
+  }
+
   public update() {
     for (const q of this.queues.values()) q.update();
   }
