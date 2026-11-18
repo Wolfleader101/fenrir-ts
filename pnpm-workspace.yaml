@@ -1,0 +1,7 @@
+overrides:
+  vite: npm:rolldown-vite@7.2.5
+
+# esbuild's postinstall only checks its platform binary, which the optional
+# @esbuild/* package already provides. pnpm 10 skipped it too.
+allowBuilds:
+  esbuild: false

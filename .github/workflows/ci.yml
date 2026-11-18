@@ -16,10 +16,6 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      # The lockfile uses pnpm 10's manifest overrides, and pnpm/setup installs
-      # pnpm 11 or newer, so pnpm 10 is run through dlx.
-      PNPM10: pnpm dlx pnpm@10.32.1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -30,14 +26,14 @@ jobs:
           runtime: node@24
           install: false
       - name: Install dependencies
-        run: $PNPM10 install --frozen-lockfile --ignore-scripts --node-linker hoisted
+        run: pnpm install --frozen-lockfile
       - name: Type-check
-        run: $PNPM10 run type-check
+        run: pnpm type-check
       - name: Check documented examples compile
-        run: $PNPM10 run check:docs
+        run: pnpm check:docs
       - name: Test
-        run: $PNPM10 run test:run
+        run: pnpm test:run
       - name: Build the library
-        run: $PNPM10 run build:lib
+        run: pnpm build:lib
       - name: Check bundle size budget
-        run: $PNPM10 run check:size
+        run: pnpm check:size

@@ -11,17 +11,19 @@ The version is 0.x: breaking changes are allowed.
 
 ## Commands
 
-The lockfile needs pnpm 10. If your `pnpm` is a different major version, run pnpm 10 through `dlx`:
+Use pnpm 11 or newer. `packageManager` in `package.json` pins the version, and pnpm switches to it on its own.
+pnpm settings live in `pnpm-workspace.yaml`, not in `package.json`: the `vite` to `rolldown-vite` override and `allowBuilds`.
 
 ```sh
-pnpm dlx pnpm@10.32.1 install --frozen-lockfile --ignore-scripts --node-linker hoisted
-pnpm dlx pnpm@10.32.1 run test:run     # vitest run, all tests once
-pnpm dlx pnpm@10.32.1 run type-check   # tsc --noEmit over src and tests
-pnpm dlx pnpm@10.32.1 run build:lib    # library build into dist/
-pnpm dlx pnpm@10.32.1 run dev          # Vite dev server for the demos, http://localhost:5173
+pnpm install --frozen-lockfile
+pnpm test:run     # vitest run, all tests once
+pnpm type-check   # tsc --noEmit over src and tests
+pnpm build:lib    # library build into dist/
+pnpm build:demos  # production build of the demo pages
+pnpm dev          # Vite dev server for the demos, http://localhost:5173
 ```
 
-Run one test file with `pnpm dlx pnpm@10.32.1 exec vitest run tests/core/Scheduler.test.ts`.
+Run one test file with `pnpm exec vitest run tests/core/Scheduler.test.ts`.
 Demo pages are the `*.html` files at the repo root, for example `/pixi2d.html`. Their code is in `src/demos/`.
 
 ### What CI runs
@@ -29,11 +31,11 @@ Demo pages are the `*.html` files at the repo root, for example `/pixi2d.html`. 
 Every pull request and every push to `main` runs these, in this order. All of them must pass, and all of them pass on `main`, so a failure is yours.
 
 ```sh
-pnpm dlx pnpm@10.32.1 run type-check   # no errors allowed
-pnpm dlx pnpm@10.32.1 run check:docs   # every ts block in README.md and AGENTS.md compiles against src/
-pnpm dlx pnpm@10.32.1 run test:run
-pnpm dlx pnpm@10.32.1 run build:lib
-pnpm dlx pnpm@10.32.1 run check:size   # each entry in dist/ stays within size-budget.json
+pnpm type-check   # no errors allowed
+pnpm check:docs   # every ts block in README.md and AGENTS.md compiles against src/
+pnpm test:run
+pnpm build:lib
+pnpm check:size   # each entry in dist/ stays within size-budget.json
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. A README fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`.
