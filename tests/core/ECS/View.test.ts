@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { View } from "@/core/ECS/View";
 import { EntityList } from "@/core/ECS/EntityList";
 import { defineComponent } from "@/core/ECS/Component";
@@ -20,6 +20,13 @@ const Tag = defineComponent<Tag>("Tag");
 describe("View", () => {
   let entityList: EntityList;
   let entities: Entity[];
+
+  /** Returns the i-th test entity, failing loudly if it was never created. */
+  const ent = (i: number): Entity => {
+    const entity = entities[i];
+    if (entity === undefined) throw new Error(`No test entity at index ${i}`);
+    return entity;
+  };
 
   beforeEach(() => {
     entityList = new EntityList();
@@ -58,9 +65,9 @@ describe("View", () => {
   describe("single component iteration (each1)", () => {
     it("should iterate over entities with single component", () => {
       // Add Position to some entities
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[2], Position, { x: 30, y: 40 });
-      entityList.set(entities[4], Position, { x: 50, y: 60 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(2), Position, { x: 30, y: 40 });
+      entityList.set(ent(4), Position, { x: 50, y: 60 });
 
       const view = new View(entityList, [Position]);
       const results: Array<{ entity: Entity; position: Position }> = [];
@@ -71,9 +78,9 @@ describe("View", () => {
 
       expect(results).toHaveLength(3);
       expect(results).toEqual([
-        { entity: entities[0], position: { x: 10, y: 20 } },
-        { entity: entities[2], position: { x: 30, y: 40 } },
-        { entity: entities[4], position: { x: 50, y: 60 } },
+        { entity: ent(0), position: { x: 10, y: 20 } },
+        { entity: ent(2), position: { x: 30, y: 40 } },
+        { entity: ent(4), position: { x: 50, y: 60 } },
       ]);
     });
 
@@ -90,17 +97,17 @@ describe("View", () => {
 
     it("should handle entity removal during iteration", () => {
       // Add components
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[2], Position, { x: 50, y: 60 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(2), Position, { x: 50, y: 60 });
 
       const view = new View(entityList, [Position]);
       const results: Entity[] = [];
 
-      view.each((entity, position) => {
+      view.each((entity, _position) => {
         results.push(entity);
         // Remove the component from the first entity during iteration
-        if (entity === entities[0]) {
+        if (entity === ent(0)) {
           entityList.remove(entity, Position);
         }
       });
@@ -113,14 +120,14 @@ describe("View", () => {
   describe("two component iteration (each2)", () => {
     it("should iterate over entities with both components", () => {
       // Add both Position and Velocity to some entities
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
 
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
       // No velocity for entities[1]
 
-      entityList.set(entities[2], Position, { x: 50, y: 60 });
-      entityList.set(entities[2], Velocity, { dx: 3, dy: 4 });
+      entityList.set(ent(2), Position, { x: 50, y: 60 });
+      entityList.set(ent(2), Velocity, { dx: 3, dy: 4 });
 
       const view = new View(entityList, [Position, Velocity]);
       const results: Array<{
@@ -139,12 +146,12 @@ describe("View", () => {
 
       expect(results).toHaveLength(2);
       expect(results).toContainEqual({
-        entity: entities[0],
+        entity: ent(0),
         position: { x: 10, y: 20 },
         velocity: { dx: 1, dy: 2 },
       });
       expect(results).toContainEqual({
-        entity: entities[2],
+        entity: ent(2),
         position: { x: 50, y: 60 },
         velocity: { dx: 3, dy: 4 },
       });
@@ -153,13 +160,13 @@ describe("View", () => {
     it("should use smallest pool as driver", () => {
       // Add Position to many entities
       for (let i = 0; i < 8; i++) {
-        entityList.set(entities[i], Position, { x: i * 10, y: i * 20 });
+        entityList.set(ent(i), Position, { x: i * 10, y: i * 20 });
       }
 
       // Add Velocity to fewer entities
-      entityList.set(entities[1], Velocity, { dx: 1, dy: 1 });
-      entityList.set(entities[3], Velocity, { dx: 2, dy: 2 });
-      entityList.set(entities[5], Velocity, { dx: 3, dy: 3 });
+      entityList.set(ent(1), Velocity, { dx: 1, dy: 1 });
+      entityList.set(ent(3), Velocity, { dx: 2, dy: 2 });
+      entityList.set(ent(5), Velocity, { dx: 3, dy: 3 });
 
       const view = new View(entityList, [Position, Velocity]);
       const results: any[] = [];
@@ -175,17 +182,17 @@ describe("View", () => {
 
   describe("three component iteration (each3)", () => {
     it("should iterate over entities with all three components", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
-      entityList.set(entities[0], Health, { hp: 100, maxHp: 100 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Health, { hp: 100, maxHp: 100 });
 
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[1], Velocity, { dx: 3, dy: 4 });
-      // No health for entities[1]
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(1), Velocity, { dx: 3, dy: 4 });
+      // No health for ent(1)
 
-      entityList.set(entities[2], Position, { x: 50, y: 60 });
-      entityList.set(entities[2], Velocity, { dx: 5, dy: 6 });
-      entityList.set(entities[2], Health, { hp: 75, maxHp: 100 });
+      entityList.set(ent(2), Position, { x: 50, y: 60 });
+      entityList.set(ent(2), Velocity, { dx: 5, dy: 6 });
+      entityList.set(ent(2), Health, { hp: 75, maxHp: 100 });
 
       const view = new View(entityList, [Position, Velocity, Health]);
       const results: any[] = [];
@@ -196,13 +203,13 @@ describe("View", () => {
 
       expect(results).toHaveLength(2);
       expect(results).toContainEqual({
-        entity: entities[0],
+        entity: ent(0),
         position: { x: 10, y: 20 },
         velocity: { dx: 1, dy: 2 },
         health: { hp: 100, maxHp: 100 },
       });
       expect(results).toContainEqual({
-        entity: entities[2],
+        entity: ent(2),
         position: { x: 50, y: 60 },
         velocity: { dx: 5, dy: 6 },
         health: { hp: 75, maxHp: 100 },
@@ -212,16 +219,16 @@ describe("View", () => {
 
   describe("four component iteration (each4)", () => {
     it("should iterate over entities with all four components", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
-      entityList.set(entities[0], Health, { hp: 100, maxHp: 100 });
-      entityList.set(entities[0], Name, { name: "Entity0" });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Health, { hp: 100, maxHp: 100 });
+      entityList.set(ent(0), Name, { name: "Entity0" });
 
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[1], Velocity, { dx: 3, dy: 4 });
-      entityList.set(entities[1], Health, { hp: 75, maxHp: 100 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(1), Velocity, { dx: 3, dy: 4 });
+      entityList.set(ent(1), Health, { hp: 75, maxHp: 100 });
       // Remove the default Name component to test filtering
-      entityList.remove(entities[1], Name);
+      entityList.remove(ent(1), Name);
 
       const view = new View(entityList, [Position, Velocity, Health, Name]);
       const results: any[] = [];
@@ -232,7 +239,7 @@ describe("View", () => {
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        entity: entities[0],
+        entity: ent(0),
         position: { x: 10, y: 20 },
         velocity: { dx: 1, dy: 2 },
         health: { hp: 100, maxHp: 100 },
@@ -245,17 +252,17 @@ describe("View", () => {
     it("should iterate over entities with 5+ components", () => {
       const types = [Position, Velocity, Health, Name, Tag] as const;
 
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
-      entityList.set(entities[0], Health, { hp: 100, maxHp: 100 });
-      entityList.set(entities[0], Name, { name: "Entity0" });
-      entityList.set(entities[0], Tag, { tag: "player" });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Health, { hp: 100, maxHp: 100 });
+      entityList.set(ent(0), Name, { name: "Entity0" });
+      entityList.set(ent(0), Tag, { tag: "player" });
 
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[1], Velocity, { dx: 3, dy: 4 });
-      entityList.set(entities[1], Health, { hp: 75, maxHp: 100 });
-      entityList.set(entities[1], Name, { name: "Entity1" });
-      // No tag for entities[1]
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(1), Velocity, { dx: 3, dy: 4 });
+      entityList.set(ent(1), Health, { hp: 75, maxHp: 100 });
+      entityList.set(ent(1), Name, { name: "Entity1" });
+      // No tag for ent(1)
 
       const view = new View(entityList, types);
       const results: any[] = [];
@@ -266,7 +273,7 @@ describe("View", () => {
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        entity: entities[0],
+        entity: ent(0),
         position: { x: 10, y: 20 },
         velocity: { dx: 1, dy: 2 },
         health: { hp: 100, maxHp: 100 },
@@ -279,18 +286,18 @@ describe("View", () => {
       const types = [Position, Velocity, Health, Name, Tag] as const;
 
       // Entity 0: has all components
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
-      entityList.set(entities[0], Health, { hp: 100, maxHp: 100 });
-      entityList.set(entities[0], Name, { name: "Entity0" });
-      entityList.set(entities[0], Tag, { tag: "player" });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Health, { hp: 100, maxHp: 100 });
+      entityList.set(ent(0), Name, { name: "Entity0" });
+      entityList.set(ent(0), Tag, { tag: "player" });
 
       // Entity 1: missing Tag (should trigger break in eachN)
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[1], Velocity, { dx: 3, dy: 4 });
-      entityList.set(entities[1], Health, { hp: 75, maxHp: 100 });
-      entityList.set(entities[1], Name, { name: "Entity1" });
-      // No Tag for entities[1]
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(1), Velocity, { dx: 3, dy: 4 });
+      entityList.set(ent(1), Health, { hp: 75, maxHp: 100 });
+      entityList.set(ent(1), Name, { name: "Entity1" });
+      // No Tag for ent(1)
 
       const view = new View(entityList, types);
       const results: any[] = [];
@@ -302,7 +309,7 @@ describe("View", () => {
       // Only entity0 should match (entity1 should be skipped due to missing Tag)
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        entity: entities[0],
+        entity: ent(0),
         position: { x: 10, y: 20 },
         velocity: { dx: 1, dy: 2 },
         health: { hp: 100, maxHp: 100 },
@@ -323,20 +330,20 @@ describe("View", () => {
       const types = [CompA, CompB, CompC, CompD, CompE, CompF] as const;
 
       // Entity with all components
-      entityList.set(entities[0], CompA, 1);
-      entityList.set(entities[0], CompB, "test1");
-      entityList.set(entities[0], CompC, true);
-      entityList.set(entities[0], CompD, { value: 10 });
-      entityList.set(entities[0], CompE, { name: "entity0" });
-      entityList.set(entities[0], CompF, [1, 2, 3]);
+      entityList.set(ent(0), CompA, 1);
+      entityList.set(ent(0), CompB, "test1");
+      entityList.set(ent(0), CompC, true);
+      entityList.set(ent(0), CompD, { value: 10 });
+      entityList.set(ent(0), CompE, { name: "entity0" });
+      entityList.set(ent(0), CompF, [1, 2, 3]);
 
       // Entity missing CompC (should trigger break on p=2, covering lines 220-221)
-      entityList.set(entities[1], CompA, 2);
-      entityList.set(entities[1], CompB, "test2");
+      entityList.set(ent(1), CompA, 2);
+      entityList.set(ent(1), CompB, "test2");
       // Missing CompC
-      entityList.set(entities[1], CompD, { value: 20 });
-      entityList.set(entities[1], CompE, { name: "entity1" });
-      entityList.set(entities[1], CompF, [4, 5, 6]);
+      entityList.set(ent(1), CompD, { value: 20 });
+      entityList.set(ent(1), CompE, { name: "entity1" });
+      entityList.set(ent(1), CompF, [4, 5, 6]);
 
       const view = new View(entityList, types);
       const results: any[] = [];
@@ -345,7 +352,7 @@ describe("View", () => {
         results.push({ entity, a, b, c, d, e, f });
       });
 
-      // Only entities[0] should match (entities[1] breaks early due to missing CompC)
+      // Only ent(0) should match (ent(1) breaks early due to missing CompC)
       expect(results).toHaveLength(1);
       expect(results[0].a).toBe(1);
       expect(results[0].b).toBe("test1");
@@ -369,16 +376,16 @@ describe("View", () => {
   describe("pool optimization", () => {
     it("should use smallest pool as driver for efficiency", () => {
       // First, add Position to the test entities that already exist
-      entityList.set(entities[0], Position, { x: 0, y: 0 });
-      entityList.set(entities[1], Position, { x: 10, y: 10 });
-      entityList.set(entities[2], Position, { x: 20, y: 20 });
-      entityList.set(entities[3], Position, { x: 30, y: 30 });
-      entityList.set(entities[4], Position, { x: 40, y: 40 });
+      entityList.set(ent(0), Position, { x: 0, y: 0 });
+      entityList.set(ent(1), Position, { x: 10, y: 10 });
+      entityList.set(ent(2), Position, { x: 20, y: 20 });
+      entityList.set(ent(3), Position, { x: 30, y: 30 });
+      entityList.set(ent(4), Position, { x: 40, y: 40 });
 
       // Only add Velocity to some of them
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 1 });
-      entityList.set(entities[2], Velocity, { dx: 2, dy: 2 });
-      entityList.set(entities[4], Velocity, { dx: 3, dy: 3 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 1 });
+      entityList.set(ent(2), Velocity, { dx: 2, dy: 2 });
+      entityList.set(ent(4), Velocity, { dx: 3, dy: 3 });
 
       const view = new View(entityList, [Position, Velocity]);
       const results: any[] = [];
@@ -394,39 +401,39 @@ describe("View", () => {
 
   describe("concurrent modifications", () => {
     it("should handle component additions during iteration", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
 
       const view = new View(entityList, [Position]);
       const results: Entity[] = [];
 
-      view.each((entity, position) => {
+      view.each((entity, _position) => {
         results.push(entity);
 
         // Add component to another entity during iteration
-        if (entity === entities[0]) {
-          entityList.set(entities[2], Position, { x: 50, y: 60 });
+        if (entity === ent(0)) {
+          entityList.set(ent(2), Position, { x: 50, y: 60 });
         }
       });
 
       // Should not include the newly added entity in current iteration
-      expect(results).toEqual([entities[0], entities[1]]);
+      expect(results).toEqual([ent(0), ent(1)]);
     });
 
     it("should handle component removals during iteration", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[2], Position, { x: 50, y: 60 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(2), Position, { x: 50, y: 60 });
 
       const view = new View(entityList, [Position]);
       const results: Entity[] = [];
 
-      view.each((entity, position) => {
+      view.each((entity, _position) => {
         results.push(entity);
 
         // Remove component during iteration
-        if (entity === entities[1]) {
-          entityList.remove(entities[2], Position);
+        if (entity === ent(1)) {
+          entityList.remove(ent(2), Position);
         }
       });
 
@@ -435,19 +442,19 @@ describe("View", () => {
     });
 
     it("should handle entity destruction during iteration", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[2], Position, { x: 50, y: 60 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(2), Position, { x: 50, y: 60 });
 
       const view = new View(entityList, [Position]);
       const results: Entity[] = [];
 
-      view.each((entity, position) => {
+      view.each((entity, _position) => {
         results.push(entity);
 
         // Destroy entity during iteration
-        if (entity === entities[1]) {
-          entityList.destroyEntity(entities[2]);
+        if (entity === ent(1)) {
+          entityList.destroyEntity(ent(2));
         }
       });
 
@@ -475,7 +482,7 @@ describe("View", () => {
       let count = 0;
 
       const start = performance.now();
-      view.each((entity, position, velocity) => {
+      view.each((_entity, _position, _velocity) => {
         count++;
       });
       const end = performance.now();
@@ -488,17 +495,17 @@ describe("View", () => {
       const types = [Position, Velocity, Health, Name, Tag] as const;
 
       // Create entity with all components
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
-      entityList.set(entities[0], Health, { hp: 100, maxHp: 100 });
-      entityList.set(entities[0], Name, { name: "Test" });
-      entityList.set(entities[0], Tag, { tag: "test" });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Health, { hp: 100, maxHp: 100 });
+      entityList.set(ent(0), Name, { name: "Test" });
+      entityList.set(ent(0), Tag, { tag: "test" });
 
       const view = new View(entityList, types);
 
       // Run multiple iterations to test array reuse
       for (let i = 0; i < 10; i++) {
-        view.each((entity, position, velocity, health, name, tag) => {
+        view.each((_entity, position, velocity, health, name, tag) => {
           expect(position).toEqual({ x: 10, y: 20 });
           expect(velocity).toEqual({ dx: 1, dy: 2 });
           expect(health).toEqual({ hp: 100, maxHp: 100 });
@@ -511,12 +518,12 @@ describe("View", () => {
 
   describe("type system integration", () => {
     it("should provide correct component types in callback", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
 
       const view = new View(entityList, [Position, Velocity] as const);
 
-      view.each((entity, position, velocity) => {
+      view.each((_entity, position, velocity) => {
         // TypeScript should enforce these types
         expect(typeof position.x).toBe("number");
         expect(typeof position.y).toBe("number");
@@ -528,9 +535,9 @@ describe("View", () => {
 
   describe("edge cases", () => {
     it("should handle views of same entity with different component combinations", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[0], Velocity, { dx: 1, dy: 2 });
-      entityList.set(entities[0], Health, { hp: 100, maxHp: 100 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Velocity, { dx: 1, dy: 2 });
+      entityList.set(ent(0), Health, { hp: 100, maxHp: 100 });
 
       const positionView = new View(entityList, [Position]);
       const movementView = new View(entityList, [Position, Velocity]);
@@ -553,7 +560,7 @@ describe("View", () => {
       // This shouldn't happen in practice, but test robustness
       const view = new View(entityList, [Position, Position] as any);
 
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
 
       const results: any[] = [];
       view.each((...args) => {
@@ -564,8 +571,8 @@ describe("View", () => {
     });
 
     it("should handle component modification during iteration", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
 
       const view = new View(entityList, [Position]);
       const results: Position[] = [];
@@ -574,7 +581,7 @@ describe("View", () => {
         results.push({ ...position }); // Copy current value
 
         // Modify component during iteration
-        if (entity === entities[0]) {
+        if (entity === ent(0)) {
           entityList.set(entity, Position, { x: 999, y: 999 });
         }
       });
@@ -589,9 +596,9 @@ describe("View", () => {
 
   describe("integration with entity lifecycle", () => {
     it("should properly handle view queries after entity destruction", () => {
-      entityList.set(entities[0], Position, { x: 10, y: 20 });
-      entityList.set(entities[1], Position, { x: 30, y: 40 });
-      entityList.set(entities[2], Position, { x: 50, y: 60 });
+      entityList.set(ent(0), Position, { x: 10, y: 20 });
+      entityList.set(ent(1), Position, { x: 30, y: 40 });
+      entityList.set(ent(2), Position, { x: 50, y: 60 });
 
       const view = new View(entityList, [Position]);
 
@@ -601,7 +608,7 @@ describe("View", () => {
       expect(countBefore).toBe(3);
 
       // Destroy an entity
-      entityList.destroyEntity(entities[1]);
+      entityList.destroyEntity(ent(1));
 
       // Count after destruction
       let countAfter = 0;
@@ -612,9 +619,9 @@ describe("View", () => {
       });
 
       expect(countAfter).toBe(2);
-      expect(remainingEntities).toContain(entities[0]);
-      expect(remainingEntities).toContain(entities[2]);
-      expect(remainingEntities).not.toContain(entities[1]);
+      expect(remainingEntities).toContain(ent(0));
+      expect(remainingEntities).toContain(ent(2));
+      expect(remainingEntities).not.toContain(ent(1));
     });
   });
 });

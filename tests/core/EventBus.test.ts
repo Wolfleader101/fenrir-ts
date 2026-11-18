@@ -258,7 +258,7 @@ describe("EventBus", () => {
       const move2: PlayerMoved = { playerId: "player2", x: 30, y: 40 };
 
       eventBus.send(PlayerMoved, move1);
-      const events1 = eventBus.read(PlayerMoved);
+      eventBus.read(PlayerMoved);
 
       eventBus.send(PlayerMoved, move2);
       const events2 = eventBus.read(PlayerMoved);

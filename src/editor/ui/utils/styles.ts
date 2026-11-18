@@ -1,4 +1,4 @@
-import { css, unsafeCSS } from "lit";
+import { css } from "lit";
 
 /**
  * Import Tailwind CSS styles for use in LitElement shadow DOM

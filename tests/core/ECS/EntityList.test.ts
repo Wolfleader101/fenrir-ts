@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EntityList, defineComponent } from "@/core/ECS";
 import { Name as DefaultName, Relationship } from "@/core/ECS/DefaultComponents";
+import { at } from "../../utils/testHelpers";
 
 // Test component types
 type Position = { x: number; y: number };
@@ -78,12 +79,9 @@ describe("EntityList", () => {
     it("should handle generation wraparound", () => {
       // This test simulates generation overflow (12 bits = 4096 generations)
       const entity = entityList.createEntity();
-      const id = entityList.idOf(entity);
 
-      // Manually set generation close to max (this is testing internal behavior)
-      // In practice, we'd need to destroy/create 4095 times to test this properly
-      const GEN_MASK = (1 << 12) - 1; // 0xFFF
-
+      // Overflowing the 12-bit generation (0xFFF) for real would need 4095
+      // destroy/create cycles on the same ID.
       // For this test, we'll just verify the generation extraction works correctly
       expect(entityList.genOf(entity)).toBe(0);
     });
@@ -94,13 +92,13 @@ describe("EntityList", () => {
       const entity1 = entityList.createEntity();
       expect(entityList.capacity()).toBe(1);
 
-      const entity2 = entityList.createEntity();
+      entityList.createEntity();
       expect(entityList.capacity()).toBe(2);
 
       entityList.destroyEntity(entity1);
       expect(entityList.capacity()).toBe(2); // Capacity doesn't decrease
 
-      const entity3 = entityList.createEntity(); // Reuses ID 0
+      entityList.createEntity(); // Reuses ID 0
       expect(entityList.capacity()).toBe(2); // Still same capacity
     });
   });
@@ -496,14 +494,14 @@ describe("EntityList", () => {
       });
 
       expect(results).toHaveLength(1); // Only entity1 has both Position and Velocity
-      expect(results[0].pos).toEqual({ x: 1, y: 1 });
-      expect(results[0].vel).toEqual({ x: 0.1, y: 0.1 });
+      expect(at(results, 0).pos).toEqual({ x: 1, y: 1 });
+      expect(at(results, 0).vel).toEqual({ x: 0.1, y: 0.1 });
     });
 
     it("should iterate over single component queries", () => {
       const positions: Position[] = [];
 
-      entityList.each([Position] as const, (entity, pos) => {
+      entityList.each([Position] as const, (_entity, pos) => {
         positions.push(pos);
       });
 
@@ -545,7 +543,7 @@ describe("EntityList", () => {
 
       // Destroy every other one
       for (let i = 0; i < entities.length; i += 2) {
-        entityList.destroyEntity(entities[i]);
+        entityList.destroyEntity(at(entities, i));
       }
 
       // Create new ones (should reuse IDs)
@@ -561,12 +559,12 @@ describe("EntityList", () => {
 
       // Old destroyed entities should still be dead
       for (let i = 0; i < entities.length; i += 2) {
-        expect(entityList.isAlive(entities[i])).toBe(false);
+        expect(entityList.isAlive(at(entities, i))).toBe(false);
       }
 
       // Old surviving entities should still be alive
       for (let i = 1; i < entities.length; i += 2) {
-        expect(entityList.isAlive(entities[i])).toBe(true);
+        expect(entityList.isAlive(at(entities, i))).toBe(true);
       }
     });
 
@@ -581,7 +579,7 @@ describe("EntityList", () => {
       }
 
       let processedCount = 0;
-      entityList.each([Position] as const, (entity, pos) => {
+      entityList.each([Position] as const, (_entity, _pos) => {
         processedCount++;
         // In a real scenario, we might add/remove components here
       });

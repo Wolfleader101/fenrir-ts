@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Time } from "@/core/Time";
+import { at } from "../utils/testHelpers";
 
 describe("Time", () => {
   let time: Time;
@@ -22,7 +23,7 @@ describe("Time", () => {
         .spyOn(performance, "now")
         .mockReturnValue(1000);
 
-      const newTime = new Time();
+      new Time();
 
       expect(mockPerformanceNow).toHaveBeenCalled();
       mockPerformanceNow.mockRestore();
@@ -35,7 +36,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       // Create time instance (uses first mock value)
@@ -54,7 +55,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -73,7 +74,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -94,7 +95,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -111,7 +112,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -173,7 +174,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -197,7 +198,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -256,7 +257,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -273,7 +274,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();
@@ -335,7 +336,7 @@ describe("Time", () => {
       vi.spyOn(performance, "now").mockImplementation(() => {
         return (
           mockFrameTimes[callCount++] ||
-          mockFrameTimes[mockFrameTimes.length - 1]
+          at(mockFrameTimes, mockFrameTimes.length - 1)
         );
       });
 
@@ -361,7 +362,7 @@ describe("Time", () => {
       let callCount = 0;
 
       vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || mockTimes[mockTimes.length - 1];
+        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
       });
 
       const testTime = new Time();

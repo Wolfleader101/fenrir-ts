@@ -226,7 +226,7 @@ export function createECSCameraController(
       // We need the camera's current orientation to transform movement
       ctx.entities.each(
         ACTIVE_CAMERA_QUERY,
-        (entity, camera, active, transform, instance) => {
+        (entity, camera, _active, _transform, instance) => {
           if (!camera.enabled) return;
 
           // Transform movement relative to camera orientation
@@ -270,7 +270,7 @@ export function createECSCameraController(
     // Update camera position based on orbital coordinates
     ctx.entities.each(
       ACTIVE_CAMERA_QUERY,
-      (entity, camera, active, transform, instance) => {
+      (entity, camera, _active, transform, instance) => {
         if (!camera.enabled) return;
 
         // Calculate new camera position

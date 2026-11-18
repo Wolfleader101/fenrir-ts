@@ -190,7 +190,7 @@ export function create2DDemo() {
     const time = ctx.time.elapsed;
     const Q = [Transform, Renderable2D, Name] as const;
 
-    ctx.entities.each(Q, (e, transform, renderable, nameComp) => {
+    ctx.entities.each(Q, (_e, transform, _renderable, nameComp) => {
       // Rotate circles
       if (nameComp.name.startsWith("Circle")) {
         const parts = nameComp.name.split(" ");

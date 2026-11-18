@@ -3,6 +3,7 @@ import { createDomInputSystems } from "@/core/InputSystem/DOMInputSystem";
 import { InputEvent } from "@/core/InputSystem/InputEvents";
 import { EventBus } from "@/core/EventBus";
 import { NullLogger } from "@/core/NullLogger";
+import { at } from "../../utils/testHelpers";
 
 describe("DOMInputSystem", () => {
   let eventBus: EventBus;
@@ -31,7 +32,7 @@ describe("DOMInputSystem", () => {
     // Mock window object with event listener tracking
     mockWindow = {
       addEventListener: vi.fn(
-        (type: string, listener: EventListener, options?: any) => {
+        (type: string, listener: EventListener, _options?: any) => {
           if (!eventListeners.has(type)) {
             eventListeners.set(type, new Map());
           }
@@ -43,7 +44,7 @@ describe("DOMInputSystem", () => {
         }
       ),
       removeEventListener: vi.fn(
-        (type: string, listener: EventListener, options?: any) => {
+        (type: string, listener: EventListener, _options?: any) => {
           const typeMap = eventListeners.get(type);
           if (typeMap && typeMap.has(mockWindow)) {
             const listeners = typeMap.get(mockWindow)!;
@@ -59,11 +60,8 @@ describe("DOMInputSystem", () => {
     };
 
     // Mock canvas addEventListener/removeEventListener
-    const originalCanvasAdd = mockCanvas.addEventListener;
-    const originalCanvasRemove = mockCanvas.removeEventListener;
-
     mockCanvas.addEventListener = vi.fn(
-      (type: string, listener: EventListener, options?: any) => {
+      (type: string, listener: EventListener, _options?: any) => {
         if (!eventListeners.has(type)) {
           eventListeners.set(type, new Map());
         }
@@ -76,7 +74,7 @@ describe("DOMInputSystem", () => {
     );
 
     mockCanvas.removeEventListener = vi.fn(
-      (type: string, listener: EventListener, options?: any) => {
+      (type: string, listener: EventListener, _options?: any) => {
         const typeMap = eventListeners.get(type);
         if (typeMap && typeMap.has(mockCanvas)) {
           const listeners = typeMap.get(mockCanvas)!;
@@ -185,12 +183,12 @@ describe("DOMInputSystem", () => {
       domInputSystem.init(mockCtx);
       const firstCallCount =
         mockWindow.addEventListener.mock.calls.length +
-        mockCanvas.addEventListener.mock.calls.length;
+        vi.mocked(mockCanvas.addEventListener).mock.calls.length;
 
       domInputSystem.init(mockCtx);
       const secondCallCount =
         mockWindow.addEventListener.mock.calls.length +
-        mockCanvas.addEventListener.mock.calls.length;
+        vi.mocked(mockCanvas.addEventListener).mock.calls.length;
 
       expect(secondCallCount).toBe(firstCallCount); // No additional calls
     });
@@ -227,7 +225,7 @@ describe("DOMInputSystem", () => {
         eventListeners.get("keydown")?.get(mockWindow) || [];
       expect(keydownListeners.length).toBeGreaterThan(0);
 
-      keydownListeners[0](mockEvent);
+      at(keydownListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.KeyDown);
       expect(events).toHaveLength(1);
@@ -257,7 +255,7 @@ describe("DOMInputSystem", () => {
       });
 
       const keyupListeners = eventListeners.get("keyup")?.get(mockWindow) || [];
-      keyupListeners[0](mockEvent);
+      at(keyupListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.KeyUp);
       expect(events).toHaveLength(1);
@@ -288,8 +286,8 @@ describe("DOMInputSystem", () => {
       const keydownListeners =
         eventListeners.get("keydown")?.get(mockWindow) || [];
 
-      keydownListeners[0](arrowEvent);
-      keydownListeners[0](spaceEvent);
+      at(keydownListeners, 0)(arrowEvent);
+      at(keydownListeners, 0)(spaceEvent);
 
       expect(arrowPreventSpy).toHaveBeenCalledOnce();
       expect(spacePreventSpy).toHaveBeenCalledOnce();
@@ -309,7 +307,7 @@ describe("DOMInputSystem", () => {
 
       const keydownListeners =
         eventListeners.get("keydown")?.get(mockWindow) || [];
-      keydownListeners[0](arrowEvent);
+      at(keydownListeners, 0)(arrowEvent);
 
       expect(preventSpy).not.toHaveBeenCalled();
     });
@@ -327,7 +325,7 @@ describe("DOMInputSystem", () => {
 
       const keydownListeners =
         eventListeners.get("keydown")?.get(mockWindow) || [];
-      keydownListeners[0](mockEvent);
+      at(keydownListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.KeyDown);
       expect(events).toHaveLength(1);
@@ -365,7 +363,7 @@ describe("DOMInputSystem", () => {
 
       const mousedownListeners =
         eventListeners.get("mousedown")?.get(mockCanvas) || [];
-      mousedownListeners[0](mockEvent);
+      at(mousedownListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.MouseDown);
       expect(events).toHaveLength(1);
@@ -397,7 +395,7 @@ describe("DOMInputSystem", () => {
 
       const mouseupListeners =
         eventListeners.get("mouseup")?.get(mockCanvas) || [];
-      mouseupListeners[0](mockEvent);
+      at(mouseupListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.MouseUp);
       expect(events).toHaveLength(1);
@@ -436,7 +434,7 @@ describe("DOMInputSystem", () => {
 
       const mousemoveListeners =
         eventListeners.get("mousemove")?.get(mockCanvas) || [];
-      mousemoveListeners[0](mockEvent);
+      at(mousemoveListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.MouseMove);
       expect(events).toHaveLength(1);
@@ -474,24 +472,24 @@ describe("DOMInputSystem", () => {
         buttons: 0,
       });
 
-      mousemoveListeners[0](firstEvent);
-      mousemoveListeners[0](secondEvent);
+      at(mousemoveListeners, 0)(firstEvent);
+      at(mousemoveListeners, 0)(secondEvent);
 
       const events = eventBus.read(InputEvent.MouseMove);
       expect(events).toHaveLength(2);
 
       // Verify that we get position updates
-      expect(events[0].x).toBe(100);
-      expect(events[0].y).toBe(200);
-      expect(events[1].x).toBe(110);
-      expect(events[1].y).toBe(190);
+      expect(at(events, 0).x).toBe(100);
+      expect(at(events, 0).y).toBe(200);
+      expect(at(events, 1).x).toBe(110);
+      expect(at(events, 1).y).toBe(190);
 
       // MouseEvent constructor sets movementX/Y to 0, so delta will be 0
       // This tests that the fallback logic exists even if values are 0
-      expect(events[0].dx).toBe(0);
-      expect(events[0].dy).toBe(0);
-      expect(events[1].dx).toBe(0);
-      expect(events[1].dy).toBe(0);
+      expect(at(events, 0).dx).toBe(0);
+      expect(at(events, 0).dy).toBe(0);
+      expect(at(events, 1).dx).toBe(0);
+      expect(at(events, 1).dy).toBe(0);
     });
 
     it("should handle wheel events", () => {
@@ -508,7 +506,7 @@ describe("DOMInputSystem", () => {
       const preventSpy = vi.spyOn(mockEvent, "preventDefault");
 
       const wheelListeners = eventListeners.get("wheel")?.get(mockCanvas) || [];
-      wheelListeners[0](mockEvent);
+      at(wheelListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.MouseWheel);
       expect(events).toHaveLength(1);
@@ -536,7 +534,7 @@ describe("DOMInputSystem", () => {
       const mockEvent = new FocusEvent("focus");
 
       const focusListeners = eventListeners.get("focus")?.get(mockWindow) || [];
-      focusListeners[0](mockEvent);
+      at(focusListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.Focus);
       expect(events).toHaveLength(1);
@@ -549,7 +547,7 @@ describe("DOMInputSystem", () => {
       const mockEvent = new FocusEvent("blur");
 
       const blurListeners = eventListeners.get("blur")?.get(mockWindow) || [];
-      blurListeners[0](mockEvent);
+      at(blurListeners, 0)(mockEvent);
 
       const events = eventBus.read(InputEvent.Focus);
       expect(events).toHaveLength(1);
@@ -659,12 +657,12 @@ describe("DOMInputSystem", () => {
       const mousemoveListeners =
         eventListeners.get("mousemove")?.get(mockCanvas) || [];
 
-      keydownListeners[0](keyEvent);
-      mousemoveListeners[0](mouseEvent);
+      at(keydownListeners, 0)(keyEvent);
+      at(mousemoveListeners, 0)(mouseEvent);
 
       expect(() => {
-        const keyEvents = eventBus.read(InputEvent.KeyDown);
-        const mouseEvents = eventBus.read(InputEvent.MouseMove);
+        eventBus.read(InputEvent.KeyDown);
+        eventBus.read(InputEvent.MouseMove);
       }).not.toThrow();
 
       const keyEvents = eventBus.read(InputEvent.KeyDown);
@@ -674,9 +672,9 @@ describe("DOMInputSystem", () => {
       expect(mouseEvents).toHaveLength(1);
 
       // Should have default values for missing properties
-      expect(keyEvents[0].altKey).toBe(false);
-      expect(keyEvents[0].ctrlKey).toBe(false);
-      expect(mouseEvents[0].buttons).toBe(0);
+      expect(at(keyEvents, 0).altKey).toBe(false);
+      expect(at(keyEvents, 0).ctrlKey).toBe(false);
+      expect(at(mouseEvents, 0).buttons).toBe(0);
     });
   });
 
@@ -725,8 +723,8 @@ describe("DOMInputSystem", () => {
       const mousedownListeners =
         eventListeners.get("mousedown")?.get(mockCanvas) || [];
 
-      keydownListeners[0](keyEvent);
-      mousedownListeners[0](mouseEvent);
+      at(keydownListeners, 0)(keyEvent);
+      at(mousedownListeners, 0)(mouseEvent);
 
       // Events should be batched until read
       expect(eventBus.read(InputEvent.KeyDown)).toHaveLength(1);
@@ -742,7 +740,7 @@ describe("DOMInputSystem", () => {
       const keyEvent = new KeyboardEvent("keydown", { code: "KeyW", key: "w" });
       const keydownListeners =
         eventListeners.get("keydown")?.get(mockWindow) || [];
-      keydownListeners[0](keyEvent);
+      at(keydownListeners, 0)(keyEvent);
 
       expect(eventBus.read(InputEvent.KeyDown)).toHaveLength(1);
 
@@ -755,10 +753,10 @@ describe("DOMInputSystem", () => {
       domInputSystem.init(mockCtx);
 
       // Should work after reinit - but EventBus might have events from previous frame
-      keydownListeners[0](keyEvent);
+      at(keydownListeners, 0)(keyEvent);
       const finalEvents = eventBus.read(InputEvent.KeyDown);
       expect(finalEvents.length).toBeGreaterThan(0); // Should have at least the new event
-      expect(finalEvents[finalEvents.length - 1].code).toBe("KeyW"); // Last event should be our new one
+      expect(finalEvents.at(-1)?.code).toBe("KeyW"); // Last event should be our new one
     });
   });
 });
