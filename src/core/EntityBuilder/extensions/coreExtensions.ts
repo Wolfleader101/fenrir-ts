@@ -1,11 +1,16 @@
 import { EntityBuilder } from "../EntityBuilder";
-import { Transform, Name } from "../../ECS/DefaultComponents";
-import { Quaternion, Vector3 } from "three";
+import {
+  Transform,
+  Name,
+  createDefaultTransform,
+  type QuatLike,
+  type Vec3Like,
+} from "../../ECS/DefaultComponents";
 
 // ✅ Tell TS these methods exist on EntityBuilder
 declare module "../EntityBuilder" {
   interface EntityBuilder {
-    transform(pos?: Vector3, rot?: Quaternion, scale?: Vector3): EntityBuilder;
+    transform(pos?: Vec3Like, rot?: QuatLike, scale?: Vec3Like): EntityBuilder;
 
     name(value: string): EntityBuilder;
   }
@@ -14,14 +19,16 @@ declare module "../EntityBuilder" {
 EntityBuilder.extend({
   transform(
     this: EntityBuilder,
-    pos = new Vector3(),
-    rot = new Quaternion(),
-    scale = new Vector3(1, 1, 1),
+    pos?: Vec3Like,
+    rot?: QuatLike,
+    scale?: Vec3Like,
   ) {
+    // Defaults come from the installed factory: Three objects once fenrir-ts/3d is loaded.
+    const defaults = createDefaultTransform();
     return this.with(Transform, {
-      position: pos,
-      rotation: rot,
-      scale,
+      position: pos ?? defaults.position,
+      rotation: rot ?? defaults.rotation,
+      scale: scale ?? defaults.scale,
     });
   },
 

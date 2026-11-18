@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { AssetLoader } from "../AssetLoader";
-import type { LoadedModel } from "../AssetStore";
+import type { LoadedModel } from "../Assets3D";
 
 export function createObjLoader(opts?: {
   loader?: OBJLoader;

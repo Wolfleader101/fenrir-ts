@@ -1,27 +1,63 @@
 import { afterAll, beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
+// The core entry must not load any renderer, physics or editor package. Each of
+// these throws if anything the core imports reaches it.
+vi.mock("three", () => {
+  throw new Error("the core entry imported three");
+});
+vi.mock("pixi.js", () => {
+  throw new Error("the core entry imported pixi.js");
+});
+vi.mock("jolt-physics/wasm-compat", () => {
+  throw new Error("the core entry imported jolt-physics");
+});
+vi.mock("monaco-editor", () => {
+  throw new Error("the core entry imported monaco-editor");
+});
+
 /**
- * Everything here goes through the published core entry point, the way a
- * consuming game does. The README quick start mirrors the engine test below.
+ * Everything here goes through the published core entry point, `fenrir-ts`, the
+ * way a consuming game does. The README quick start mirrors the engine test below.
  */
-type Core = typeof import("@/core/index");
+type Core = typeof import("@/index");
 let core: Core;
 
 beforeAll(async () => {
-  core = await import("@/core/index");
+  core = await import("@/index");
 });
 
 afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-describe("fenrir-ts/core public API", () => {
-  it("loads without a WebGPU global", async () => {
-    // Regression for #21: three/webgpu read GPUShaderStage while loading, so
-    // importing the core entry threw wherever WebGPU was missing (jsdom too).
-    expect("GPUShaderStage" in globalThis).toBe(false);
-    vi.resetModules();
-    await expect(import("@/core/index")).resolves.toHaveProperty("bootstrapEngine");
+describe("fenrir-ts core public API", () => {
+  it("exports no renderer, physics or 3D setup", () => {
+    for (const name of ["bootstrapEngine", "createPixiRendererSystem", "PixiRenderer", "Renderable2D", "Camera", "SkyboxUtils", "PhysicsBody"]) {
+      expect(core).not.toHaveProperty(name);
+    }
+  });
+
+  it("adds only the core entity builder methods", () => {
+    const prototype = core.EntityBuilder.prototype as unknown as Record<string, unknown>;
+    expect(prototype.transform).toBeTypeOf("function");
+    expect(prototype.name).toBeTypeOf("function");
+    for (const method of ["renderSprite", "renderBox", "model", "physicsBody", "perspectiveCamera"]) {
+      expect(prototype[method]).toBeUndefined();
+    }
+  });
+
+  it("gives entities a plain transform and an asset store with no renderer loaders", () => {
+    const { AssetStore, EntityList, Transform } = core;
+    const entities = new EntityList();
+    expect(entities.get(entities.createEntity(), Transform)).toEqual({
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      scale: { x: 1, y: 1, z: 1 },
+    });
+
+    const assets = new AssetStore() as InstanceType<typeof AssetStore> & Record<string, unknown>;
+    expect(assets.requestTexture2D).toBeUndefined();
+    expect(assets.loadModel).toBeUndefined();
   });
 
   it("defines and queries a custom component", () => {

@@ -1,12 +1,7 @@
 import "@/style.css";
-import "@/core/builderExtensions.ts";
-
-import { Engine } from "@/core/Engine.ts";
-import { Scheduler, Schedule } from "@/core/Scheduler.ts";
-import { SceneManager } from "@/core/SceneManager.ts";
-import { EventBus } from "@/core/EventBus.ts";
-import { ConsoleLogger } from "@/core/ConsoleLogger.ts";
-import { bootstrapEngine } from "@/core/Bootstrap.ts";
+import { ConsoleLogger, Engine, EventBus, SceneManager, Schedule, Scheduler } from "@/index";
+import { setup2D } from "../shared/setup2D.ts";
+import { createPhysicsSystem } from "@/physics";
 import { createPlatformerPhysicsDemo } from "./platformerPhysicsDemo.ts";
 import { initDemoNav, initDemoInfo } from "@/shared/demoNav.ts";
 
@@ -34,17 +29,11 @@ const engine = new Engine({
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
-// Bootstrap core engine systems with 2D renderer AND physics
-const { systems } = bootstrapEngine(engine, logger, {
-  canvas,
-  enable2D: true, // Enable PixiJS 2D renderer
-  enablePhysics: true, // Enable Jolt Physics
-  enableAnimations: false,
-  enableStats: true,
-});
+// Register DOM input, input state and the PixiJS renderer from fenrir-ts/2d
+const { input } = setup2D(engine, logger, canvas, { physics: createPhysicsSystem() });
 
 // Create platformer demo with physics and input state
-const demo = createPlatformerPhysicsDemo(systems.input.state);
+const demo = createPlatformerPhysicsDemo(input.state);
 
 engine
   .addSystems(Schedule.Init, [demo.init])

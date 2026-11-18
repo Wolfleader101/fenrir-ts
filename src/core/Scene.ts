@@ -1,5 +1,5 @@
 import { EntityList } from "./ECS";
-import type { SkyboxDescriptor } from "./Skybox/SkyboxComponents";
+import type { SkyboxDescriptor } from "./Skybox/SkyboxDescriptor";
 
 export class Scene {
   public name: string;

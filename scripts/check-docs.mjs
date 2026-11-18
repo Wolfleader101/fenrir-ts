@@ -52,8 +52,11 @@ writeFileSync(
         baseUrl: posix(root),
         paths: {
           "@/*": ["./src/*"],
+          // One mapping per package.json export.
           "fenrir-ts": ["./src/index.ts"],
-          "fenrir-ts/core": ["./src/core/index.ts"],
+          "fenrir-ts/2d": ["./src/2d.ts"],
+          "fenrir-ts/3d": ["./src/3d.ts"],
+          "fenrir-ts/physics": ["./src/physics.ts"],
           "fenrir-ts/editor": ["./src/editor/index.ts"],
         },
         // Examples show imports and declarations without always using them.

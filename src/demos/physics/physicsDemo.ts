@@ -1,9 +1,9 @@
 import { Vector3 } from "three";
-import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import { MotionType } from "@/core/Physics";
-import { SkyboxUtils } from "@/core/Skybox";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
+import type { AsyncSystemFn, SyncSystemFn } from "@/index";
+import { EntityBuilder } from "@/index";
+import { MotionType } from "@/physics";
+import { SkyboxUtils } from "@/3d";
+import type { IAssetStore } from "@/index";
 
 /**
  * Creates a physics demo scene with falling objects and a static ground

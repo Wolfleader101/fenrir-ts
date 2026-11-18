@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { AssetLoader } from "../AssetLoader";
-import type { LoadedModel } from "../AssetStore";
+import type { LoadedModel } from "../Assets3D";
 
 export function createGltfLoader(opts?: {
   loader?: GLTFLoader;

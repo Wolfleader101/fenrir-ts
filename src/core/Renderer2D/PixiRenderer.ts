@@ -9,6 +9,8 @@ import type {
 } from "./render2DComponents";
 import type { ILogger } from "../ILogger";
 import type { IAssetStore } from "../Assets/AssetStore";
+// Adds getTexture2D and the Pixi texture loader to the asset store.
+import "../Assets/Assets2D";
 
 type ObjKey = string;
 const keyFor = (e: Entity, id: number): string => `${e}:${id}`;

@@ -1,14 +1,13 @@
 import { Vector3, Spherical, MathUtils } from "three";
-import type { SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder";
-import { Transform } from "@/core/ECS/DefaultComponents";
+import type { SyncSystemFn } from "@/index";
+import { EntityBuilder } from "@/index";
+import { Transform } from "@/3d";
 import {
   Camera,
   ActiveCamera,
   CameraTarget,
   CameraInstance,
-} from "@/core/Camera/CameraComponents";
-import "@/core/EntityBuilder/extensions/cameraExtensions";
+} from "@/3d";
 
 /**
  * ECS-based orbital camera controller

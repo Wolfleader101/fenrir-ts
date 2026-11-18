@@ -1,8 +1,8 @@
 // Spin.ts
 import { Quaternion, Vector3 } from "three";
-import { defineComponent } from "@/core/ECS";
-import { Transform } from "@/core/ECS/DefaultComponents";
-import type { SyncSystemFn } from "@/core/SystemCtx";
+import { defineComponent } from "@/index";
+import { Transform } from "@/3d";
+import type { SyncSystemFn } from "@/index";
 
 export type Spin = {
   speed: number; // radians per second

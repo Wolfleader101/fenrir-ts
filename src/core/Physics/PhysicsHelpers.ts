@@ -6,6 +6,13 @@ import {
   type JoltBodyInterface,
 } from "./utils/JoltWrapper";
 
+declare module "../SystemCtx" {
+  interface SystemCtx {
+    /** Physics helpers, set by the physics system's init. Added by `fenrir-ts/physics`. */
+    physics?: PhysicsHelpers;
+  }
+}
+
 /**
  * Physics helper class for manipulating physics bodies
  *

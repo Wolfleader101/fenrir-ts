@@ -4,6 +4,10 @@ import {
   assetKey,
   type AssetStoreConfig,
 } from "@/core/Assets/AssetStore";
+// The 2D and 3D entries add these asset kinds to the core store when they load.
+// This file covers the store with both loaded; AssetStore.core.test.ts covers core alone.
+import "@/core/Assets/Assets2D";
+import "@/core/Assets/Assets3D";
 
 // Mock Three.js and loaders
 vi.mock("three", () => {

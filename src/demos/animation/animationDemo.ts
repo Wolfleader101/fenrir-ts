@@ -1,11 +1,11 @@
 import { Vector3 } from "three";
 
-import type { AsyncSystemFn } from "@/core/SystemCtx";
+import type { AsyncSystemFn } from "@/index";
 import { Spin } from "../shared/spinComponent.ts";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
-import { assetKey } from "@/core/Assets/AssetStore";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import { SkyboxUtils } from "@/core/Skybox/index.ts";
+import type { IAssetStore } from "@/index";
+import { assetKey } from "@/index";
+import { EntityBuilder } from "@/index";
+import { SkyboxUtils } from "@/3d";
 
 /**
  * Animation Demo Scene

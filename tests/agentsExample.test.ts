@@ -1,20 +1,18 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SystemCtx } from "@/core/index";
+import type { SystemCtx } from "@/index";
 import agentsMd from "../AGENTS.md?raw";
 import thisFile from "./agentsExample.test.ts?raw";
 
 /**
- * Runs the "Core model" example from AGENTS.md through the published core entry point.
+ * Runs the "Core model" example from AGENTS.md through the published core entry point, `fenrir-ts`.
  * Keep the body of `createExample` identical to the example in AGENTS.md, apart from
  * the destructured imports, so the documented code keeps compiling and running.
  */
-type Core = typeof import("@/core/index");
+type Core = typeof import("@/index");
 let core: Core;
 
 beforeAll(async () => {
-  // three/webgpu reads this WebGPU global while loading. jsdom does not provide it.
-  vi.stubGlobal("GPUShaderStage", { VERTEX: 1, FRAGMENT: 2, COMPUTE: 4 });
-  core = await import("@/core/index");
+  core = await import("@/index");
 });
 
 afterEach(() => {

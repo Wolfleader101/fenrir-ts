@@ -1,7 +1,7 @@
 import { PerspectiveCamera, OrthographicCamera } from "three";
 import type { SyncSystemFn, SystemCtx } from "../SystemCtx";
 import type { Entity, EntityList } from "../ECS";
-import { Transform } from "../ECS/DefaultComponents";
+import { Transform } from "../Transform3D";
 import {
   Camera,
   ActiveCamera,

@@ -1,10 +1,10 @@
 import { Vector3 } from "three";
-import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
-import { SkyboxUtils } from "@/core/Skybox";
-import { PhysicsBody } from "@/core/Physics";
-import { InputEvent } from "@/core/InputSystem/InputEvents";
+import type { AsyncSystemFn, SyncSystemFn } from "@/index";
+import { EntityBuilder } from "@/index";
+import type { IAssetStore } from "@/index";
+import { SkyboxUtils } from "@/3d";
+import { PhysicsBody } from "@/physics";
+import { InputEvent } from "@/index";
 
 /**
  * Bouncing Ball Demo

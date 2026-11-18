@@ -1,6 +1,10 @@
+import Jolt from 'jolt-physics/wasm-compat';
+import initJolt from 'jolt-physics/wasm-compat';
 import * as THREE from 'three';
-import { Color, CubeTexture, OrthographicCamera, PerspectiveCamera, Quaternion, Texture, Vector3 } from 'three';
-import type { Texture as PixiTexture } from 'pixi.js';
+import { Color, CubeTexture, OrthographicCamera, PerspectiveCamera, Quaternion, Texture, TextureLoader, Vector3 } from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import * as THREE_WEBGPU from 'three/webgpu';
 
 /**
@@ -43,6 +47,20 @@ export declare class Pool<T> {
 export type ComponentType<T> = symbol & {
 	__component?: T;
 };
+/**
+ * Defines a component type. The name is the component's identity: two calls
+ * with the same name return the same type and share storage. That keeps a
+ * component stable across hot module reloads and across two copies of the
+ * engine in one bundle.
+ *
+ * Because identity is global, prefix names with a namespace for your game or
+ * library. Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export type Health = { current: number; max: number };
+ * export const Health = defineComponent<Health>("myGame.Health");
+ */
+export declare function defineComponent<T>(name: string): ComponentType<T>;
 export type AddCb<T> = (entity: Entity, component: T) => void;
 export type RemoveCb<T> = (entity: Entity, component: T) => void;
 export type ReplaceCb<T> = (entity: Entity, component: T) => void;
@@ -125,10 +143,6 @@ export declare class EntityList {
 	 * Returns true if inserted, false if replaced.
 	 */
 	set<T>(entity: Entity, type: ComponentType<T>, component: T): boolean;
-	/**
-	 * Alias fror set<T>
-	 */
-	add<T>(entity: Entity, type: ComponentType<T>, component: T): boolean;
 	has<T>(entity: Entity, type: ComponentType<T>): boolean;
 	get<T>(entity: Entity, type: ComponentType<T>): T;
 	tryGet<T>(entity: Entity, type: ComponentType<T>): T | undefined;
@@ -160,7 +174,20 @@ export declare class EntityList {
 export type EventType<T> = symbol & {
 	__eventType?: T;
 };
+/**
+ * Defines an event type. As with components, the name is the identity: two
+ * calls with the same name return the same type. Prefix names with a namespace
+ * for your game or library. Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
+ */
+export declare function defineEvent<T>(name: string): EventType<T>;
+export type EventReader<T> = {
+	read(): readonly T[];
+};
 export declare class EventQueue<T> {
+	private nextSequence;
 	private current;
 	private previous;
 	private combined;
@@ -170,6 +197,8 @@ export declare class EventQueue<T> {
 	update(): void;
 	/** returns stable array until next send/update */
 	read(): readonly T[];
+	/** A reader has its own cursor over the queue's two retained frame buffers. */
+	createReader(): EventReader<T>;
 	clearAll(): void;
 }
 export declare class EventBus {
@@ -177,6 +206,7 @@ export declare class EventBus {
 	private getQueue;
 	send<T>(type: EventType<T>, ev: T): void;
 	read<T>(type: EventType<T>): readonly T[];
+	createReader<T>(type: EventType<T>): EventReader<T>;
 	update(): void;
 	clear(): void;
 }
@@ -199,40 +229,61 @@ export type AssetKey = string & {
 	__assetKey?: true;
 };
 export declare const assetKey: (k: string) => AssetKey;
-export type LoadedModel = {
-	geometry: THREE.Object3D;
-	animations: THREE.AnimationClip[];
-	materials: THREE.Material[];
+/** A loader and the file extensions it handles. */
+export type LoaderConfig<T> = {
+	loader: AssetLoader<T>;
+	extensions: string[];
 };
-export type LoadedAsset = LoadedModel | THREE.Texture | PixiTexture;
-export interface ModelLoaderConfig {
-	loader: AssetLoader<LoadedModel>;
-	extensions: string[];
+/**
+ * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
+ * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
+ */
+export interface AssetStoreConfig {
 }
-export interface TextureLoaderConfig {
-	loader: AssetLoader<THREE.Texture>;
-	extensions: string[];
-}
-export interface PixiTextureLoaderConfig {
-	loader: AssetLoader<PixiTexture>;
-	extensions: string[];
-}
+/**
+ * The asset store as systems see it. Core has the cache only. The 2D and 3D
+ * entries add their typed loading and getter methods to this interface.
+ */
 export interface IAssetStore {
-	loadModel(key: AssetKey, url: string): Promise<void>;
-	loadTexture(key: AssetKey, url: string): Promise<void>;
-	loadTexture2D(key: AssetKey, url: string): Promise<void>;
-	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
-	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
-	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
-	getTexture(key: AssetKey): Promise<THREE.Texture>;
-	getTexture2D(key: AssetKey): Promise<PixiTexture>;
-	get(key: AssetKey): Promise<LoadedAsset>;
-	registerModelLoader(name: string, config: ModelLoaderConfig): void;
-	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
-	registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void;
-	getSupportedModelExtensions(): string[];
-	getSupportedTextureExtensions(): string[];
-	getSupportedTexture2DExtensions(): string[];
+	get(key: AssetKey): Promise<unknown>;
+	clear(): void;
+}
+/** Registers an entry's default loaders and reads its options from the config. */
+export type AssetStoreInstaller = (store: AssetStore, config: AssetStoreConfig) => void;
+/**
+ * Caches loaded assets by key and picks a loader by file extension.
+ *
+ * Core knows nothing about textures or models. Each asset kind ("model",
+ * "texture3d", "texture2d") is added by the entry point that renders it, which
+ * registers its default loaders and typed methods when it loads.
+ */
+export declare class AssetStore implements IAssetStore {
+	private cache;
+	private assetKinds;
+	private loaders;
+	/**
+	 * Adds default loaders to every store constructed from now on. The 2D and 3D
+	 * entries call this when they load.
+	 */
+	static addInstaller(installer: AssetStoreInstaller): void;
+	constructor(config?: AssetStoreConfig);
+	/**
+	 * Registers a loader for one asset kind. `label` names the kind in messages,
+	 * for example "2D texture".
+	 */
+	registerLoader<T>(kind: string, name: string, config: LoaderConfig<T>, label?: string): void;
+	/** Sorted extensions that loaders of this kind handle. */
+	getSupportedExtensions(kind: string): string[];
+	/** The loader of this kind for the URL's extension. Throws if none handles it. */
+	resolveLoader<T>(kind: string, url: string, label?: string): AssetLoader<T>;
+	/** Stores a pending or loaded asset under `key`, replacing whatever was there. */
+	setAsset(key: AssetKey, kind: string, asset: Promise<unknown>): void;
+	/** The kind of asset stored under `key`, if any. */
+	kindOf(key: AssetKey): string | undefined;
+	/** The promise stored under `key`, without awaiting it. */
+	peek(key: AssetKey): Promise<unknown> | undefined;
+	private getFileExtension;
+	get(key: AssetKey): Promise<unknown>;
 	clear(): void;
 }
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
@@ -272,14 +323,6 @@ export type SkyboxDescriptor = {
 	readonly type: SkyboxType;
 	readonly textures: SkyboxTextures;
 	readonly enabled?: boolean;
-};
-/**
- * Runtime skybox instance managed by the skybox system.
- * Uses Three.js scene.background for proper skybox rendering.
- * This is the recommended approach per Three.js documentation.
- */
-export type SkyboxInstance = {
-	readonly background: Texture | CubeTexture | Color;
 };
 export declare class Scene {
 	name: string;
@@ -321,25 +364,33 @@ export declare class Time {
 	private pauseStartTime;
 	private totalPausedTime;
 	constructor();
-	update(): void;
+	update(maxDelta?: number): void;
 	pause(): void;
 	resume(): void;
 	reset(): void;
+	get fixedDeltaTime(): number;
 	get delta(): number;
 	get elapsed(): number;
 }
-export type SystemCtx = {
+/**
+ * What every system receives. An interface so that entry points can add fields:
+ * `fenrir-ts/physics` adds `physics`.
+ */
+export interface SystemCtx {
 	time: Time;
 	events: EventBus;
 	logger: ILogger;
 	scenes: SceneManager;
 	readonly scene: Scene;
 	readonly entities: EntityList;
+	/** Aborted when the engine run that owns this context stops or rolls back. */
+	readonly signal: AbortSignal;
+	/** Registers cleanup for this run. Cleanups run in reverse order of registration. */
+	onCleanup(cleanup: () => void | Promise<void>): void;
 	stop(): void;
-};
+}
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
-export type SystemFn = SyncSystemFn;
 export declare const Schedule: {
 	readonly PreInit: "preInit";
 	readonly Init: "init";
@@ -371,18 +422,29 @@ export type EngineOptions = {
 	sceneManager: SceneManager;
 	events: EventBus;
 	logger?: ILogger | null;
+	/** Maximum simulation delta in seconds. Defaults to 0.25. */
+	maxFrameDelta?: number;
+	/** Maximum fixed updates per animation frame. Defaults to 8. */
+	maxTicksPerFrame?: number;
 };
 export declare class Engine {
 	private readonly time;
 	private readonly scheduler;
+	private readonly maxFrameDelta;
+	private readonly maxTicksPerFrame;
 	private readonly events;
 	private readonly sceneManager;
 	private readonly logger;
-	private running;
+	private activeRun?;
 	private rafId;
 	constructor(opts: EngineOptions);
 	private createSystemCtx;
 	run(): Promise<void>;
+	private start;
+	private scheduleFrame;
+	private frame;
+	private cancelFrame;
+	private shutdown;
 	stop(): Promise<void>;
 	pause(): void;
 	resume(): void;
@@ -396,6 +458,76 @@ export declare class Engine {
 	replaceSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
 	replaceSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
 	getScheduler(): Scheduler;
+}
+export declare class ConsoleLogger implements ILogger {
+	trace(message: string, meta?: LogMeta): void;
+	debug(message: string, meta?: LogMeta): void;
+	info(message: string, meta?: LogMeta): void;
+	warn(message: string, meta?: LogMeta): void;
+	error(message: string, meta?: LogMeta): void;
+}
+export declare class NullLogger implements ILogger {
+	trace(_m: string, _meta?: LogMeta): void;
+	debug(_m: string, _meta?: LogMeta): void;
+	info(_m: string, _meta?: LogMeta): void;
+	warn(_m: string, _meta?: LogMeta): void;
+	error(_m: string, _meta?: LogMeta): void;
+}
+/** A 3D vector as the core reads it. Three's `Vector3` satisfies it. */
+export type Vec3Like = {
+	x: number;
+	y: number;
+	z: number;
+};
+/** A rotation quaternion as the core reads it. Three's `Quaternion` satisfies it. */
+export type QuatLike = {
+	x: number;
+	y: number;
+	z: number;
+	w: number;
+};
+export type Name = {
+	name: string;
+};
+export declare const Name: ComponentType<Name>;
+export type Relationship = {
+	parent: Entity;
+	firstChild: Entity;
+	nextSibling: Entity;
+	prevSibling: Entity;
+};
+export declare const Relationship: ComponentType<Relationship>;
+export type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
+export declare class EntityBuilder {
+	private readonly ops;
+	private readonly children;
+	private constructor();
+	static create(): EntityBuilder;
+	with<T>(type: ComponentType<T>, value: ValueOrFactory<T>): this;
+	/**
+	 * Modify an existing component on the entity.
+	 * If the component doesn't exist, it will be created with the modifier function.
+	 */
+	modify<T>(type: ComponentType<T>, modifier: (existing: T | undefined, e: Entity, entities: EntityList) => T): this;
+	/**
+	 * Add a child prefab.
+	 * You can pass an existing EntityBuilder or a builder callback.
+	 */
+	child(child: EntityBuilder | ((p: EntityBuilder) => void)): this;
+	/**
+	 * Spawns a root entity (no parent)
+	 */
+	spawn(entities: EntityList): Entity;
+	/**
+	 * Spawns and parents under an existing entity
+	 */
+	spawnInto(entities: EntityList, parent: Entity): Entity;
+	private applyTo;
+	static extend<T extends Record<string, any>>(methods: T): void;
+}
+export interface EntityBuilder {
+	transform(pos?: Vec3Like, rot?: QuatLike, scale?: Vec3Like): EntityBuilder;
+	name(value: string): EntityBuilder;
 }
 export declare class InputState {
 	private down;
@@ -416,10 +548,140 @@ export declare class InputState {
 	_setKeyUp(code: string): void;
 	clearAll(): void;
 }
-declare function createInputStateSystem(): {
-	state: InputState;
-	preUpdate: SystemFn;
+export type KeyEvent = {
+	code: string;
+	key: string;
+	repeat: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
 };
+export type MouseButtonEvent = {
+	button: number;
+	buttons: number;
+	x: number;
+	y: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+export type MouseMoveEvent = {
+	x: number;
+	y: number;
+	dx: number;
+	dy: number;
+	buttons: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+export type MouseWheelEvent = {
+	dx: number;
+	dy: number;
+	dz: number;
+	ctrlKey: boolean;
+	altKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+type FocusEvent$1 = {
+	hasFocus: boolean;
+};
+/** Pointer position in CSS pixels relative to the canvas bounds. */
+export type CanvasPointerEvent = {
+	pointerId: number;
+	pointerType: string;
+	isPrimary: boolean;
+	button: number;
+	buttons: number;
+	x: number;
+	y: number;
+};
+declare const InputEvent$1: {
+	readonly KeyDown: EventType<KeyEvent>;
+	readonly KeyUp: EventType<KeyEvent>;
+	readonly MouseDown: EventType<MouseButtonEvent>;
+	readonly MouseUp: EventType<MouseButtonEvent>;
+	readonly MouseMove: EventType<MouseMoveEvent>;
+	readonly MouseWheel: EventType<MouseWheelEvent>;
+	readonly PointerDown: EventType<CanvasPointerEvent>;
+	readonly PointerUp: EventType<CanvasPointerEvent>;
+	readonly PointerMove: EventType<CanvasPointerEvent>;
+	readonly PointerCancel: EventType<CanvasPointerEvent>;
+	readonly Focus: EventType<FocusEvent$1>;
+};
+export declare function createPointerInputSystems(canvas: HTMLCanvasElement): {
+	init({ events }: SystemCtx): void;
+	exit(): void;
+};
+export type DomInputOptions = {
+	target?: Window | HTMLElement;
+	preventDefaults?: boolean;
+};
+export declare function createDomInputSystems(opts?: DomInputOptions): {
+	readonly init: SyncSystemFn;
+	readonly exit: SyncSystemFn;
+};
+export declare function createInputStateSystem(): {
+	state: InputState;
+	preUpdate: SyncSystemFn;
+};
+/**
+ * The engine's `fenrir.Transform` component, typed with Three's classes.
+ *
+ * It is the same component as `Transform` from `fenrir-ts`: identity is the name,
+ * so both keys read and write the same storage. Loading this module makes every
+ * default transform out of Three objects, which the 3D renderer, camera and
+ * physics rely on.
+ */
+export type Transform = {
+	position: Vector3;
+	rotation: Quaternion;
+	scale: Vector3;
+};
+export declare const Transform: ComponentType<Transform>;
+export type LoadedModel = {
+	geometry: THREE.Object3D;
+	animations: THREE.AnimationClip[];
+	materials: THREE.Material[];
+};
+export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
+export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
+export interface AssetStoreConfig {
+	modelLoaders?: {
+		[name: string]: ModelLoaderConfig;
+	};
+	textureLoaders?: {
+		[name: string]: TextureLoaderConfig;
+	};
+}
+export interface IAssetStore {
+	loadModel(key: AssetKey, url: string): Promise<void>;
+	loadTexture(key: AssetKey, url: string): Promise<void>;
+	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
+	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
+	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
+	getTexture(key: AssetKey): Promise<THREE.Texture>;
+	registerModelLoader(name: string, config: ModelLoaderConfig): void;
+	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+	getSupportedModelExtensions(): string[];
+	getSupportedTextureExtensions(): string[];
+}
+export interface AssetStore {
+	loadModel(key: AssetKey, url: string): Promise<void>;
+	loadTexture(key: AssetKey, url: string): Promise<void>;
+	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
+	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
+	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
+	getTexture(key: AssetKey): Promise<THREE.Texture>;
+	registerModelLoader(name: string, config: ModelLoaderConfig): void;
+	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+	getSupportedModelExtensions(): string[];
+	getSupportedTextureExtensions(): string[];
+}
 export type GeometryDesc = {
 	kind: "box";
 	size?: [
@@ -480,7 +742,45 @@ export type Renderable = {
 	 */
 	batchKey?: string;
 };
-declare const Renderable: ComponentType<Renderable>;
+export declare const Renderable: ComponentType<Renderable>;
+export type ModelRenderableOpts = {
+	readonly id?: number;
+	readonly flags?: RenderFlags;
+};
+export type PrimitiveRenderableOpts = {
+	readonly id?: number;
+	readonly material?: MaterialDesc;
+	readonly flags?: RenderFlags;
+};
+export interface EntityBuilder {
+	model(key: AssetKey, opts?: ModelRenderableOpts): EntityBuilder;
+	renderBox(size?: [
+		number,
+		number,
+		number
+	], opts?: PrimitiveRenderableOpts): EntityBuilder;
+	renderSphere(radius?: number, widthSeg?: number, heightSeg?: number, opts?: PrimitiveRenderableOpts): EntityBuilder;
+	renderPlane(size?: [
+		number,
+		number
+	], opts?: PrimitiveRenderableOpts): EntityBuilder;
+}
+export type AnimateOpts = Partial<{
+	animationName: string;
+	animationIndex: number;
+	playing: boolean;
+	loop: boolean;
+	speed: number;
+	timeScale: number;
+	autoPlay: boolean;
+	weight: number;
+	fadeDuration: number;
+}>;
+export interface EntityBuilder {
+	animate(assetKey: AssetKey, opts?: AnimateOpts): EntityBuilder;
+	play(): EntityBuilder;
+	pause(): EntityBuilder;
+}
 export type CameraProjectionType = "perspective" | "orthographic";
 export type CameraViewport = {
 	readonly x: number;
@@ -512,6 +812,23 @@ export type Camera = {
 };
 export declare const Camera: ComponentType<Camera>;
 /**
+ * Marks an entity as the active camera for the scene.
+ * Only one entity should have this component at a time per scene.
+ */
+export type ActiveCamera = {
+	readonly priority: number;
+};
+export declare const ActiveCamera: ComponentType<ActiveCamera>;
+/**
+ * Optional component for cameras that should look at a specific target.
+ * This is a helper component - user systems can use this to implement look-at behavior.
+ */
+export type CameraTarget = {
+	readonly target: Vector3;
+	readonly up: Vector3;
+};
+export declare const CameraTarget: ComponentType<CameraTarget>;
+/**
  * Runtime component managed by the camera system.
  * Contains the actual Three.js camera instance.
  */
@@ -519,7 +836,123 @@ export type CameraInstance = {
 	readonly threeCamera: PerspectiveCamera | OrthographicCamera;
 	readonly lastUpdateFrame: number;
 };
-declare const CameraInstance: ComponentType<CameraInstance>;
+export declare const CameraInstance: ComponentType<CameraInstance>;
+export declare function createPerspectiveCamera(opts: {
+	fov?: number;
+	near?: number;
+	far?: number;
+	aspectRatio?: number;
+	viewport?: CameraViewport;
+	priority?: number;
+	clearColor?: number;
+	enabled?: boolean;
+}): Camera;
+export declare function createOrthographicCamera(opts: {
+	orthoSize?: number;
+	orthoLeft?: number;
+	orthoRight?: number;
+	orthoTop?: number;
+	orthoBottom?: number;
+	near?: number;
+	far?: number;
+	aspectRatio?: number;
+	viewport?: CameraViewport;
+	priority?: number;
+	clearColor?: number;
+	enabled?: boolean;
+}): Camera;
+export declare function createCameraTarget(target: Vector3, up?: Vector3): CameraTarget;
+export declare function defaultViewport(): CameraViewport;
+export type PerspectiveCameraOptions = {
+	fov?: number;
+	near?: number;
+	far?: number;
+	aspectRatio?: number;
+	viewport?: CameraViewport;
+	priority?: number;
+	clearColor?: number;
+	enabled?: boolean;
+	active?: boolean;
+	activePriority?: number;
+};
+export type OrthographicCameraOptions = {
+	orthoSize?: number;
+	orthoLeft?: number;
+	orthoRight?: number;
+	orthoTop?: number;
+	orthoBottom?: number;
+	near?: number;
+	far?: number;
+	aspectRatio?: number;
+	viewport?: CameraViewport;
+	priority?: number;
+	clearColor?: number;
+	enabled?: boolean;
+	active?: boolean;
+	activePriority?: number;
+};
+export type CameraTargetOptions = {
+	target: Vector3;
+	up?: Vector3;
+};
+export interface EntityBuilder {
+	perspectiveCamera(options?: PerspectiveCameraOptions): EntityBuilder;
+	orthographicCamera(options?: OrthographicCameraOptions): EntityBuilder;
+	lookAt(target: Vector3, up?: Vector3): EntityBuilder;
+	lookAt(x: number, y: number, z: number): EntityBuilder;
+	activeCamera(priority?: number): EntityBuilder;
+	mainCamera(options?: PerspectiveCameraOptions): EntityBuilder;
+	uiCamera(options?: OrthographicCameraOptions): EntityBuilder;
+}
+/**
+ * Runtime skybox instance managed by the skybox system.
+ * Uses Three.js scene.background for proper skybox rendering.
+ * This is the recommended approach per Three.js documentation.
+ */
+export type SkyboxInstance = {
+	readonly background: Texture | CubeTexture | Color;
+};
+/**
+ * Create a cube map skybox configuration.
+ * Follows standard cube map face naming convention.
+ */
+export declare function createCubemapSkybox(opts: {
+	posX: AssetKey;
+	negX: AssetKey;
+	posY: AssetKey;
+	negY: AssetKey;
+	posZ: AssetKey;
+	negZ: AssetKey;
+	enabled?: boolean;
+}): SkyboxDescriptor;
+/**
+ * Create an equirectangular skybox configuration.
+ * Used for HDR environment maps or panoramic images.
+ */
+export declare function createEquirectangularSkybox(opts: {
+	texture: AssetKey;
+	enabled?: boolean;
+}): SkyboxDescriptor;
+/**
+ * Utility function to check if textures are cube map type.
+ */
+export declare function isCubemapTextures(textures: SkyboxTextures): textures is SkyboxCubemapTextures;
+/**
+ * Utility function to check if textures are equirectangular type.
+ */
+export declare function isEquirectangularTextures(textures: SkyboxTextures): textures is SkyboxEquirectangularTextures;
+/**
+ * Utility function to check if textures are color type.
+ */
+export declare function isColorTextures(textures: SkyboxTextures): textures is SkyboxColorTextures;
+/**
+ * Create a color skybox configuration.
+ * Uses a solid color background instead of textures.
+ */
+export declare function createColorSkybox(opts: {
+	color: number;
+	enabled?: boolean;
+}): SkyboxDescriptor;
 export type RendererType = "webgl" | "webgpu";
 export interface ThreeRendererOptions {
 	canvas?: HTMLCanvasElement;
@@ -530,22 +963,47 @@ export interface ThreeRendererOptions {
 	assets: IAssetStore;
 	rendererType?: RendererType;
 }
-declare class ThreeRenderer {
+export type AnyRenderer = THREE.WebGLRenderer | THREE_WEBGPU.WebGPURenderer;
+/** True when the WebGPU globals that `three/webgpu` reads at load time exist. */
+export declare function isWebGPUAvailable(): boolean;
+export declare class ThreeRenderer {
 	readonly scene: THREE.Scene<THREE.Object3DEventMap>;
-	readonly renderer: THREE.WebGLRenderer | THREE_WEBGPU.WebGPURenderer;
 	readonly camera: THREE.PerspectiveCamera;
-	readonly rendererType: RendererType;
 	private readonly objects;
 	private readonly geomCache;
 	private readonly matCache;
 	private readonly assets;
+	private readonly logger;
+	private readonly canvas;
+	private readonly clearColor;
+	private width;
+	private height;
 	private currentSkybox;
 	private isInitialized;
+	private initPromise;
+	/** Requested renderer type. See `rendererType` for the one in use. */
+	readonly requestedRendererType: RendererType;
+	private activeRendererType;
+	private threeRenderer;
 	constructor(opts: ThreeRendererOptions);
 	/**
-	 * Initialize the renderer (required for WebGPU, no-op for WebGL)
+	 * The underlying three.js renderer. For `"webgpu"` it exists only after `init()` resolves.
+	 */
+	get renderer(): AnyRenderer;
+	/**
+	 * Renderer type in use. Starts as the requested type and becomes `"webgl"`
+	 * after init() if WebGPU was requested but is unavailable.
+	 */
+	get rendererType(): RendererType;
+	/**
+	 * Initialize the renderer. For `"webgpu"` this loads `three/webgpu` and creates
+	 * the renderer; without WebGPU it logs a warning and uses WebGL instead.
 	 */
 	init(): Promise<void>;
+	private doInit;
+	private createWebGPUOrFallback;
+	private createWebGLRenderer;
+	private configure;
 	/**
 	 * Check if renderer is initialized
 	 */
@@ -596,7 +1054,11 @@ export type CameraSystemOptions = {
 	defaultCanvasWidth?: number;
 	defaultCanvasHeight?: number;
 };
-declare function createCameraSystem(options?: CameraSystemOptions): {
+/**
+ * Factory function that creates a camera system using the class + factory pattern
+ * Provides clean system interface while encapsulating complex state in a private class
+ */
+export declare function createCameraSystem(options?: CameraSystemOptions): {
 	readonly init: SyncSystemFn;
 	readonly preUpdate: SyncSystemFn;
 	readonly update: SyncSystemFn;
@@ -617,7 +1079,11 @@ declare function createCameraSystem(options?: CameraSystemOptions): {
 export type SkyboxSystemOptions = {
 	assets: IAssetStore;
 };
-declare function createSkyboxSystem(options: SkyboxSystemOptions): {
+/**
+ * Factory function that creates a skybox system using the class + factory pattern
+ * Provides clean system interface while encapsulating complex state in a private class
+ */
+export declare function createSkyboxSystem(options: SkyboxSystemOptions): {
 	readonly init: AsyncSystemFn;
 	readonly preUpdate: AsyncSystemFn;
 	readonly exit: AsyncSystemFn;
@@ -625,7 +1091,7 @@ declare function createSkyboxSystem(options: SkyboxSystemOptions): {
 };
 export type CameraSystemInstance = ReturnType<typeof createCameraSystem>;
 export type SkyboxSystemInstance = ReturnType<typeof createSkyboxSystem>;
-declare function createThreeRendererSystem(opts: {
+export declare function createThreeRendererSystem(opts: {
 	logger: ILogger;
 	canvas?: HTMLCanvasElement;
 	clearColor?: number;
@@ -640,7 +1106,30 @@ declare function createThreeRendererSystem(opts: {
 	readonly exit: SyncSystemFn;
 	readonly renderer: ThreeRenderer;
 };
-declare function createAnimationSystem(opts: {
+type Animation$1 = {
+	/** The asset key containing the animations */
+	assetKey: AssetKey;
+	/** Name of the animation to play (from the GLTF animations array) */
+	animationName?: string;
+	/** Animation index to play (alternative to name) */
+	animationIndex?: number;
+	/** Whether the animation is currently playing */
+	playing: boolean;
+	/** Loop the animation */
+	loop: boolean;
+	/** Animation speed multiplier */
+	speed: number;
+	/** Time scale for the animation */
+	timeScale: number;
+	/** Whether to auto-play on component add */
+	autoPlay: boolean;
+	/** Animation weight (for blending multiple animations) */
+	weight: number;
+	/** Fade in/out duration in seconds */
+	fadeDuration?: number;
+};
+declare const Animation$1: ComponentType<Animation$1>;
+export declare function createAnimationSystem(opts: {
 	assets: IAssetStore;
 	logger: ILogger;
 	renderer: ThreeRenderer;
@@ -649,146 +1138,110 @@ declare function createAnimationSystem(opts: {
 	readonly preUpdate: SyncSystemFn;
 	readonly exit: SyncSystemFn;
 };
-declare function createPhysicsSystem(): {
-	readonly init: AsyncSystemFn;
-	readonly tick: SyncSystemFn;
-	readonly exit: AsyncSystemFn;
-};
-declare function createStatsSystem(parent: HTMLElement): {
+export declare function createStatsSystem(parent: HTMLElement): {
 	readonly postUpdate: SyncSystemFn;
+};
+/**
+ * The systems bootstrapEngine registers for physics. `createPhysicsSystem()` from
+ * `fenrir-ts/physics` returns one. Typed here by shape so the 3D entry does not
+ * import Jolt.
+ */
+export type BootstrapPhysicsSystem = {
+	init: AsyncSystemFn;
+	tick: SyncSystemFn;
+	exit: AsyncSystemFn;
 };
 export type BootstrapConfig = {
 	canvas: HTMLCanvasElement;
-	enablePhysics?: boolean;
+	/** Physics to register, for example `createPhysicsSystem()` from `fenrir-ts/physics`. */
+	physics?: BootstrapPhysicsSystem;
 	enableAnimations?: boolean;
 	enableStats?: boolean;
+	domInput?: DomInputOptions | false;
 	statsParent?: HTMLElement;
 	rendererType?: "webgl" | "webgpu";
 	clearColor?: number;
 };
 export type BootstrapResult = {
-	assets: IAssetStore;
+	assets: AssetStore;
 	systems: {
 		input: ReturnType<typeof createInputStateSystem>;
 		renderer: ReturnType<typeof createThreeRendererSystem>;
 		camera: ReturnType<typeof createCameraSystem>;
 		skybox: ReturnType<typeof createSkyboxSystem>;
 		animations?: ReturnType<typeof createAnimationSystem>;
-		physics?: ReturnType<typeof createPhysicsSystem>;
+		physics?: BootstrapPhysicsSystem;
 		stats?: ReturnType<typeof createStatsSystem>;
 	};
 };
 /**
- * Bootstrap core engine systems with sensible defaults
+ * Bootstrap the 3D engine systems with sensible defaults
  *
- * This creates and configures the essential systems needed for most games:
+ * This creates and configures the systems a 3D game needs:
  * - Input handling
- * - Rendering (WebGL/WebGPU)
+ * - Rendering (WebGL/WebGPU through Three.js)
  * - Camera management
  * - Skybox rendering
  * - Optional: Physics, Animations, Performance stats
+ *
+ * A 2D game does not use this: it registers the systems from `fenrir-ts/2d` itself.
  */
 export declare function bootstrapEngine(engine: Engine, logger: ILogger, config: BootstrapConfig): BootstrapResult;
-export declare class ConsoleLogger implements ILogger {
-	trace(message: string, meta?: LogMeta): void;
-	debug(message: string, meta?: LogMeta): void;
-	info(message: string, meta?: LogMeta): void;
-	warn(message: string, meta?: LogMeta): void;
-	error(message: string, meta?: LogMeta): void;
-}
-export declare class NullLogger implements ILogger {
-	trace(_m: string, _meta?: LogMeta): void;
-	debug(_m: string, _meta?: LogMeta): void;
-	info(_m: string, _meta?: LogMeta): void;
-	warn(_m: string, _meta?: LogMeta): void;
-	error(_m: string, _meta?: LogMeta): void;
-}
-export type Transform = {
-	position: Vector3;
-	rotation: Quaternion;
-	scale: Vector3;
-};
-export declare const Transform: ComponentType<Transform>;
-export type Name = {
-	name: string;
-};
-export declare const Name: ComponentType<Name>;
-export type Relationship = {
-	parent: Entity;
-	firstChild: Entity;
-	nextSibling: Entity;
-	prevSibling: Entity;
-};
-export declare const Relationship: ComponentType<Relationship>;
-export type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
-export declare class EntityBuilder {
-	private readonly ops;
-	private readonly children;
+export declare function createGltfLoader(opts?: {
+	loader?: GLTFLoader;
+}): AssetLoader<LoadedModel>;
+export declare function createObjLoader(opts?: {
+	loader?: OBJLoader;
+}): AssetLoader<LoadedModel>;
+export declare function createTextureLoader(opts?: {
+	loader?: TextureLoader;
+}): AssetLoader<THREE.Texture>;
+export declare function createHdrTextureLoader(opts?: {
+	loader?: HDRLoader;
+}): AssetLoader<THREE.Texture>;
+/**
+ * Utility functions for skybox management and common skybox configurations
+ */
+export declare class SkyboxUtils {
 	private constructor();
-	static create(): EntityBuilder;
-	with<T>(type: ComponentType<T>, value: ValueOrFactory<T>): this;
 	/**
-	 * Modify an existing component on the entity.
-	 * If the component doesn't exist, it will be created with the modifier function.
+	 * Load and set up a cube map skybox for a scene using individual face textures
 	 */
-	modify<T>(type: ComponentType<T>, modifier: (existing: T | undefined, e: Entity, entities: EntityList) => T): this;
+	static setupCubemapSkybox(scene: Scene, assets: IAssetStore, options?: {
+		basePath?: string;
+		faces?: {
+			posX?: string;
+			negX?: string;
+			posY?: string;
+			negY?: string;
+			posZ?: string;
+			negZ?: string;
+		};
+		enabled?: boolean;
+	}): Promise<void>;
 	/**
-	 * Add a child prefab.
-	 * You can pass an existing EntityBuilder or a builder callback.
+	 * Load and set up an HDR equirectangular skybox for a scene
 	 */
-	child(child: EntityBuilder | ((p: EntityBuilder) => void)): this;
+	static setupHdrSkybox(scene: Scene, assets: IAssetStore, texturePath: string, options?: {
+		enabled?: boolean;
+	}): Promise<void>;
 	/**
-	 * Spawns a root entity (no parent)
+	 * Set up the default skybox using embedded asset textures
 	 */
-	spawn(entities: EntityList): Entity;
+	static setupDefaultSkybox(scene: Scene, assets: IAssetStore, options?: {
+		enabled?: boolean;
+	}): Promise<void>;
 	/**
-	 * Spawns and parents under an existing entity
+	 * Validate skybox descriptor
 	 */
-	spawnInto(entities: EntityList, parent: Entity): Entity;
-	private applyTo;
-	static extend<T extends Record<string, any>>(methods: T): void;
-}
-export interface EntityBuilder {
-	transform(pos?: Vector3, rot?: Quaternion, scale?: Vector3): EntityBuilder;
-	name(value: string): EntityBuilder;
-}
-export type ModelRenderableOpts = {
-	id?: number;
-	flags?: RenderFlags;
-};
-export type PrimitiveRenderableOpts = {
-	id?: number;
-	material?: MaterialDesc;
-	flags?: RenderFlags;
-};
-export interface EntityBuilder {
-	model(key: AssetKey, opts?: ModelRenderableOpts): EntityBuilder;
-	renderBox(size?: [
-		number,
-		number,
-		number
-	], opts?: PrimitiveRenderableOpts): EntityBuilder;
-	renderSphere(radius?: number, widthSeg?: number, heightSeg?: number, opts?: PrimitiveRenderableOpts): EntityBuilder;
-	renderPlane(size?: [
-		number,
-		number
-	], opts?: PrimitiveRenderableOpts): EntityBuilder;
-}
-export type AnimateOpts = Partial<{
-	animationName: string;
-	animationIndex: number;
-	playing: boolean;
-	loop: boolean;
-	speed: number;
-	timeScale: number;
-	autoPlay: boolean;
-	weight: number;
-	fadeDuration: number;
-}>;
-export interface EntityBuilder {
-	animate(assetKey: AssetKey, opts?: AnimateOpts): EntityBuilder;
-	play(): EntityBuilder;
-	pause(): EntityBuilder;
+	static validateSkyboxDescriptor(descriptor: SkyboxDescriptor): {
+		isValid: boolean;
+		errors: string[];
+	};
+	/**
+	 * Clone a skybox descriptor
+	 */
+	static cloneSkyboxDescriptor(descriptor: SkyboxDescriptor): SkyboxDescriptor;
 }
 /**
  * 32-bit collision layer system similar to Godot
@@ -797,13 +1250,247 @@ export interface EntityBuilder {
  */
 export type CollisionLayer = number;
 export type CollisionMask = number;
-declare const MotionType: {
+/**
+ * Default layer definitions (users can define their own)
+ */
+export declare const DefaultLayers: {
+	readonly LAYER_1: number;
+	readonly LAYER_2: number;
+	readonly LAYER_3: number;
+	readonly LAYER_4: number;
+	readonly LAYER_5: number;
+	readonly LAYER_6: number;
+	readonly LAYER_7: number;
+	readonly LAYER_8: number;
+};
+/**
+ * Commonly used layer presets for convenience
+ */
+export declare const CommonLayers: {
+	readonly STATIC: number;
+	readonly DYNAMIC: number;
+	readonly KINEMATIC: number;
+	readonly CHARACTER: number;
+	readonly TRIGGER: number;
+	readonly PROJECTILE: number;
+	readonly DEBRIS: number;
+	readonly VEHICLE: number;
+};
+/**
+ * Layer naming system for user customization
+ */
+export declare class PhysicsLayerManager {
+	private static layerNames;
+	private static layerDescriptions;
+	/**
+	 * Set a custom name for a layer
+	 */
+	static setLayerName(layerIndex: number, name: string): void;
+	/**
+	 * Set a description for a layer
+	 */
+	static setLayerDescription(layerIndex: number, description: string): void;
+	/**
+	 * Get the name of a layer by index
+	 */
+	static getLayerName(layerIndex: number): string;
+	/**
+	 * Get the description of a layer by index
+	 */
+	static getLayerDescription(layerIndex: number): string;
+	/**
+	 * Get all configured layers
+	 */
+	static getAllLayers(): Array<{
+		index: number;
+		name: string;
+		description: string;
+		bit: number;
+	}>;
+	/**
+	 * Get layer index from layer bit value
+	 */
+	static getLayerIndex(layer: CollisionLayer): number;
+	/**
+	 * Setup common layer names for convenience
+	 */
+	static setupCommonLayers(): void;
+}
+/**
+ * Bitwise collision utilities for fast layer operations
+ */
+export declare class CollisionUtils {
+	/**
+	 * Check if a layer is present in a collision mask
+	 */
+	static hasLayer(mask: CollisionMask, layer: CollisionLayer): boolean;
+	/**
+	 * Add a layer to a collision mask
+	 */
+	static addLayer(mask: CollisionMask, layer: CollisionLayer): CollisionMask;
+	/**
+	 * Remove a layer from a collision mask
+	 */
+	static removeLayer(mask: CollisionMask, layer: CollisionLayer): CollisionMask;
+	/**
+	 * Check if two objects can collide based on layer and mask
+	 */
+	static canCollide(layer1: CollisionLayer, mask1: CollisionMask, layer2: CollisionLayer, mask2: CollisionMask): boolean;
+	/**
+	 * Create a collision mask from multiple layers
+	 */
+	static createMask(...layers: CollisionLayer[]): CollisionMask;
+	/**
+	 * Get all layers present in a collision mask
+	 */
+	static getLayersFromMask(mask: CollisionMask): CollisionLayer[];
+	/**
+	 * Convert a collision mask to human-readable layer names
+	 */
+	static maskToNames(mask: CollisionMask): string[];
+	/**
+	 * Create a collision mask that collides with all layers
+	 */
+	static allLayersMask(): CollisionMask;
+	/**
+	 * Create an empty collision mask (collides with nothing)
+	 */
+	static emptyMask(): CollisionMask;
+}
+/**
+ * Helper to create common collision mask combinations
+ */
+export declare const CollisionMasks: {
+	/**
+	 * Static objects: collide with dynamic, kinematic, character, projectile, vehicle
+	 */
+	readonly static: () => CollisionMask;
+	/**
+	 * Dynamic objects: collide with everything except triggers and debris
+	 */
+	readonly dynamic: () => CollisionMask;
+	/**
+	 * Character controllers: collide with static, kinematic, triggers, vehicles
+	 */
+	readonly character: () => CollisionMask;
+	/**
+	 * Triggers: collide with character, dynamic, projectile
+	 */
+	readonly trigger: () => CollisionMask;
+	/**
+	 * Projectiles: collide with static, dynamic, character
+	 */
+	readonly projectile: () => CollisionMask;
+	/**
+	 * Collide with all layers
+	 */
+	readonly all: () => CollisionMask;
+	/**
+	 * Collide with nothing (sensor objects)
+	 */
+	readonly none: () => CollisionMask;
+};
+/**
+ * Runtime module type (what you get back from `await initJolt()`).
+ * Keep this if you pass the loaded module around.
+ */
+export type JoltModule = Awaited<ReturnType<typeof initJolt>>;
+export type JoltVec3 = Jolt.Vec3;
+export type JoltRVec3 = Jolt.RVec3;
+export type JoltQuat = Jolt.Quat;
+export type JoltBody = Jolt.Body;
+export type JoltBodyID = Jolt.BodyID;
+export type JoltBodyInterface = Jolt.BodyInterface;
+export type JoltPhysicsSystem = Jolt.PhysicsSystem;
+export type JoltBodyCreationSettings = Jolt.BodyCreationSettings;
+export type JoltShape = Jolt.Shape;
+export type JoltBoxShape = Jolt.BoxShape;
+export type JoltSphereShape = Jolt.SphereShape;
+export type JoltCapsuleShape = Jolt.CapsuleShape;
+export type JoltCylinderShape = Jolt.CylinderShape;
+export type JoltInterface = Jolt.JoltInterface;
+export type JoltSettings = Jolt.JoltSettings;
+export type JoltEMotionType = Jolt.EMotionType;
+export type JoltEActivation = Jolt.EActivation;
+export type JoltRMat44 = Jolt.RMat44;
+export type JoltAllowedDOFs = Jolt.EAllowedDOFs;
+/**
+ * Color class used by debug renderer
+ */
+export interface JoltColor {
+	mU32: number;
+}
+/**
+ * Extended types for debug renderer (only available in debug builds)
+ * These properties are not in the standard Jolt type definitions
+ */
+export interface JoltDebugModule extends JoltModule {
+	readonly DebugRendererJS: new () => JoltDebugRendererJS;
+	readonly DebugRendererVertexTraits: {
+		prototype: {
+			mPositionOffset: number;
+			mNormalOffset: number;
+			mUVOffset: number;
+			mSize: number;
+		};
+	};
+	readonly DebugRendererTriangleTraits: {
+		prototype: {
+			mVOffset: number;
+			mSize: number;
+		};
+	};
+	readonly EDrawMode_Wireframe: number;
+	readonly ECullMode_Off: number;
+	readonly ECullMode_CullBackFace: number;
+	readonly ECullMode_CullFrontFace: number;
+	readonly Color: {
+		new (): JoltColor;
+	};
+	readonly HEAPF32: Float32Array;
+	readonly HEAPU32: Uint32Array;
+}
+export interface JoltDebugRendererJS {
+	Initialize(): void;
+	DrawBodies(physicsSystem: JoltPhysicsSystem, drawSettings: unknown): void;
+	DrawConstraints(physicsSystem: JoltPhysicsSystem): void;
+	DrawConstraintLimits(physicsSystem: JoltPhysicsSystem): void;
+	DrawLine: (inFrom: number, inTo: number, inColor: number) => void;
+	DrawTriangle: (inV1: number, inV2: number, inV3: number, inColor: number, inCastShadow: number) => void;
+	DrawText3D: (inPosition: number, inStringPtr: number, inStringLen: number, inColor: number, inHeight: number) => void;
+	DrawGeometryWithID: (inModelMatrix: number, inWorldSpaceBounds: number, inLODScaleSq: number, inModelColor: number, inGeometryID: number, inCullMode: number, inCastShadow: number, inDrawMode: number) => void;
+	CreateTriangleBatchID: (inTriangles: number, inTriangleCount: number) => number;
+	CreateTriangleBatchIDWithIndex: (inVertices: number, inVertexCount: number, inIndices: number, inIndexCount: number) => number;
+}
+/**
+ * Type guard to check if Jolt module has debug renderer
+ */
+export declare function isDebugJolt(jolt: JoltModule): jolt is JoltDebugModule;
+/**
+ * Wrapper utilities for converting between Three.js and Jolt types
+ *
+ */
+export declare class JoltUtils {
+	static vec3ToJolt(jolt: JoltModule, vec: Vector3): JoltVec3;
+	static vec3ToJoltR(jolt: JoltModule, vec: Vector3): JoltRVec3;
+	static quatToJolt(jolt: JoltModule, quat: Quaternion): JoltQuat;
+	static joltVec3ToThree(joltVec: JoltVec3, out: Vector3): Vector3;
+	static joltRVec3ToThree(joltVec: JoltRVec3, out: Vector3): Vector3;
+	static joltQuatToThree(joltQuat: JoltQuat, out: Quaternion): Quaternion;
+}
+/**
+ * Motion types for physics bodies
+ */
+export declare const MotionType: {
 	readonly Static: 0;
 	readonly Kinematic: 1;
 	readonly Dynamic: 2;
 };
 export type MotionType = (typeof MotionType)[keyof typeof MotionType];
-declare const SyncMode: {
+/**
+ * Synchronization strategies between physics and transform components
+ */
+export declare const SyncMode: {
 	readonly None: 0;
 	readonly PhysicsToTransform: 1;
 	readonly TransformToPhysics: 2;
@@ -814,7 +1501,6 @@ export type SyncMode = (typeof SyncMode)[keyof typeof SyncMode];
  * Core physics body component that stores Jolt body reference and metadata
  */
 export type PhysicsBody = {
-	readonly bodyId?: number;
 	readonly motionType: MotionType;
 	readonly collisionLayer: CollisionLayer;
 	readonly collisionMask: CollisionMask;
@@ -823,9 +1509,38 @@ export type PhysicsBody = {
 	readonly gravityFactor?: number;
 	readonly allowSleeping?: boolean;
 	readonly isSensor?: boolean;
+	readonly lockRotation?: [
+		boolean,
+		boolean,
+		boolean
+	];
+	bodyId?: JoltBodyID;
+	joltBody?: JoltBody;
 };
 export declare const PhysicsBody: ComponentType<PhysicsBody>;
-declare const ShapeType: {
+/**
+ * Helper function to create a physics body configuration
+ */
+export declare function createPhysicsBody(config: {
+	bodyId?: JoltBodyID;
+	motionType: MotionType;
+	collisionLayer?: CollisionLayer;
+	collisionMask?: CollisionMask;
+	syncMode?: SyncMode;
+	mass?: number;
+	gravityFactor?: number;
+	allowSleeping?: boolean;
+	isSensor?: boolean;
+	lockRotation?: [
+		boolean,
+		boolean,
+		boolean
+	];
+}): PhysicsBody;
+/**
+ * Supported physics shape types
+ */
+export declare const ShapeType: {
 	readonly Box: "box";
 	readonly Sphere: "sphere";
 	readonly Capsule: "capsule";
@@ -915,7 +1630,22 @@ export type PhysicsShape = {
 	readonly userData?: unknown;
 };
 export declare const PhysicsShape: ComponentType<PhysicsShape>;
-declare const CombineMode: {
+/**
+ * Helper functions to create specific shape types
+ */
+export declare const ShapeBuilder: {
+	readonly box: (halfExtents: Vector3, convexRadius?: number) => PhysicsShape;
+	readonly sphere: (radius: number) => PhysicsShape;
+	readonly capsule: (halfHeight: number, radius: number, convexRadius?: number) => PhysicsShape;
+	readonly cylinder: (halfHeight: number, radius: number, convexRadius?: number) => PhysicsShape;
+	readonly convexHull: (points: Vector3[], maxConvexRadius?: number) => PhysicsShape;
+	readonly mesh: (vertices: number[], indices: number[]) => PhysicsShape;
+	readonly heightField: (heights: number[], sampleCount: number, scale: Vector3, offset?: number) => PhysicsShape;
+};
+/**
+ * Material combine modes for how two materials interact
+ */
+export declare const CombineMode: {
 	readonly Average: 0;
 	readonly Min: 1;
 	readonly Multiply: 2;
@@ -936,7 +1666,23 @@ export type PhysicsMaterial = {
 	readonly userData?: unknown;
 };
 export declare const PhysicsMaterial: ComponentType<PhysicsMaterial>;
-declare const CommonMaterials: {
+/**
+ * Helper function to create a physics material with sensible defaults
+ */
+export declare function createPhysicsMaterial(config: {
+	restitution?: number;
+	friction?: number;
+	density?: number;
+	restitutionCombineMode?: CombineMode;
+	frictionCombineMode?: CombineMode;
+	linearDamping?: number;
+	angularDamping?: number;
+	userData?: unknown;
+}): PhysicsMaterial;
+/**
+ * Predefined common materials for convenience
+ */
+export declare const CommonMaterials: {
 	/**
 	 * Default material with balanced properties
 	 */
@@ -969,6 +1715,139 @@ declare const CommonMaterials: {
 	 * Glass material - medium-heavy, low bounce, medium friction
 	 */
 	readonly glass: () => PhysicsMaterial;
+};
+export interface SystemCtx {
+	/** Physics helpers, set by the physics system's init. Added by `fenrir-ts/physics`. */
+	physics?: PhysicsHelpers;
+}
+/**
+ * Physics helper class for manipulating physics bodies
+ *
+ * This class is instantiated by PhysicsSystem and provided via SystemCtx
+ */
+export declare class PhysicsHelpers {
+	private readonly jolt;
+	private readonly bodyInterface;
+	constructor(jolt: JoltModule, bodyInterface: JoltBodyInterface);
+	/**
+	 * Apply an impulse to a physics body (instantaneous velocity change)
+	 * Automatically wakes up sleeping bodies
+	 */
+	applyImpulse(physicsBody: PhysicsBody, impulse: Vector3): void;
+	/**
+	 * Add force to a physics body (continuous acceleration)
+	 * Automatically wakes up sleeping bodies
+	 */
+	addForce(physicsBody: PhysicsBody, force: Vector3): void;
+	/**
+	 * Add torque to a physics body (rotational force)
+	 * Automatically wakes up sleeping bodies
+	 */
+	addTorque(physicsBody: PhysicsBody, torque: Vector3): void;
+	/**
+	 * Apply an angular impulse to a physics body
+	 * Automatically wakes up sleeping bodies
+	 */
+	applyAngularImpulse(physicsBody: PhysicsBody, impulse: Vector3): void;
+	/**
+	 * Get the current linear velocity of a physics body
+	 */
+	getVelocity(physicsBody: PhysicsBody, out: Vector3): Vector3;
+	/**
+	 * Set the linear velocity of a physics body
+	 * Automatically wakes up sleeping bodies
+	 */
+	setVelocity(physicsBody: PhysicsBody, velocity: Vector3): void;
+	/**
+	 * Get the current angular velocity of a physics body
+	 */
+	getAngularVelocity(physicsBody: PhysicsBody, out: Vector3): Vector3;
+	/**
+	 * Set the angular velocity of a physics body
+	 * Automatically wakes up sleeping bodies
+	 */
+	setAngularVelocity(physicsBody: PhysicsBody, velocity: Vector3): void;
+	/**
+	 * Check if the physics body is active (not sleeping)
+	 */
+	isActive(physicsBody: PhysicsBody): boolean;
+	/**
+	 * Activate (wake up) a physics body
+	 * Useful to force a body awake before applying physics operations
+	 */
+	activate(physicsBody: PhysicsBody): void;
+	/**
+	 * Get the mass of a physics body
+	 */
+	getMass(physicsBody: PhysicsBody): number;
+	/**
+	 * Set friction for a physics body
+	 */
+	setFriction(physicsBody: PhysicsBody, friction: number): void;
+	/**
+	 * Set restitution (bounciness) for a physics body
+	 */
+	setRestitution(physicsBody: PhysicsBody, restitution: number): void;
+}
+/**
+ * Simplified PhysicsWorld interface for the new system
+ */
+export interface SimplePhysicsWorld {
+	readonly jolt: JoltModule;
+	readonly joltInterface: JoltInterface;
+	readonly physicsSystem: JoltPhysicsSystem;
+	readonly bodyInterface: JoltBodyInterface;
+	readonly config: {
+		gravity: Vector3;
+	};
+	readonly utils: {
+		vec3ToJolt: (jolt: JoltModule, vec: Vector3) => JoltVec3;
+		vec3ToJoltR: (jolt: JoltModule, vec: Vector3) => JoltRVec3;
+		quatToJolt: (jolt: JoltModule, quat: Quaternion) => JoltQuat;
+		joltVec3ToThree: (joltVec: JoltVec3, out: Vector3) => Vector3;
+		joltRVec3ToThree: (joltVec: JoltRVec3, out: Vector3) => Vector3;
+		joltQuatToThree: (joltQuat: JoltQuat, out: Quaternion) => Quaternion;
+	};
+	readonly isInitialized: boolean;
+}
+/**
+ * Factory function that creates a physics system using the class + factory pattern
+ * Provides clean system interface while encapsulating complex state in a private class
+ */
+export declare function createPhysicsSystem(): {
+	readonly init: AsyncSystemFn;
+	readonly tick: SyncSystemFn;
+	readonly exit: AsyncSystemFn;
+	/**
+	 * Get physics helpers instance
+	 * Available after init() has been called
+	 */
+	readonly getPhysics: () => PhysicsHelpers | null;
+};
+/**
+ * Helper functions for creating physics body configurations
+ */
+export declare const PhysicsBodyPresets: {
+	/**
+	 * Create a static box (like demo's createFloor)
+	 */
+	readonly createFloor: (_size?: number) => {
+		motionType: 0;
+	};
+	/**
+	 * Create a dynamic box (like demo's createBox)
+	 */
+	readonly createDynamicBox: (mass?: number) => {
+		motionType: 2;
+		mass: number;
+	};
+	/**
+	 * Create a dynamic sphere (like demo's createSphere)
+	 */
+	readonly createDynamicSphere: (mass?: number) => {
+		motionType: 2;
+		mass: number;
+	};
 };
 export interface EntityBuilder {
 	/**
@@ -1037,103 +1916,9 @@ export interface EntityBuilder {
 	 */
 	kinematicBox(halfExtents: Vector3): EntityBuilder;
 }
-export type KeyEvent = {
-	code: string;
-	key: string;
-	repeat: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-export type MouseButtonEvent = {
-	button: number;
-	buttons: number;
-	x: number;
-	y: number;
-	altKey: boolean;
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-export type MouseMoveEvent = {
-	x: number;
-	y: number;
-	dx: number;
-	dy: number;
-	buttons: number;
-	altKey: boolean;
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-export type MouseWheelEvent = {
-	dx: number;
-	dy: number;
-	dz: number;
-	ctrlKey: boolean;
-	altKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-type FocusEvent$1 = {
-	hasFocus: boolean;
-};
-declare const InputEvent$1: {
-	readonly KeyDown: EventType<KeyEvent>;
-	readonly KeyUp: EventType<KeyEvent>;
-	readonly MouseDown: EventType<MouseButtonEvent>;
-	readonly MouseUp: EventType<MouseButtonEvent>;
-	readonly MouseMove: EventType<MouseMoveEvent>;
-	readonly MouseWheel: EventType<MouseWheelEvent>;
-	readonly Focus: EventType<FocusEvent$1>;
-};
-/**
- * Utility functions for skybox management and common skybox configurations
- */
-export declare class SkyboxUtils {
-	private constructor();
-	/**
-	 * Load and set up a cube map skybox for a scene using individual face textures
-	 */
-	static setupCubemapSkybox(scene: Scene, assets: IAssetStore, options?: {
-		basePath?: string;
-		faces?: {
-			posX?: string;
-			negX?: string;
-			posY?: string;
-			negY?: string;
-			posZ?: string;
-			negZ?: string;
-		};
-		enabled?: boolean;
-	}): Promise<void>;
-	/**
-	 * Load and set up an HDR equirectangular skybox for a scene
-	 */
-	static setupHdrSkybox(scene: Scene, assets: IAssetStore, texturePath: string, options?: {
-		enabled?: boolean;
-	}): Promise<void>;
-	/**
-	 * Set up the default skybox using the existing textures in public/textures/skybox/
-	 */
-	static setupDefaultSkybox(scene: Scene, assets: IAssetStore, options?: {
-		enabled?: boolean;
-	}): Promise<void>;
-	/**
-	 * Validate skybox descriptor
-	 */
-	static validateSkyboxDescriptor(descriptor: SkyboxDescriptor): {
-		isValid: boolean;
-		errors: string[];
-	};
-	/**
-	 * Clone a skybox descriptor
-	 */
-	static cloneSkyboxDescriptor(descriptor: SkyboxDescriptor): SkyboxDescriptor;
-}
 
 export {
+	Animation$1 as Animation,
 	InputEvent$1 as InputEvent,
 };
 

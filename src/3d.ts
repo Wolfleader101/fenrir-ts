@@ -1,0 +1,56 @@
+/**
+ * Fenrir-TS 3D: the `fenrir-ts/3d` entry point. Peer: `three`. Frozen: kept
+ * working and tested, no new features.
+ *
+ * Importing it also, for this program:
+ * - makes every default `Transform` out of Three `Vector3` and `Quaternion`
+ * - adds the 3D EntityBuilder methods (`model`, `renderBox`, `renderSphere`,
+ *   `animate`, the camera methods)
+ * - adds the model and texture methods on AssetStore (`loadModel`, `loadTexture`,
+ *   `getGeometry`, `getTexture`, ...) and the default glTF and texture loaders
+ */
+
+// Side effects: Three default transforms, AssetStore and EntityBuilder patches.
+import "./core/Transform3D";
+import "./core/Assets/Assets3D";
+import "./core/EntityBuilder/extensions/renderExtensions";
+import "./core/EntityBuilder/extensions/animationExtensions";
+import "./core/EntityBuilder/extensions/cameraExtensions";
+
+// Transform typed with Three classes. The same component as `Transform` from fenrir-ts.
+export { Transform } from "./core/Transform3D";
+
+// Setup
+export { bootstrapEngine } from "./core/Bootstrap";
+export type { BootstrapConfig, BootstrapResult, BootstrapPhysicsSystem } from "./core/Bootstrap";
+
+// Asset store: models and textures
+export type { LoadedModel, ModelLoaderConfig, TextureLoaderConfig } from "./core/Assets/Assets3D";
+export { createGltfLoader } from "./core/Assets/loaders/gltfLoader";
+export { createObjLoader } from "./core/Assets/loaders/objLoader";
+export { createTextureLoader } from "./core/Assets/loaders/textureLoader";
+export { createHdrTextureLoader } from "./core/Assets/loaders/hdrTextureLoader";
+
+// Entity builder extensions
+export * from "./core/EntityBuilder/extensions/renderExtensions";
+export * from "./core/EntityBuilder/extensions/animationExtensions";
+export * from "./core/EntityBuilder/extensions/cameraExtensions";
+
+// Renderer (Three.js)
+export { ThreeRenderer, isWebGPUAvailable } from "./core/Renderer/ThreeRenderer";
+export type { RendererType, ThreeRendererOptions } from "./core/Renderer/ThreeRenderer";
+export { createThreeRendererSystem } from "./core/Renderer/ThreeRendererSystem";
+export { Renderable } from "./core/Renderer/renderComponents";
+export type { GeometryDesc, MaterialDesc, RenderFlags } from "./core/Renderer/renderComponents";
+
+// Camera, skybox, animation
+// From the component files: the Camera barrel re-exports its components as types only.
+export * from "./core/Camera/CameraComponents";
+export * from "./core/Camera/CameraSystem";
+export * from "./core/Skybox/SkyboxComponents";
+export * from "./core/Skybox/SkyboxSystem";
+export * from "./core/Skybox/SkyboxUtils";
+export * from "./core/Animation";
+
+// Performance stats
+export { createStatsSystem } from "./core/Util/Stats";

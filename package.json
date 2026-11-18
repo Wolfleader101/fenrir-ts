@@ -11,9 +11,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./core": {
-      "types": "./dist/core.d.ts",
-      "import": "./dist/core.js"
+    "./2d": {
+      "types": "./dist/2d.d.ts",
+      "import": "./dist/2d.js"
+    },
+    "./3d": {
+      "types": "./dist/3d.d.ts",
+      "import": "./dist/3d.js"
+    },
+    "./physics": {
+      "types": "./dist/physics.d.ts",
+      "import": "./dist/physics.js"
     },
     "./editor": {
       "types": "./dist/editor.d.ts",
@@ -34,7 +42,8 @@
     "type-check": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md",
     "check:size": "node scripts/check-size.mjs",
-    "types:bundle": "dts-bundle-generator -o public/fenrir.d.ts --external-imports=three --no-banner src/core/index.ts",
+    "check:imports": "node scripts/check-entry-imports.mjs",
+    "types:bundle": "dts-bundle-generator -o src/editor/resources/fenrir.d.ts --external-imports=three --external-imports=jolt-physics --no-banner src/editor/resources/fenrir-api.ts",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
@@ -42,7 +51,8 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
     "test:ci": "vitest run --reporter=verbose --coverage",
-    "prepublishOnly": "npm run test:run && npm run build:lib"
+    "prepublishOnly": "npm run test:run && npm run build:lib",
+    "check:editor-types": "pnpm types:bundle && git diff --exit-code -- src/editor/resources/fenrir.d.ts"
   },
   "keywords": [
     "game-engine",

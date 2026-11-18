@@ -1,13 +1,8 @@
 import "@/style.css";
-import "@/core/builderExtensions.ts";
-
 import { Vector3 } from "three";
-import { Engine } from "@/core/Engine.ts";
-import { Scheduler, Schedule } from "@/core/Scheduler.ts";
-import { SceneManager } from "@/core/SceneManager.ts";
-import { EventBus } from "@/core/EventBus.ts";
-import { ConsoleLogger } from "@/core/ConsoleLogger.ts";
-import { bootstrapEngine } from "@/core/Bootstrap.ts";
+import { ConsoleLogger, Engine, EventBus, SceneManager, Schedule, Scheduler } from "@/index";
+import { bootstrapEngine } from "@/3d";
+import { createPhysicsSystem } from "@/physics";
 import { createPhysicsDemo } from "./physicsDemo.ts";
 import { createECSCameraController } from "../shared/CameraController.ts";
 import { initDemoNav, initDemoInfo } from "@/shared/demoNav.ts";
@@ -40,7 +35,7 @@ const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 // Bootstrap core engine systems with physics enabled
 const { assets } = bootstrapEngine(engine, logger, {
   canvas,
-  enablePhysics: true,
+  physics: createPhysicsSystem(),
   enableAnimations: true,
   enableStats: true,
   rendererType: "webgpu",

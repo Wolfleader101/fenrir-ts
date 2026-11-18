@@ -119,10 +119,16 @@ describe("DefaultComponents", () => {
 
       expect(entityList.has(entity, Transform)).toBe(true);
 
+      // Core alone makes plain objects. With fenrir-ts/3d loaded they are Three
+      // objects: tests/core/Transform3D.test.ts covers that.
       const transform = entityList.get(entity, Transform);
-      expect(transform.position).toBeInstanceOf(Vector3);
-      expect(transform.rotation).toBeInstanceOf(Quaternion);
-      expect(transform.scale).toBeInstanceOf(Vector3);
+      expect(transform.position).not.toBeInstanceOf(Vector3);
+      expect(transform.rotation).not.toBeInstanceOf(Quaternion);
+      expect(transform).toEqual({
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
+      });
 
       // Check default values
       expect(transform.position.x).toBe(0);
