@@ -43,7 +43,6 @@ export const PlayerController =
 
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
-const PLAYER_SIZE = 0.4; // 40px at 100px:1m scale
 
 export function createPlatformerPhysicsDemo(inputState: InputState) {
   const init: AsyncSystemFn = async (ctx) => {
@@ -264,7 +263,7 @@ export function createPlatformerPhysicsDemo(inputState: InputState) {
 
     // Player physics-based movement
     const playerQuery = [Transform, PlayerController, PhysicsBody] as const;
-    ctx.entities.each(playerQuery, (e, transform, controller, physicsBody) => {
+    ctx.entities.each(playerQuery, (_e, _transform, controller, physicsBody) => {
       if (!physicsBody.joltBody) return;
 
       // Get current velocity

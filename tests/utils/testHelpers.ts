@@ -437,3 +437,20 @@ export const testScenarios = {
     };
   },
 };
+
+/**
+ * Returns `items[index]`, throwing if there is no element there.
+ *
+ * Under `noUncheckedIndexedAccess` a plain index read is `T | undefined`;
+ * this keeps test code strict without non-null assertions and makes a
+ * missing element fail the test with a clear message.
+ */
+export function at<T>(items: readonly T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) {
+    throw new Error(
+      `Expected an element at index ${index}, but length is ${items.length}`
+    );
+  }
+  return item;
+}

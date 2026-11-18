@@ -1,6 +1,5 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { classMap } from "lit/directives/class-map.js";
 import { tailwindStyles } from "../../utils";
 
 export type PanelShadow = "none" | "sm" | "md" | "lg" | "xl";

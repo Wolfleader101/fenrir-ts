@@ -35,7 +35,7 @@ const engine = new Engine({
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
 // Bootstrap core engine systems with 2D renderer AND physics
-const { assets, systems } = bootstrapEngine(engine, logger, {
+const { systems } = bootstrapEngine(engine, logger, {
   canvas,
   enable2D: true, // Enable PixiJS 2D renderer
   enablePhysics: true, // Enable Jolt Physics

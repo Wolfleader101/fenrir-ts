@@ -10,7 +10,7 @@ vi.mock("three", async () => {
     isMesh = true;
     name: string;
 
-    constructor(geometry?: any, material?: any) {
+    constructor(_geometry?: any, material?: any) {
       this.material = material || { name: "MockMaterial" };
       this.name = "MockMesh";
     }

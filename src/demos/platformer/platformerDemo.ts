@@ -1,7 +1,7 @@
 import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
 import { Vector3, Quaternion } from "three";
-import { Transform, Name } from "@/core/ECS/DefaultComponents";
+import { Transform } from "@/core/ECS/DefaultComponents";
 import { Renderable2D } from "@/core/Renderer2D";
 import { defineComponent } from "@/core/ECS/Component";
 import type { InputState } from "@/core/InputSystem/InputState";
@@ -208,7 +208,7 @@ export function createPlatformerDemo(inputState: InputState) {
       PlayerController,
       PlatformerPhysics,
     ] as const;
-    entities.each(playerQuery, (e, transform, controller, physics) => {
+    entities.each(playerQuery, (_e, transform, controller, physics) => {
       const vel = physics.velocity;
 
       // Apply gravity
@@ -250,7 +250,7 @@ export function createPlatformerDemo(inputState: InputState) {
       let wasGrounded = false;
 
       const platformQuery = [Transform, Platform] as const;
-      entities.each(platformQuery, (platformE, platformTransform, platform) => {
+      entities.each(platformQuery, (_platformE, platformTransform, platform) => {
         const platLeft = platformTransform.position.x - platform.width / 2;
         const platRight = platformTransform.position.x + platform.width / 2;
         const platTop = platformTransform.position.y - platform.height / 2;

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SceneManager } from "@/core/SceneManager";
+import { at } from "../utils/testHelpers";
 import { Scene } from "@/core/Scene";
 import type { ILogger } from "@/core/ILogger";
 
@@ -37,7 +38,7 @@ describe("SceneManager", () => {
     it("should have one scene in the list after initialization", () => {
       const scenes = sceneManager.listScenes();
       expect(scenes).toHaveLength(1);
-      expect(scenes[0].name).toBe("Default");
+      expect(at(scenes, 0).name).toBe("Default");
     });
 
     it("should set active scene index to 0", () => {
@@ -61,7 +62,7 @@ describe("SceneManager", () => {
       const scenes = sceneManager.listScenes();
 
       expect(scenes).toHaveLength(2);
-      expect(scenes[1].name).toBe("TestScene");
+      expect(at(scenes, 1).name).toBe("TestScene");
     });
 
     it("should return existing scene if name already exists", () => {
@@ -223,7 +224,7 @@ describe("SceneManager", () => {
 
       const scenes = sceneManager.listScenes();
       expect(scenes).toHaveLength(1);
-      expect(scenes[0].name).toBe("Default");
+      expect(at(scenes, 0).name).toBe("Default");
       expect(sceneManager.getActiveScene().name).toBe("Default");
     });
 
@@ -250,7 +251,7 @@ describe("SceneManager", () => {
     it("should return readonly array of scenes", () => {
       const scenes = sceneManager.listScenes();
       expect(scenes).toHaveLength(1);
-      expect(scenes[0].name).toBe("Default");
+      expect(at(scenes, 0).name).toBe("Default");
     });
 
     it("should return updated list after adding scenes", () => {

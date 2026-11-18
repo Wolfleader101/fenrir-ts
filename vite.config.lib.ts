@@ -10,13 +10,16 @@ export default defineConfig({
       globInclude: "src/**/*.{js,ts}",
     }),
     dts({
-      entryRoot: "src",
+      // No entryRoot: the plugin derives it from the included files (all under
+      // src/ once tests/ is excluded). Combined with that exclude, entryRoot:
+      // "src" made the plugin skip every declaration as "outside" dist.
       outDir: "dist",
       exclude: [
         "**/*.test.ts",
         "**/*.spec.ts",
         "src/demos/**/*",
         "src/editor/resources/**/*",
+        "tests/**/*",
       ],
       tsconfigPath: "./tsconfig.json",
       compilerOptions: {

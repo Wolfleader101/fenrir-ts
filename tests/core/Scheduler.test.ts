@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Scheduler, Schedule, type ScheduleStage } from "@/core/Scheduler";
+import { Scheduler, Schedule } from "@/core/Scheduler";
 import type { SystemCtx, SyncSystemFn, AsyncSystemFn } from "@/core/SystemCtx";
 import { EventBus } from "@/core/EventBus";
 import { Time } from "@/core/Time";
 import { Scene } from "@/core/Scene";
-import { EntityList } from "@/core/ECS";
 import { SceneManager } from "@/core/SceneManager";
 import { ConsoleLogger } from "@/core/ConsoleLogger";
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Pool } from "@/core/ECS";
+import { at } from "../../utils/testHelpers";
 
 describe("Pool", () => {
   let pool: Pool<{ x: number; y: number }>;
@@ -370,7 +371,7 @@ describe("Pool", () => {
       ];
 
       entities.forEach((id, i) => {
-        pool.set(id, components[i]);
+        pool.set(id, at(components, i));
       });
 
       // All should be accessible with correct dense indices

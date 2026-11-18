@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { EventQueue, defineEvent, type EventType } from "@/core/EventQueue";
+import { at } from "../utils/testHelpers";
 
 // Test event types
 type PlayerMoved = { playerId: string; x: number; y: number };
@@ -452,7 +453,7 @@ describe("EventQueue Integration", () => {
         if (frame === 0) {
           expect(readEvents).toEqual(events); // First frame, only current
         } else {
-          expect(readEvents).toEqual([...frameEvents[frame - 1], ...events]);
+          expect(readEvents).toEqual([...at(frameEvents, frame - 1), ...events]);
         }
 
         eventQueue.update();
