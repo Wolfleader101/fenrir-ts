@@ -78,3 +78,8 @@ export class Resources {
 export function clearResources(resources: Resources): void {
   resources["values"].clear();
 }
+
+/** The resource's value if it has one, without running its factory. Internal. */
+export function peekResource<T>(resources: Resources, resource: ResourceType<T>): T | undefined {
+  return resources["values"].get(resource.name) as T | undefined;
+}

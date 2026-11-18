@@ -2,6 +2,7 @@ import { ManualClock } from "./Clock";
 import { GameImpl, createServices, installPlugins } from "./Game";
 import type { GameBase, Plugin } from "./Game";
 import type { ILogger } from "./ILogger";
+import type { TestInput } from "./Input/Input";
 
 export interface TestGameOptions {
   /** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
@@ -38,12 +39,16 @@ export interface TestGame extends GameBase {
    * startup system throws. Schedules no frame: call `step(dt)`.
    */
   start(): Promise<void>;
-  // Seam for #36: `input` arrives on GameServices like the other services; the test game adds
-  // `game.input.press(action)` here, as `readonly input: TestInput`.
+  /**
+   * The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`,
+   * `pointerMove` and `pointerUp`, which stand in for the player and take effect on the next `step`.
+   */
+  readonly input: TestInput;
 }
 
 class TestGameImpl extends GameImpl implements TestGame {
   public readonly clock: TestClock;
+  declare public readonly input: TestInput;
 
   constructor(options: TestGameOptions, clock: ManualClock) {
     super(options, createServices(options.seed), {

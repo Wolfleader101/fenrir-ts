@@ -11,6 +11,7 @@ import { Random, seedFromClock } from "./Random";
 import { SceneManager } from "./SceneManager";
 import { Scheduler } from "./Scheduler";
 import { GameStates } from "./State";
+import { InputImpl } from "./Input/Input";
 import { exposeDebugGlobal, inspectGame, type GameSnapshot } from "./Inspect";
 import type { StateType, States } from "./State";
 import type { AsyncStage, ScheduleStage, SyncStage, SystemOptions } from "./Scheduler";
@@ -111,13 +112,7 @@ export interface GameBase extends GameServices {
   inspect(): GameSnapshot;
 }
 
-/**
- * A running game. Built by `createGame`.
- *
- * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `input` (#36): fields of GameServices
- *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- */
+/** A running game. Built by `createGame`. */
 export interface Game extends GameBase {
   readonly canvas: HTMLCanvasElement;
 
@@ -136,6 +131,7 @@ export class GameImpl implements Game {
   public readonly events: EventBus;
   declare public readonly random: Random;
   declare public readonly states: States;
+  declare public readonly input: GameServices["input"];
   protected readonly engine: Engine;
   private readonly target?: HTMLCanvasElement;
 
@@ -243,6 +239,8 @@ export async function createGame(options: GameOptions): Promise<Game> {
 
   const clock = realClock;
   const services = createServices(options.seed ?? seedFromClock(clock));
+  // Input listens on the canvas from each run's start until it stops.
+  (services.input as InputImpl).canvas = options.canvas;
 
   const game = new GameImpl(options, services, { clock });
   if (options.debug) exposeDebugGlobal(() => game.inspect(), (message) => game.logger.warn(message));
@@ -252,14 +250,15 @@ export async function createGame(options: GameOptions): Promise<Game> {
 
 /** Internal. The services of a game or a test game, built in one place so the two match. */
 export function createServices(seed: number): GameServices {
+  const resources = new Resources();
   return {
-    resources: new Resources(),
+    resources,
 
     states: new GameStates(),
 
     random: new Random(seed),
 
-    // Seam for #36: input: new Input(),
+    input: new InputImpl(resources),
   };
 }
 

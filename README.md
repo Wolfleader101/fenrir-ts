@@ -37,9 +37,9 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 
 | Import | Contents |
 | --- | --- |
-| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, events, time, logging, input, `EntityBuilder`, `AssetStore` |
+| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore` |
 | `fenrir-ts/2d` | The `pixi2d` renderer plugin, the `Viewport` resource and `ViewportResized` event, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
-| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine` |
+| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/editor` | Monaco live code editor |
 
@@ -147,7 +147,7 @@ await game.run();
 - `renderer.root` holds game content in logical units; entities with `Renderable2D` mount there. `renderer.backdrop` sits behind it, in unscaled CSS pixels from the screen's top-left; cover `viewport.screen` with it to fill the area outside the frame and the safe area.
 - `ctx.resources.get(Viewport)` is plain data: logical `width` and `height`, `scale` (CSS pixels per logical unit), the frame's `offset` on the screen, the `insets` in use, the `screen` size and the `resolution`. Each change replaces the object.
 - `ViewportResized` carries the new `Viewport`. It is sent once at startup and then on each change, never twice for the same layout. A resize is applied in the next frame's `PreUpdate` (`fenrir.viewport.preUpdate`), before anything renders. While the game is paused no frame runs, so the plugin applies the layout and renders once on the next animation frame.
-- `pixi.renderer.clientToLogical(clientX, clientY)` converts a DOM event's position into logical units, and `logicalToClient` converts back. `screenToLogical(viewport, point)` and `logicalToScreen` do the same for points relative to the canvas.
+- `ctx.input.pointer` is already in logical units: see [Input](#input). `pixi.renderer.clientToLogical(clientX, clientY)` converts a DOM event's position into logical units, and `logicalToClient` converts back. `screenToLogical(viewport, point)` and `logicalToScreen` do the same for points relative to the canvas.
 - `safeArea: false` ignores insets. `maxResolution` caps the resolution at `min(devicePixelRatio, maxResolution)`, with or without `design`. An adopted `application` is sized the same way.
 - Without `design`, the canvas keeps the size it was created with and the plugin listens to nothing. `Viewport` then reports the renderer's screen at scale 1, and `ViewportResized` is sent when game code resizes the renderer.
 
@@ -158,6 +158,98 @@ The page needs `viewport-fit=cover`, or the browser reports zero insets and lett
 <style>html, body { margin: 0; overflow: hidden; }</style>
 <canvas id="game"></canvas>
 ```
+
+### Input
+
+Systems read actions, not DOM events. `defineAction(name, bindings)` names something the player does and binds it to keys by `KeyboardEvent.code` (`"KeyA"`, `"Space"`, `"ArrowLeft"`, `"Enter"`) and to `"pointer.primary"` (left mouse button, a finger or a pen) or `"pointer.secondary"` (right mouse button). An unknown binding such as `"space"` or `"A"` is a compile error. `createGame` installs input: there is nothing to register.
+
+```ts
+import { Schedule, createGame, defineAction, type SystemCtx } from "fenrir-ts";
+import { pixi2d } from "fenrir-ts/2d";
+
+const Tap = defineAction("myGame.tap", ["pointer.primary", "Space", "Enter"]);
+const Left = defineAction("myGame.left", ["ArrowLeft", "KeyA"]);
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+canvas.tabIndex = 0; // keys reach the canvas only while it has focus
+const game = await createGame({ canvas, plugins: [pixi2d({ design: { width: 390, minHeight: 520 } })] });
+
+const pauseButton = { x: 330, y: 10, width: 50, height: 50 }; // design units
+
+// UI runs first and swallows a tap that landed on its button.
+function ui({ input }: SystemCtx): void {
+  const { x, y } = input.pointer;
+  const onButton = x >= pauseButton.x && x <= pauseButton.x + pauseButton.width && y >= pauseButton.y && y <= pauseButton.y + pauseButton.height;
+  if (input.pressed(Tap) && onButton) input.consumePointer();
+}
+
+function play({ input, logger }: SystemCtx): void {
+  if (input.pressed(Tap)) logger.info(`tap at ${input.pointer.x}, ${input.pointer.y}`); // design units
+  if (input.held(Left)) logger.debug("moving left");
+}
+
+game
+  .addSystem(Schedule.Update, ui, { before: "play" })
+  .addSystem(Schedule.Update, play);
+await game.run();
+```
+
+`ctx.input` and `game.input` are the same object:
+
+| Read | Means |
+| --- | --- |
+| `pressed(action)` | The action went down this frame: none of its bindings was held last frame and one is now |
+| `released(action)` | The action went up this frame: it was held last frame and no binding is down now |
+| `held(action)` | Any of its bindings is down |
+| `pointer` | `{ x, y, down, inside }`: the primary pointer's last position in logical units, whether it is down, and whether it is over the canvas |
+| `consumePointer()` | Stops this frame's pointer press reaching actions, for UI that handled it |
+
+**Frames.** Input is latched when a frame starts, before `PreUpdate`, so every system in the frame, in every stage, reads the same answers; an event that arrives during a frame counts from the next one. `pressed` and `released` are each true for exactly one frame. A tap that goes down and up between two frames is not lost: it is pressed and held in one frame and released in the next. A second binding going down while another is held gives no second `pressed`. Two presses of the same binding between two frames count as one.
+
+**Tick.** In the `Tick` stage, `pressed` and `released` are true in exactly one tick: the first tick that runs after the edge. A frame that runs several ticks reports the press in the first only; a frame that runs none keeps it for the next frame's first tick. A tap carried past a frame with no tick can be pressed and released in the same tick. `held` is the frame's answer in every tick.
+
+**Pointer.** Mouse, touch and pen all drive the primary pointer. Only the primary pointer counts: a second finger is ignored, and while one pointer is down no other moves it. `x` and `y` are logical units: design units with `pixi2d({ design })`, otherwise CSS pixels from the canvas's top-left corner. They keep the last position after the pointer lifts or leaves. `inside` is false once the mouse leaves the canvas or a finger lifts.
+
+**consumePointer.** Systems that run after the call see no `pressed`, `held` or `released` from the pointer bindings until the pointer lifts, so the matching release is hidden too. Keys bound to the same action still count, and `pointer.down` still reports the pointer. Systems that ran earlier in the frame already saw the press, so the UI system must run first: in the same stage with `before` (as above), or in `PreUpdate` when gameplay reads input in `Tick`. With no new pointer press this frame it does nothing.
+
+**Focus.** The engine listens on the canvas only. Keyboard events reach a canvas only while it has focus, so keys do nothing until the player clicks or taps the canvas, or the page calls `canvas.focus()`. If the canvas has no `tabindex`, the engine sets `tabindex="0"` while the game runs, so a click focuses it; a press on the canvas also focuses it. If your keys do nothing, the canvas does not have focus: check `document.activeElement`.
+
+**Prevented defaults.** Only on the canvas, never elsewhere on the page: page scrolling on Space and the arrow keys (keydown), touch scrolling and pinch zoom (`touch-action: none`, restored when the game stops), and the context menu, so a secondary press reaches the game. Tab, Enter and every other key keep their defaults.
+
+**Stuck input.** Everything held is released, with a `released` edge next frame, when the canvas loses focus (which includes the window losing focus), when the page is hidden, on `pointercancel`, and when pointer capture is lost. A press captures the pointer, so its release arrives even when it lifts outside the canvas. Stopping the game clears input, and every listener belongs to the run: a stopped game, or one whose startup threw, leaves none behind.
+
+In a test game, `game.input` also stands in for the player. Each call takes effect when the next frame starts:
+
+```ts
+import { Schedule, createTestGame, defineAction, type SystemCtx } from "fenrir-ts";
+import { expect, it } from "vitest";
+
+const Tap = defineAction("myGame.tap", ["pointer.primary", "Space", "Enter"]);
+const taps: Array<{ x: number; y: number }> = [];
+
+function countTaps({ input }: SystemCtx): void {
+  if (input.pressed(Tap)) taps.push({ x: input.pointer.x, y: input.pointer.y });
+}
+
+it("counts a tap at the pointer and one from the keyboard", async () => {
+  const game = await createTestGame({ seed: 1 });
+  game.addSystem(Schedule.Update, countTaps);
+  await game.start();
+
+  game.input.pointerDown(120, 340); // logical units
+  game.input.pointerUp(); // a quick tap: pressed next frame, released the one after
+  game.step(1 / 60, 2);
+  game.input.press(Tap); // presses the action's first binding
+  game.step();
+  game.input.release(Tap); // releases all its bindings
+  game.step();
+
+  expect(taps).toEqual([{ x: 120, y: 340 }, { x: 120, y: 340 }]);
+  await game.stop();
+});
+```
+
+`press`, `release`, `pointerDown(x, y)`, `pointerMove(x, y)` and `pointerUp()` exist only on a test game's input. Coordinates are logical, whatever the `Viewport` resource says.
 
 ### Plugins
 
@@ -424,6 +516,7 @@ it("lands the fish after one second of casting", async () => {
 - `seed` is required. Nothing in a test game reads `performance.now()`, `Date.now()` or `requestAnimationFrame`.
 - A test game has no canvas, so a plugin that reads `game.canvas`, such as `pixi2d`, throws when it installs, saying so. Plugins that only add systems, resources or listeners install as usual. A system that draws with Pixi needs the renderer and is tested in the browser; keep drawing out of gameplay systems so they run in both.
 - A test game has `start()` where a `Game` has `run()`, and no `pause` or `resume`: between steps it is never running, so there is nothing to pause.
+- `game.input` has `press(action)`, `release(action)`, `pointerDown(x, y)`, `pointerMove(x, y)` and `pointerUp()`, which take effect on the next `step`: see [Input](#input).
 - A system that throws stops the game, and the error propagates from `step`. A system that calls `ctx.stop()` ends the remaining frames of the `step` call.
 
 `game.step` also exists on a `Game` made by `createGame`, for frame-by-frame debugging: call `game.pause()` first. Each step advances the game by `dt` whatever the real time, and runs every system, so the `pixi2d` renderer draws each stepped frame. Calling `step` before `run()` or while running throws and says to pause first.

@@ -54,9 +54,9 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input, `inspect()`, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), `inspect()`, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Viewport`, `ViewportResized`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
-| `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three | `three` |
+| `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
 | `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
 
@@ -187,8 +187,8 @@ off(); // removes the game.on listener early
 - Listeners are called synchronously inside `send`, in registration order, after the event is buffered, with the current run's `ctx`. A `send` before the first run or after a stop only buffers the event.
 - A listener may send events; they are delivered at once, depth first. A listener removed during delivery is not called after that; one added during delivery receives only later events. Events nested 32 deep stop being delivered, with an error logged.
 - A listener that throws, or an async one that rejects, is logged through the game's logger with the event name; the other listeners and the sender carry on. Async listeners are not awaited.
-A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly: into `renderer.root` (logical units) or `renderer.backdrop` (full bleed). See "Viewport" below. Until input actions (#36) land, a 2D game registers `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts` itself: `src/demos/shared/setup2D.ts` shows how.
-The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
+A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly: into `renderer.root` (logical units) or `renderer.backdrop` (full bleed). See "Viewport" below. Input needs no setup: see "Input" above.
+The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers the legacy window-level input (`createDomInputSystems` and `InputState`, from `fenrir-ts/3d`, frozen with the 3D path), the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
 **Resources.** `defineResource<T>(name, factory?)` in `src/core/Resource.ts` returns a typed handle for one value per game. `resources.get(Resource)` returns it, running `factory` on the first `get`; `resources.set(Resource, value)` replaces it. `game.resources` is the same object as `ctx.resources`, so setup code and tests can `set` before `run()`. Without a factory, `get` throws until a value is set, and the error names the resource.
 Values belong to one `Resources` instance, one per game, so two games never share them even though the handle is module-level. Two handles with the same name share a value, as components do; that is not an error. Values survive `stop()` then `run()`, like entities. `Engine.reset()` clears them, so factories run again; `Game` has no `reset` yet. An `Engine` built without `services` makes its own `Resources`.
@@ -285,6 +285,37 @@ it("lands after one second of ticks", async () => {
 });
 ```
 
+**Input.** `defineAction(name, bindings)` in `src/core/Input/Action.ts` returns an `ActionType`. Bindings are `KeyboardEvent.code` values (`"KeyA"`, `"Space"`, `"ArrowLeft"`), typed as `KeyCode`, or `"pointer.primary"` (left button, finger, pen) and `"pointer.secondary"` (right button). An unknown binding is a compile error, and a lowercase or one-letter string also throws at definition. `ctx.input` and `game.input` are one `Input` (`src/core/Input/Input.ts`): `pressed`, `released`, `held`, `pointer` (`x`, `y`, `down`, `inside`) and `consumePointer()`. `createGame` installs it; a game registers no input systems.
+Read input in systems. Never add DOM listeners for gameplay input, and never read `KeyboardEvent`s yourself.
+
+```ts
+import { Schedule, createGame, defineAction, type SystemCtx } from "fenrir-ts";
+
+const Tap = defineAction("myGame.tap", ["pointer.primary", "Space", "Enter"]);
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas });
+
+function ui({ input }: SystemCtx): void {
+  if (input.pressed(Tap) && input.pointer.y < 60) input.consumePointer(); // the top bar handled it
+}
+
+function play({ input, logger }: SystemCtx): void {
+  if (input.pressed(Tap)) logger.info(`tap at ${input.pointer.x}, ${input.pointer.y}`);
+}
+
+game.addSystem(Schedule.Update, ui, { before: "play" }).addSystem(Schedule.Update, play);
+await game.run();
+```
+
+- The engine latches input when a frame starts (`Engine.frame` calls `InputImpl.latch` before `PreUpdate`): every system in the frame, in every stage, gets the same answers. `pressed` and `released` are true for exactly one frame. A press and release between two frames holds for one frame and releases in the next, so a quick tap is never lost. An action is held while any binding is down; a second binding going down gives no second press.
+- In `Tick`, `pressed` and `released` are true in exactly one tick, the first that runs after the edge, carried across frames that run no tick. `held` is the frame's answer.
+- `pointer.x` and `pointer.y` are logical units: `screenToLogical` with the `Viewport` resource if one is set, otherwise CSS pixels from the canvas corner. Only the primary pointer counts; a second finger is ignored.
+- `consumePointer()` hides the pointer bindings' press, hold and release from systems that run after it, until the pointer lifts. Keys still count and `pointer.down` does not change. The UI system must run first: `before` in the same stage, or `PreUpdate` if gameplay reads `Tick`.
+- Listeners (`src/core/Input/InputListeners.ts`) are on the canvas only, attached when a run starts with `ctx.signal`, and gone after `stop()` or a failed startup. Keys arrive only while the canvas has focus; the engine sets `tabindex="0"` when the canvas has none, and a press focuses it. Defaults prevented, on the canvas only: scrolling on Space and the arrows, touch gestures (`touch-action: none`) and the context menu.
+- Blur, a hidden page, `pointercancel` and lost pointer capture release everything held; `stop()` clears input.
+- A `TestGame`'s `input` is a `TestInput`: `press(action)` (its first binding), `release(action)` (all bindings), `pointerDown(x, y)`, `pointerMove(x, y)` and `pointerUp()`, in logical units, each taking effect on the next `step`.
+- `inspect()` does not show input yet.
+
 **Inspecting a game.** `game.inspect()` (`src/core/Inspect.ts`, values encoded by `toJson` in `src/core/Json.ts`) returns a `GameSnapshot` of plain JSON: `frame`, `time` (`elapsed`, `delta`), `schedule` (system names per stage in run order), `states` (value and `timeIn` of each state the game has used), `resources` (each one that has a value) and `entities` of the active scene (`id`, `name`, `parent`, `components`). It never throws and works before `run()`, while paused and after `stop()`.
 A `TestGame` has it too, and stepped frames count. `frame` counts frames since the current run started (0 during startup, kept after `stop()`, reset by `run()` or `start()`); `time` is as of the start of the latest frame, so two calls with no frame between them are deeply equal. Keys are the names given to `defineState`, `defineResource` and `defineComponent`, sorted; entities are by id. `id` and `parent` are entity handles; `fenrir.Name` and `fenrir.Relationship` are folded into `name` and `parent`, and `fenrir.Transform` stays in `components`.
 `createGame({ debug: true })` also sets `window.__FENRIR__ = { inspect }`. The last debug game created owns it, it stays after `stop()`, and without a `window` nothing happens. `debug` is off by default.
@@ -321,7 +352,7 @@ console.log(schedule.init); // ["score"]
 To check what a game is doing, assert on `inspect()`, not on pixels: `game.inspect()` in a unit test, `page.evaluate(() => window.__FENRIR__.inspect())` in a Playwright test of a game made with `debug: true`. Snapshots of the same game state are identical, so compare them whole or snapshot-test them. A value is complete unless it carries `$truncated`.
 ## Viewport
 
-`pixi2d({ design: { width, minHeight }, safeArea, maxResolution })` makes a 2D game draw in design units. The design width fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally. The code is in `src/core/Renderer2D/`: the layout maths and the `Viewport` resource in `Viewport.ts` (no Pixi imports, so core's input can use it), the listeners in `ViewportSystem.ts`.
+`pixi2d({ design: { width, minHeight }, safeArea, maxResolution })` makes a 2D game draw in design units. The design width fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally. The code is in `src/core/Renderer2D/`: the layout maths and the `Viewport` resource in `Viewport.ts` (no Pixi imports, so core's input uses it), the listeners in `ViewportSystem.ts`.
 
 ```ts
 import { Schedule, createGame, type SystemCtx } from "fenrir-ts";
@@ -352,7 +383,7 @@ await game.run();
 - With `design` the plugin pins the canvas to the window, sizes it to `innerWidth` by `innerHeight`, and owns the listeners: window resize, `visualViewport` resize, `screen.orientation` change and a `matchMedia` resolution query. They are attached in `fenrir.viewport.init` with `ctx.signal`, and the inset probe is removed with `ctx.onCleanup`. A resize marks the layout dirty and `fenrir.viewport.preUpdate` applies it before the frame renders. While paused, one `requestAnimationFrame` callback applies it and renders once.
 - Insets come from a hidden element padded with `env(safe-area-inset-*)`; the page needs `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. `safeArea: false` ignores them.
 - Without `design` nothing listens: `Viewport` reports the renderer's screen at scale 1 and follows `renderer.resize`.
-- Pointer coordinates: `screenToLogical(viewport, { x, y })` converts a point relative to the canvas into logical units; `renderer.clientToLogical(clientX, clientY)` does it from DOM client coordinates. Input actions (#36) will use `screenToLogical` with `ctx.resources.get(Viewport)`.
+- Pointer coordinates: `screenToLogical(viewport, { x, y })` converts a point relative to the canvas into logical units; `renderer.clientToLogical(clientX, clientY)` does it from DOM client coordinates. `ctx.input.pointer` is already logical.
 - Tests drive window size, `devicePixelRatio`, `visualViewport`, `matchMedia` and `getComputedStyle` with stubs: `tests/core/Renderer2D/pixi2dViewport.test.ts`. The layout table is in `tests/core/Renderer2D/Viewport.test.ts`.
 
 ## Naming rule
@@ -360,7 +391,7 @@ await game.run();
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
-System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.pixi.exit`, `fenrir.input.dom.init`, `fenrir.input.state.preUpdate`, `fenrir.input.pointer.init`, `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.pixi.exit`, `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
 Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
@@ -373,9 +404,10 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Animation: `src/core/Animation/`
 - Physics (Jolt): `src/core/Physics/`
 - 3D setup and stats: `src/core/Bootstrap.ts`, `src/core/Util/Stats.ts`
+- Window-level input for 3D: `src/core/InputSystem/`, exported from `fenrir-ts/3d`
 - Editor (Monaco): `src/editor/`
 
-New work goes into the 2D path: `src/core/Renderer2D/`, input, ECS, scheduling and events.
+New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, ECS, scheduling and events.
 
 ## Changing the engine
 
@@ -400,8 +432,8 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- Input actions (`game.input`), canvas UI, audio, timers and storage
+- Canvas UI, audio, timers and storage
 
-Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`input`), the `services` object and `GameOptions` in `src/core/Game.ts`, and the "Seams" comment in the `Game` interface for methods.
+A new service adds a field to `GameServices` in `src/core/SystemCtx.ts`, which puts it on both `game` and `ctx`, and builds it in `createServices` in `src/core/Game.ts`.
 
 `createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games and the editor until they go internal.

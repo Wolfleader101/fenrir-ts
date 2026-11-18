@@ -9,6 +9,7 @@ import { EventBus } from "@/core/EventBus";
 import { NullLogger } from "@/core/NullLogger";
 import type { SystemCtx } from "@/core/SystemCtx";
 import { GameStates } from "@/core/State";
+import { InputImpl } from "@/core/Input/Input";
 import { Random } from "@/core/Random";
 
 /** Stubs the frame loop. `frame()` runs the scheduled animation frame. */
@@ -229,7 +230,7 @@ describe("resources on an engine", () => {
       sceneManager: new SceneManager(logger),
       events: new EventBus(),
       logger,
-      services: resources ? { resources, states: new GameStates(), random: new Random(1) } : undefined,
+      services: resources ? { resources, states: new GameStates(), random: new Random(1), input: new InputImpl(resources) } : undefined,
     });
   }
 

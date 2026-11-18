@@ -52,5 +52,13 @@ export * from "./core/Skybox/SkyboxSystem";
 export * from "./core/Skybox/SkyboxUtils";
 export * from "./core/Animation";
 
+// Window-level keyboard and mouse input for the 3D path, which bootstrapEngine registers.
+// A 2D game reads ctx.input and actions from fenrir-ts instead.
+export { InputState } from "./core/InputSystem/InputState";
+export { InputEvent } from "./core/InputSystem/InputEvents";
+export { createDomInputSystems } from "./core/InputSystem/DOMInputSystem";
+export type { DomInputOptions } from "./core/InputSystem/DOMInputSystem";
+export { createInputStateSystem } from "./core/InputSystem/InputStateSystem";
+
 // Performance stats
 export { createStatsSystem } from "./core/Util/Stats";

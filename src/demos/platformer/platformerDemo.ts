@@ -1,5 +1,6 @@
 import { EntityBuilder, Transform, defineComponent } from "@/index";
-import type { AsyncSystemFn, InputState, SyncSystemFn } from "@/index";
+import type { AsyncSystemFn, SyncSystemFn } from "@/index";
+import { Jump, MoveLeft, MoveRight } from "../shared/actions2D.ts";
 import { Renderable2D } from "@/2d";
 
 /**
@@ -39,7 +40,7 @@ const GRAVITY = 980; // pixels per second squared
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 
-export function createPlatformerDemo(inputState: InputState) {
+export function createPlatformerDemo() {
   const init: AsyncSystemFn = async (ctx) => {
     const entities = ctx.scene.entityList;
 
@@ -212,10 +213,10 @@ export function createPlatformerDemo(inputState: InputState) {
 
       // Input handling
       let moveX = 0;
-      if (inputState.isDown("ArrowLeft") || inputState.isDown("KeyA")) {
+      if (ctx.input.held(MoveLeft)) {
         moveX = -1;
       }
-      if (inputState.isDown("ArrowRight") || inputState.isDown("KeyD")) {
+      if (ctx.input.held(MoveRight)) {
         moveX = 1;
       }
 
@@ -223,9 +224,7 @@ export function createPlatformerDemo(inputState: InputState) {
 
       // Jump
       if (
-        (inputState.isDown("Space") ||
-          inputState.isDown("ArrowUp") ||
-          inputState.isDown("KeyW")) &&
+        ctx.input.held(Jump) &&
         physics.grounded
       ) {
         vel.y = -controller.jumpForce;

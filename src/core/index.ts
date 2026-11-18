@@ -1,7 +1,7 @@
 /**
  * Fenrir-TS core: the `fenrir-ts` entry point.
  *
- * ECS, scheduler, engine, scenes, events, time, logging, input, the entity
+ * ECS, scheduler, engine, scenes, events, time, logging, input actions, the entity
  * builder and the asset cache. Imports no renderer, physics or editor code:
  * those are `fenrir-ts/2d`, `fenrir-ts/3d`, `fenrir-ts/physics` and
  * `fenrir-ts/editor`. scripts/check-entry-imports.mjs enforces this on the build.
@@ -67,12 +67,7 @@ export type { AssetLoader, AssetSource } from "./Assets/AssetLoader";
 // Skybox descriptors are plain data stored on Scene. The skybox system is in fenrir-ts/3d.
 export type { SkyboxDescriptor } from "./Skybox/SkyboxDescriptor";
 
-// Input
-export { InputState } from "./InputSystem/InputState";
-export { InputEvent } from "./InputSystem/InputEvents";
-
-export type { CanvasPointerEvent } from "./InputSystem/InputEvents";
-export { createPointerInputSystems } from "./InputSystem/PointerInputSystem";
-export { createDomInputSystems } from "./InputSystem/DOMInputSystem";
-export type { DomInputOptions } from "./InputSystem/DOMInputSystem";
-export { createInputStateSystem } from "./InputSystem/InputStateSystem";
+// Input: actions bound to keys and pointer buttons, on game.input and ctx.input
+export { defineAction } from "./Input/Action";
+export type { ActionType, InputBinding, KeyCode, PointerBinding } from "./Input/Action";
+export type { Input, InputPointer, TestInput } from "./Input/Input";

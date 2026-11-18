@@ -34,6 +34,11 @@ describe("fenrir-ts/3d public API", () => {
       "Animation",
       "createAnimationSystem",
       "createStatsSystem",
+      // Window-level input for the 3D path, moved here from the core entry.
+      "createDomInputSystems",
+      "createInputStateSystem",
+      "InputState",
+      "InputEvent",
     ]) {
       expect(threeD).toHaveProperty(name);
     }
