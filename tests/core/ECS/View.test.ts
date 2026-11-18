@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { View } from "@/core/ECS/View";
 import { EntityList } from "@/core/ECS/EntityList";
 import { defineComponent } from "@/core/ECS/Component";
@@ -464,13 +464,10 @@ describe("View", () => {
   });
 
   describe("performance considerations", () => {
-    it("should handle large numbers of entities efficiently", () => {
-      const manyEntities: Entity[] = [];
-
+    it("should do one lookup per entity of the smallest pool, not per entity", () => {
       // Create many entities with components
       for (let i = 0; i < 1000; i++) {
         const entity = entityList.createEntity();
-        manyEntities.push(entity);
         entityList.set(entity, Position, { x: i, y: i * 2 });
 
         if (i % 2 === 0) {
@@ -478,17 +475,23 @@ describe("View", () => {
         }
       }
 
-      const view = new View(entityList, [Position, Velocity]);
+      const positions = entityList.pool(Position);
+      const velocities = entityList.pool(Velocity);
+      const view = new View(entityList, [Position, Velocity] as const);
+      const positionLookups = vi.spyOn(positions, "indexOf");
+      const velocityLookups = vi.spyOn(velocities, "indexOf");
       let count = 0;
 
-      const start = performance.now();
-      view.each((_entity, _position, _velocity) => {
+      view.each((_entity, position, velocity) => {
+        expect(velocity.dx).toBe(position.x);
         count++;
       });
-      const end = performance.now();
 
       expect(count).toBe(500); // Half the entities have both components
-      expect(end - start).toBeLessThan(100); // Should be fast
+      // The 500 Velocity entities drive the loop: each needs one Position lookup
+      // and none of its own. Driving from Position would cost 1000 lookups.
+      expect(positionLookups).toHaveBeenCalledTimes(velocities.size());
+      expect(velocityLookups).not.toHaveBeenCalled();
     });
 
     it("should reuse arrays efficiently in eachN", () => {

@@ -287,19 +287,25 @@ describe("Time", () => {
   });
 
   describe("performance characteristics", () => {
-    it("should complete update operations quickly", () => {
-      const iterations = 1000;
-      const startTime = performance.now();
+    it("should read the clock exactly once per update", () => {
+      // update() runs every frame, so its cost must not grow with the number of
+      // updates already made: one clock read and constant arithmetic per call.
+      let now = 0;
+      const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+      const testTime = new Time();
+      clock.mockClear();
 
+      const iterations = 1000;
       for (let i = 0; i < iterations; i++) {
-        time.update();
+        now += 1;
+        testTime.update();
       }
 
-      const endTime = performance.now();
-      const totalTime = endTime - startTime;
+      expect(clock).toHaveBeenCalledTimes(iterations);
+      expect(testTime.deltaTime).toBeCloseTo(0.001, 9);
+      expect(testTime.accumulator).toBeCloseTo(1, 9);
 
-      // Should complete 1000 updates in reasonable time (less than 10ms)
-      expect(totalTime).toBeLessThan(10);
+      clock.mockRestore();
     });
 
     it("should maintain precision over many updates", () => {

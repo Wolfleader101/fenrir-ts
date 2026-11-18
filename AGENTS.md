@@ -21,6 +21,7 @@ pnpm type-check   # tsc --noEmit over src and tests
 pnpm build:lib    # library build into dist/
 pnpm build:demos  # production build of the demo pages
 pnpm dev          # Vite dev server for the demos, http://localhost:5173
+pnpm bench        # Vitest benchmarks in tests/bench/, not run by test:run or CI
 ```
 
 Run one test file with `pnpm exec vitest run tests/core/Scheduler.test.ts`.
@@ -177,6 +178,7 @@ New work goes into the 2D path: `src/core/Renderer2D/`, input, ECS, scheduling a
 
 - Tests live in `tests/`, mirroring `src/`: `src/core/ECS/View.ts` is tested in `tests/core/ECS/View.test.ts`. Vitest runs in jsdom with globals on. Shared helpers are in `tests/utils/testHelpers.ts`.
 - Every behaviour change needs a test that fails without it.
+- Never assert on how long something took. Tests must pass on a slow or busy machine: stub `performance.now` with `vi.spyOn` or use `vi.useFakeTimers()`, and check the property that keeps code fast (call counts, a cached instance, work per matching entity) instead of elapsed time. Speed goes in a benchmark: `tests/bench/*.bench.ts`, run with `pnpm bench`, which nothing asserts on.
 - `tests/publicApi.test.ts` exercises the core entry point the way a consumer does, and `tests/publicApi.2d.test.ts`, `publicApi.3d.test.ts` and `publicApi.physics.test.ts` do the same for the other entries. Extend the one for the entry whose public API you change.
 - A change to public API updates `README.md` in the same change.
 - Breaking changes are allowed at 0.x, but call each one out in the PR description.

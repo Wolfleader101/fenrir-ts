@@ -269,55 +269,6 @@ export const testDataGenerators = {
 };
 
 /**
- * Performance testing utilities
- */
-export class PerformanceTester {
-  static time<T>(
-    operation: () => T,
-    name?: string
-  ): { result: T; duration: number } {
-    const start = performance.now();
-    const result = operation();
-    const end = performance.now();
-    const duration = end - start;
-
-    if (name) {
-      console.log(`${name}: ${duration.toFixed(2)}ms`);
-    }
-
-    return { result, duration };
-  }
-
-  static expectFasterThan<T>(
-    operation: () => T,
-    maxDurationMs: number,
-    name?: string
-  ): T {
-    const { result, duration } = this.time(operation, name);
-    expect(duration).toBeLessThan(maxDurationMs);
-    return result;
-  }
-
-  static benchmark<T>(
-    operation: () => T,
-    iterations: number = 100
-  ): { averageDuration: number; minDuration: number; maxDuration: number } {
-    const durations: number[] = [];
-
-    for (let i = 0; i < iterations; i++) {
-      const { duration } = this.time(operation);
-      durations.push(duration);
-    }
-
-    return {
-      averageDuration: durations.reduce((a, b) => a + b, 0) / durations.length,
-      minDuration: Math.min(...durations),
-      maxDuration: Math.max(...durations),
-    };
-  }
-}
-
-/**
  * Assertion helpers for common test patterns
  */
 export const testAssertions = {
