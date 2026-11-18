@@ -235,6 +235,21 @@ export type LoaderConfig<T> = {
 	extensions: string[];
 };
 /**
+ * The asset kinds this program can load, mapped to the type a loaded asset of
+ * that kind has. Empty in core: `fenrir-ts/2d` adds `texture2d`, and
+ * `fenrir-ts/3d` adds `model` and `texture3d`. A game adds its own kinds the
+ * same way, with `declare module "fenrir-ts" { interface AssetKinds { ... } }`.
+ */
+export interface AssetKinds {
+}
+/** The name of an asset kind this program knows. */
+export type AssetKind = keyof AssetKinds & string;
+/**
+ * Any loaded asset: the union of every kind this program knows. `never` when
+ * no kind is known, because then nothing can be stored.
+ */
+export type Asset = AssetKinds[AssetKind];
+/**
  * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
  * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
  */
@@ -245,7 +260,13 @@ export interface AssetStoreConfig {
  * entries add their typed loading and getter methods to this interface.
  */
 export interface IAssetStore {
-	get(key: AssetKey): Promise<unknown>;
+	/** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
+	get(key: AssetKey): Promise<Asset>;
+	/**
+	 * The asset stored under `key`. Rejects if nothing is stored, or if the asset
+	 * is of another kind; `label` names the kind in that message.
+	 */
+	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 	clear(): void;
 }
 /** Registers an entry's default loaders and reads its options from the config. */
@@ -271,19 +292,20 @@ export declare class AssetStore implements IAssetStore {
 	 * Registers a loader for one asset kind. `label` names the kind in messages,
 	 * for example "2D texture".
 	 */
-	registerLoader<T>(kind: string, name: string, config: LoaderConfig<T>, label?: string): void;
+	registerLoader<K extends AssetKind>(kind: K, name: string, config: LoaderConfig<AssetKinds[K]>, label?: string): void;
 	/** Sorted extensions that loaders of this kind handle. */
 	getSupportedExtensions(kind: string): string[];
 	/** The loader of this kind for the URL's extension. Throws if none handles it. */
-	resolveLoader<T>(kind: string, url: string, label?: string): AssetLoader<T>;
+	resolveLoader<K extends AssetKind>(kind: K, url: string, label?: string): AssetLoader<AssetKinds[K]>;
 	/** Stores a pending or loaded asset under `key`, replacing whatever was there. */
-	setAsset(key: AssetKey, kind: string, asset: Promise<unknown>): void;
+	setAsset<K extends AssetKind>(key: AssetKey, kind: K, asset: Promise<AssetKinds[K]>): void;
 	/** The kind of asset stored under `key`, if any. */
-	kindOf(key: AssetKey): string | undefined;
-	/** The promise stored under `key`, without awaiting it. */
-	peek(key: AssetKey): Promise<unknown> | undefined;
+	kindOf(key: AssetKey): AssetKind | undefined;
+	/** The promise stored under `key` if it is of this kind, without awaiting it. */
+	peek<K extends AssetKind>(key: AssetKey, kind: K): Promise<AssetKinds[K]> | undefined;
 	private getFileExtension;
-	get(key: AssetKey): Promise<unknown>;
+	get(key: AssetKey): Promise<Asset>;
+	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 	clear(): void;
 }
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
@@ -650,6 +672,10 @@ export type LoadedModel = {
 };
 export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
 export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
+export interface AssetKinds {
+	model: LoadedModel;
+	texture3d: THREE.Texture;
+}
 export interface AssetStoreConfig {
 	modelLoaders?: {
 		[name: string]: ModelLoaderConfig;

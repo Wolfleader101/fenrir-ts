@@ -4,7 +4,7 @@
 // default glTF and texture loaders, the `modelLoaders` and `textureLoaders`
 // options and the typed methods below.
 import type * as THREE from "three";
-import { AssetStore, type AssetKey, type LoaderConfig } from "./AssetStore";
+import { AssetStore, type AssetKey, type AssetKind, type LoaderConfig } from "./AssetStore";
 import { createGltfLoader } from "./loaders/gltfLoader";
 import { createTextureLoader } from "./loaders/textureLoader";
 
@@ -21,6 +21,11 @@ export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
 export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
 
 declare module "./AssetStore" {
+  interface AssetKinds {
+    model: LoadedModel;
+    texture3d: THREE.Texture;
+  }
+
   interface AssetStoreConfig {
     modelLoaders?: { [name: string]: ModelLoaderConfig };
     textureLoaders?: { [name: string]: TextureLoaderConfig };
@@ -53,8 +58,8 @@ declare module "./AssetStore" {
   }
 }
 
-const MODEL = "model";
-const TEXTURE = "texture3d";
+const MODEL = "model" satisfies AssetKind;
+const TEXTURE = "texture3d" satisfies AssetKind;
 
 function isModel(asset: unknown): asset is LoadedModel {
   return (
@@ -102,14 +107,14 @@ const methods: Pick<
   },
 
   async loadModel(this: AssetStore, key, url) {
-    const loader = this.resolveLoader<LoadedModel>(MODEL, url, "model");
+    const loader = this.resolveLoader(MODEL, url, "model");
     const promise = loader({ url });
     this.setAsset(key, MODEL, promise);
     await promise;
   },
 
   async loadTexture(this: AssetStore, key, url) {
-    const loader = this.resolveLoader<THREE.Texture>(TEXTURE, url, "texture");
+    const loader = this.resolveLoader(TEXTURE, url, "texture");
     const promise = loader({ url });
     this.setAsset(key, TEXTURE, promise);
     await promise;
@@ -127,12 +132,8 @@ const methods: Pick<
     return [...(await getModel(this, key)).materials]; // Return copy of array
   },
 
-  async getTexture(this: AssetStore, key) {
-    const asset = await this.get(key);
-    if (this.kindOf(key) === TEXTURE) {
-      return asset as THREE.Texture;
-    }
-    throw new Error(`Asset "${key}" is not a texture`);
+  getTexture(this: AssetStore, key) {
+    return this.get(key, TEXTURE, "texture");
   },
 };
 
