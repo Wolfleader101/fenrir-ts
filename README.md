@@ -221,6 +221,36 @@ Order is resolved when `run()` starts. A `before` or `after` that names a system
 
 Engine systems are named `fenrir.<module>.<stage>`, for example `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.input.dom.init` and `fenrir.physics.tick`.
 
+### States
+
+`defineState(name, { values, initial })` defines a state machine whose value is one of `values`. `ctx.states` (the same object as `game.states`) has `get`, `set` and `timeIn`, the seconds of game time since the current value was entered, not counting pauses. `game.onEnter` and `game.onExit` add hooks: synchronous systems that receive the usual `ctx`. `inState(state, ...values)` is a `runIf` condition.
+
+```ts
+import { Schedule, defineState, inState, type SystemCtx } from "fenrir-ts";
+
+const Phase = defineState("myGame.Phase", { values: ["idle", "casting", "waiting"], initial: "idle" });
+
+function meter({ states }: SystemCtx): void {
+  // Two seconds after casting starts, wait for the result.
+  if (states.timeIn(Phase) > 2) states.set(Phase, "waiting");
+}
+
+game
+  .onEnter(Phase, "idle", ({ logger }) => logger.info("ready")) // also runs when the game starts
+  .onExit(Phase, "casting", ({ logger }) => logger.info("cast done"))
+  .addSystem(Schedule.Update, function startCast({ states }) { states.set(Phase, "casting"); }, { runIf: inState(Phase, "idle") })
+  .addSystem(Schedule.Update, meter, { runIf: inState(Phase, "casting") });
+```
+
+`states.set` queues the change, and it is applied after the current system returns: exit hooks for the old value, then enter hooks for the new one, then the next system, whose `runIf` sees the new value. This holds in every stage, startup and `Exit` included.
+
+- Each run starts every state at `initial` and runs its enter hooks before the first `PreInit` system. Resources acquired in `Init`, such as the renderer, are not ready yet, so for setup that needs them start in a `loading` value and set the next one from `PostInit`.
+- Setting the current value does nothing. If one system sets a state several times, only the last value is applied. Several states set in one system change in the order each was first set.
+- A `set` in a hook is applied once that transition's hooks have all run. A `set` made outside a system, such as from setup code or a timer, is applied before the first system of the next stage the game runs: the next frame, or the next startup stage, or at `run()` after the initial enter hooks.
+- Stopping the game is not a transition: it runs no exit hooks and drops changes not yet applied.
+- More than 16 transitions of one state in one frame throws, naming the state and its last transitions. A hook that throws acts like a system that throws in that stage: in startup, `run()` rejects and the game rolls back.
+- States belong to one game. Names are identities, so prefix them with your namespace.
+
 **Important:** The canvas element must exist in the DOM before you call `createGame()` or `bootstrapEngine()`. If you're calling it in a script, either:
 
 - Place the script at the end of the body

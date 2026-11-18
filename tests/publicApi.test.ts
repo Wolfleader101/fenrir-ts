@@ -120,6 +120,34 @@ describe("fenrir-ts core public API", () => {
     expect(lifetime?.aborted).toBe(true);
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
+
+  it("runs a state machine with enter and exit hooks and inState", async () => {
+    const { createGame, defineState, inState, NullLogger, Schedule } = core;
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((next: FrameRequestCallback) => ((frame = next), 1)));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const Phase = defineState("publicApi.Phase", { values: ["idle", "casting"], initial: "idle" });
+    expectTypeOf(Phase).toEqualTypeOf<import("@/index").StateType<"idle" | "casting">>();
+
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
+    const log: string[] = [];
+    game
+      .onEnter(Phase, "idle", () => log.push("enter idle"))
+      .onExit(Phase, "idle", () => log.push("exit idle"))
+      .onEnter(Phase, "casting", ({ states }) => log.push(`enter casting, timeIn ${typeof states.timeIn(Phase)}`));
+    game.addSystem(Schedule.Update, function cast({ states }) {
+      expectTypeOf(states.get(Phase)).toEqualTypeOf<"idle" | "casting">();
+      states.set(Phase, "casting");
+    }, { runIf: inState(Phase, "idle") });
+    game.addSystem(Schedule.Update, function meter() { log.push("meter"); }, { runIf: inState(Phase, "casting") });
+
+    await game.run();
+    frame!(0);
+    expect(log).toEqual(["enter idle", "exit idle", "enter casting, timeIn number", "meter"]);
+    expect(game.states.get(Phase)).toBe("casting");
+    await game.stop();
+  });
 });
 
 describe("fenrir-ts time and random", () => {

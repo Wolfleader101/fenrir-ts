@@ -203,6 +203,7 @@ describe("Engine", () => {
         scene: expect.any(Object),
         entities: expect.any(Object),
         signal: expect.any(AbortSignal),        onCleanup: expect.any(Function),        stop: expect.any(Function),
+        states: expect.any(Object),
       });
     });
 
@@ -402,6 +403,7 @@ describe("Engine", () => {
         scene: expect.any(Object),
         entities: expect.any(Object),
         signal: expect.any(AbortSignal),        onCleanup: expect.any(Function),        stop: expect.any(Function),
+        states: expect.any(Object),
       });
 
       // The stop function in exit context should be a no-op

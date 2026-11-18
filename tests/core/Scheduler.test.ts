@@ -7,6 +7,7 @@ import { Random } from "@/core/Random";
 import { Scene } from "@/core/Scene";
 import { SceneManager } from "@/core/SceneManager";
 import { ConsoleLogger } from "@/core/ConsoleLogger";
+import { GameStates } from "@/core/State";
 import { namedSpy } from "../utils/testHelpers";
 
 // Mock SystemCtx for testing
@@ -23,6 +24,7 @@ function createMockSystemCtx(): SystemCtx {
     signal: new AbortController().signal,
     onCleanup: vi.fn(),
     stop: vi.fn(),
+    states: new GameStates(),
   };
 }
 
@@ -329,6 +331,20 @@ describe("Scheduler", () => {
   });
 
   describe("runAsyncStage", () => {
+    it("stops before the next system once ctx.signal aborts", async () => {
+      const controller = new AbortController();
+      const ctx = { ...mockCtx, signal: controller.signal };
+      const first = namedSpy("first", () => controller.abort());
+      const second = namedSpy("second");
+      scheduler.addSystems(Schedule.Init, [first, second]);
+      await scheduler.runAsyncStage(Schedule.Init, ctx);
+      expect(first).toHaveBeenCalledOnce();
+      expect(second).not.toHaveBeenCalled();
+
+      await scheduler.runAsyncStage(Schedule.Init, ctx);
+      expect(first).toHaveBeenCalledOnce();
+    });
+
     it("should execute all async systems in the stage", async () => {
       const system1 = namedSpy("system1");
       const system2 = namedSpy("system2");
