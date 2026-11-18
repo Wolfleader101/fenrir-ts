@@ -10,6 +10,7 @@ import type { SystemCtx } from "@/core/SystemCtx";
 import type { Entity } from "@/core/ECS/EntityList";
 import { SceneManager } from "@/core/SceneManager";
 import { NullLogger } from "@/core/NullLogger";
+import { Resources } from "@/core/Resource";
 import { GameStates } from "@/core/State";
 
 /**
@@ -40,6 +41,7 @@ export function createMockSystemCtx(
     signal: new AbortController().signal,
     onCleanup: vi.fn(),
     stop: vi.fn(),
+    resources: new Resources(),
     states: new GameStates(),
     ...overrides,
   };

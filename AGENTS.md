@@ -54,7 +54,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, named systems, engine, scheduler, scenes, ECS, events, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
@@ -92,7 +92,7 @@ Each frame runs `PreUpdate`, then `Tick` zero or more times at the fixed `time.f
 A system's name is its function name unless `name` is passed; an anonymous function with no `name` throws, and so does a second system with the same name in one stage.
 Systems in a stage run in registration order unless `before` or `after` (names in the same stage) say otherwise. An unknown name or a cycle makes `run()` reject, naming both systems. `runIf(ctx)` is checked each time the system would run.
 `game.replaceSystem(name, fn)` swaps the function and keeps position and options; `game.removeSystem(name)` removes it. Both act on the name in every stage that has it. While running, changes are checked at the call and take effect from the next frame. `scheduler.describe()` prints the schedule with names.
-`SystemCtx` (`src/core/SystemCtx.ts`) gives `time`, `random`, `events`, `logger`, `scenes`, `scene`, `entities` and `stop()`.
+`SystemCtx` (`src/core/SystemCtx.ts`) gives `time`, `random`, `events`, `logger`, `scenes`, `scene`, `entities`, `resources` and `stop()`.
 It also always has `signal`, an `AbortSignal` that aborts when the run stops, and `onCleanup(fn)`, which registers teardown for this run. Cleanups run in reverse order after the `Exit` systems.
 
 **Components.** `defineComponent<T>(name)` returns a typed key. Set data with `entities.set(entity, Type, value)` and read it with `get`, `tryGet` and `has`.
@@ -152,6 +152,25 @@ This example runs in `tests/agentsExample.test.ts`. Change both together.
 A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly. Until input actions (#36) land, a 2D game registers `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts` itself: `src/demos/shared/setup2D.ts` shows how.
 The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
+**Resources.** `defineResource<T>(name, factory?)` in `src/core/Resource.ts` returns a typed handle for one value per game. `resources.get(Resource)` returns it, running `factory` on the first `get`; `resources.set(Resource, value)` replaces it. `game.resources` is the same object as `ctx.resources`, so setup code and tests can `set` before `run()`. Without a factory, `get` throws until a value is set, and the error names the resource.
+Values belong to one `Resources` instance, one per game, so two games never share them even though the handle is module-level. Two handles with the same name share a value, as components do; that is not an error. Values survive `stop()` then `run()`, like entities. `Engine.reset()` clears them, so factories run again; `Game` has no `reset` yet. An `Engine` built without `services` makes its own `Resources`.
+
+```ts
+import { Schedule, createGame, defineResource } from "fenrir-ts";
+import type { SystemCtx } from "fenrir-ts";
+
+const Round = defineResource("myGame.Round", () => ({ meter: 0.5, score: 0 }));
+const Level = defineResource<number>("myGame.Level");
+
+function scorePoint({ resources }: SystemCtx): void {
+  resources.get(Round).score += resources.get(Level);
+}
+
+const game = await createGame({ canvas: document.createElement("canvas") });
+game.resources.set(Level, 3); // seed before the first frame
+game.addSystem(Schedule.Update, scorePoint);
+```
+
 **Time and random.** Gameplay code reads `ctx.time` and `ctx.random`, never `Date.now()`, `performance.now()` or `Math.random()`, so frames are deterministic under test.
 `time.delta` is seconds since the last frame, clamped to `maxFrameDelta`. `time.fixedDelta` is seconds per `Tick`, settable, default 1/60. `time.elapsed` is seconds since `run()`, excluding pauses. `time.now()` is wall-clock epoch milliseconds. `time.accumulator` is the unconsumed frame time, below `fixedDelta` after each frame.
 `Time` (`src/core/Time.ts`) reads only its `Clock` (`src/core/Clock.ts`): `monotonic()` for deltas and `elapsed`, `now()` for wall time. `Engine` takes `clock`; the default `realClock` is the only core code that reads `performance.now()` or `Date.now()`. `ManualClock` is internal: tests use it through `createManualTime()` in `tests/utils/testHelpers.ts`.
@@ -205,7 +224,7 @@ await game.run();
 
 ## Naming rule
 
-Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage.
+Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
 System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.pixi.exit`, `fenrir.input.dom.init`, `fenrir.input.state.preUpdate`, `fenrir.input.pointer.init`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
@@ -248,9 +267,9 @@ These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12)
 
 - The `fenrir-ts/ui` entry point
 - `createTestGame` and a headless `step`
-- Resources (`defineResource`, `game.resources`), immediate event listeners (`game.on`)
+- Immediate event listeners (`game.on`)
 - `inspect()`, `debug`, viewport scaling (`design`, `safeArea`, `maxResolution` on `pixi2d`), input actions (`game.input`), canvas UI, audio, timers and storage
 
-Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`resources`, `input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
+Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
 
 `createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games and the editor until they go internal.

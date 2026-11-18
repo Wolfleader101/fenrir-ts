@@ -121,6 +121,36 @@ describe("fenrir-ts core public API", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("gives each game its own typed resources on game and ctx", async () => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { createGame, defineResource, Resources, Schedule, NullLogger } = core;
+    const Round = defineResource("publicApi.Round", () => ({ meter: 0.5, score: 0 }));
+    const Seed = defineResource<number>("publicApi.Seed");
+
+    const logger = new NullLogger();
+    const one = await createGame({ canvas: document.createElement("canvas"), logger });
+    const two = await createGame({ canvas: document.createElement("canvas"), logger });
+    one.resources.set(Seed, 9);
+
+    let seed: number | undefined;
+    one.addSystem(Schedule.Init, function score({ resources }) {
+      resources.get(Round).score += 1;
+      seed = resources.get(Seed);
+    });
+    await one.run();
+
+    expect(one.resources).toBeInstanceOf(Resources);
+    expect(seed).toBe(9);
+    expect(one.resources.get(Round).score).toBe(1);
+    expect(two.resources.get(Round).score).toBe(0);
+    expect(() => two.resources.get(Seed)).toThrow('Resource "publicApi.Seed" has no value');
+    expectTypeOf(one.resources.get(Round)).toEqualTypeOf<{ meter: number; score: number }>();
+    // @ts-expect-error a resource of number rejects a string
+    one.resources.set(Seed, "nine");
+    await one.stop();
+  });
+
   it("runs a state machine with enter and exit hooks and inState", async () => {
     const { createGame, defineState, inState, NullLogger, Schedule } = core;
     let frame: FrameRequestCallback | undefined;
