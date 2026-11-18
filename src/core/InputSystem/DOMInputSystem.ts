@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
 import { InputEvent } from "./InputEvents";
 
@@ -182,5 +183,5 @@ export function createDomInputSystems(opts: DomInputOptions = {}) {
     ctx.logger.info("DOM input listeners removed");
   };
 
-  return { init, exit } as const;
+  return nameEngineSystems("input.dom", { init, exit } as const);
 }

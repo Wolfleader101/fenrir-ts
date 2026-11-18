@@ -1,6 +1,6 @@
 import "@/style.css";
-import { ConsoleLogger, Engine, EventBus, SceneManager, Schedule, Scheduler } from "@/index";
-import { setup2D } from "../shared/setup2D.ts";
+import { ConsoleLogger, Schedule } from "@/index";
+import { createDemoGame2D } from "../shared/setup2D.ts";
 import { create2DDemo } from "./pixi2dDemo.ts";
 import { initDemoNav, initDemoInfo } from "@/shared/demoNav.ts";
 
@@ -15,30 +15,18 @@ initDemoInfo("2D Demo (PixiJS)", [
 ]);
 
 const logger = new ConsoleLogger();
-const scheduler = new Scheduler();
-const sceneManager = new SceneManager(logger);
-const eventBus = new EventBus();
-
-const engine = new Engine({
-  scheduler,
-  sceneManager,
-  events: eventBus,
-  logger,
-});
-
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
-// Register DOM input, input state and the PixiJS renderer from fenrir-ts/2d
-setup2D(engine, logger, canvas);
+// createGame with the pixi2d plugin, plus DOM input and input state
+const { game } = await createDemoGame2D(canvas, { logger });
 
 const demo = create2DDemo();
 
-engine
-  .addSystems(Schedule.Init, [demo.init])
-  .addSystems(Schedule.Update, [demo.update]);
+game
+  .addSystem(Schedule.Init, demo.init, { name: "demo.pixi2d.init" })
+  .addSystem(Schedule.Update, demo.update, { name: "demo.pixi2d.update" });
 
-// Start the engine
-engine.run();
+await game.run();
 
 logger.info("🎨 2D Demo started!");
 logger.info("🎮 PixiJS 2D Renderer active");

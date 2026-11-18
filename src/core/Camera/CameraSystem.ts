@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import { PerspectiveCamera, OrthographicCamera } from "three";
 import type { SyncSystemFn, SystemCtx } from "../SystemCtx";
 import type { Entity, EntityList } from "../ECS";
@@ -360,7 +361,7 @@ export function createCameraSystem(options: CameraSystemOptions = {}) {
   const update: SyncSystemFn = (ctx) => cameraSystem.update(ctx);
   const exit: SyncSystemFn = (ctx) => cameraSystem.exit(ctx);
 
-  return {
+  return nameEngineSystems("camera", {
     init,
     preUpdate,
     update,
@@ -375,5 +376,5 @@ export function createCameraSystem(options: CameraSystemOptions = {}) {
       cameraSystem.getCameraInstance(entities, entity),
     getCurrentFrame: () => cameraSystem.getCurrentFrame(),
     getCanvasSize: () => cameraSystem.getCanvasSize(),
-  } as const;
+  } as const);
 }

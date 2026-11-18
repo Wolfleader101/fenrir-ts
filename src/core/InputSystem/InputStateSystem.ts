@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
 import type { EventBus } from "../EventBus";
 import { InputEvent } from "./InputEvents";
@@ -59,5 +60,5 @@ export function createInputStateSystem(): {
     }
   };
 
-  return { state, preUpdate } as const;
+  return nameEngineSystems("input.state", { state, preUpdate } as const);
 }

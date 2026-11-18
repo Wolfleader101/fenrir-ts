@@ -19,7 +19,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function createExample({ Engine, EventBus, NullLogger, SceneManager, Schedule, Scheduler, defineComponent, defineEvent }: Core) {
+async function createExample({ Schedule, createGame, defineComponent, defineEvent }: Core) {
   // --- AGENTS.md example starts ---
   type Health = { current: number; max: number };
   const Health = defineComponent<Health>("myGame.Health");
@@ -28,17 +28,12 @@ function createExample({ Engine, EventBus, NullLogger, SceneManager, Schedule, S
   // Keep the query tuple in a constant: views are cached by array identity.
   const HEALTH_QUERY = [Health] as const;
 
-  const logger = new NullLogger();
-  const events = new EventBus();
-  const engine = new Engine({
-    scheduler: new Scheduler(),
-    sceneManager: new SceneManager(logger),
-    events,
-    logger,
-  });
+  // A 2D game also passes plugins: [pixi2d()] from fenrir-ts/2d.
+  const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+  const game = await createGame({ canvas });
 
   // Create each reader once. It returns only events it has not returned before.
-  const damaged = events.createReader(Damaged);
+  const damaged = game.events.createReader(Damaged);
 
   function spawnPlayer({ entities, events, onCleanup }: SystemCtx): void {
     const player = entities.createEntity();
@@ -62,21 +57,21 @@ function createExample({ Engine, EventBus, NullLogger, SceneManager, Schedule, S
     }
   }
 
-  engine
+  game
     .addSystem(Schedule.Init, spawnPlayer)
-    .addSystem(Schedule.Init, listenForKeys)
+    .addSystem(Schedule.Init, listenForKeys, { after: "spawnPlayer" })
     .addSystem(Schedule.Update, applyDamage);
   // --- AGENTS.md example ends ---
 
-  return { engine, events, Damaged, Health, HEALTH_QUERY };
+  return { game, Damaged, Health, HEALTH_QUERY };
 }
 
-/** The example's lines, without blank lines, imports, indentation or the final `await engine.run()`. */
+/** The example's lines, without blank lines, imports, indentation or the final `await game.run()`. */
 function exampleLines(source: string): string[] {
   return source
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.startsWith("import ") && line !== "await engine.run();");
+    .filter((line) => line !== "" && !line.startsWith("import ") && line !== "await game.run();");
 }
 
 describe("AGENTS.md core model example", () => {
@@ -96,18 +91,21 @@ describe("AGENTS.md core model example", () => {
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const clear = vi.spyOn(globalThis, "clearInterval");
 
-    const { engine, events, Damaged, Health, HEALTH_QUERY } = createExample(core);
+    const canvas = document.body.appendChild(document.createElement("canvas"));
+    canvas.id = "game";
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { game, Damaged, Health, HEALTH_QUERY } = await createExample(core);
     let entities: InstanceType<Core["EntityList"]> | undefined;
-    engine.addSystem(core.Schedule.Init, (ctx) => {
+    game.addSystem(core.Schedule.Init, (ctx) => {
       entities = ctx.entities;
-    });
+    }, { name: "test.captureEntities" });
     const healthOf = (): number[] => {
       const values: number[] = [];
       entities?.each(HEALTH_QUERY, (_entity, health) => values.push(health.current));
       return values;
     };
 
-    await engine.run();
+    await game.run();
     expect(Health).toBe(core.defineComponent("myGame.Health"));
 
     frame?.(performance.now());
@@ -121,12 +119,12 @@ describe("AGENTS.md core model example", () => {
     frame?.(performance.now());
     expect(healthOf()).toEqual([6]);
 
-    await engine.stop();
+    await game.stop();
     expect(clear).toHaveBeenCalledTimes(1);
 
     // The aborted signal removed the keydown listener.
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
-    expect(events.read(Damaged)).toHaveLength(0);
+    expect(game.events.read(Damaged)).toHaveLength(0);
     clear.mockRestore();
   });
 });

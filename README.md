@@ -37,65 +37,83 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 
 | Import | Contents |
 | --- | --- |
-| `fenrir-ts` | Core: engine, scheduler, scenes, ECS, events, time, logging, input, `EntityBuilder`, `AssetStore` |
-| `fenrir-ts/2d` | PixiJS renderer, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
+| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, events, time, logging, input, `EntityBuilder`, `AssetStore` |
+| `fenrir-ts/2d` | The `pixi2d` renderer plugin, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine` |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/editor` | Monaco live code editor |
 
 Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder` and `AssetStore`, so `renderSprite` and `requestTexture2D` exist once you import `fenrir-ts/2d`.
 
-### Basic Example (2D)
+### Quick start (2D)
+
+`createGame` builds the game and installs its plugins. `pixi2d` from `fenrir-ts/2d` is the PixiJS renderer.
 
 ```ts
-import {
-  AssetStore,
-  ConsoleLogger,
-  Engine,
-  EventBus,
-  SceneManager,
-  Schedule,
-  Scheduler,
-  createDomInputSystems,
-  createInputStateSystem,
-} from "fenrir-ts";
-import { createPixiRendererSystem } from "fenrir-ts/2d";
+import { EntityBuilder, Schedule, createGame, type SystemCtx } from "fenrir-ts";
+import { pixi2d } from "fenrir-ts/2d";
 
-// IMPORTANT: Ensure the canvas element exists in the DOM before creating the renderer
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
-if (!canvas) {
-  throw new Error("Canvas element not found");
+if (!canvas) throw new Error("Canvas element not found");
+
+const game = await createGame({ canvas, plugins: [pixi2d({ background: 0x101820 })] });
+
+function spawnBall({ entities }: SystemCtx): void {
+  EntityBuilder.create().transform({ x: 200, y: 150, z: 0 }).renderCircle(16, { fillColor: 0xff6600 }).spawn(entities);
 }
 
-const logger = new ConsoleLogger();
-const engine = new Engine({
-  scheduler: new Scheduler(),
-  sceneManager: new SceneManager(logger),
-  events: new EventBus(),
-  logger,
-});
+game.addSystem(Schedule.Init, spawnBall);
+await game.run();
+```
 
-const assets = new AssetStore();
-const domInput = createDomInputSystems();
-const input = createInputStateSystem();
-const renderer = createPixiRendererSystem({ canvas, assets, logger });
+`game.run()` resolves once `PreInit`, `Init` and `PostInit` have run and the first frame is scheduled. If any of them throws, the run rolls back: `Exit` systems and cleanups run, and `run()` rejects with the error. `game.stop()`, `game.pause()` and `game.resume()` control the loop.
 
-// The 2D texture methods come from fenrir-ts/2d.
-const hero = assets.requestTexture2D("hero", "/sprites/hero.png");
-hero.subscribe((state) => logger.info(`hero texture: ${state.status}`));
+`game.assets` is the asset store. The 2D texture methods come from `fenrir-ts/2d`:
 
-engine
-  .addSystems(Schedule.Init, [domInput.init, renderer.init])
-  .addSystems(Schedule.PreUpdate, [input.preUpdate])
-  .addSystems(Schedule.Update, [renderer.update, yourGameSystem])
-  .addSystems(Schedule.PostUpdate, [renderer.postUpdate])
-  .addSystems(Schedule.Exit, [domInput.exit, renderer.exit]);
-await engine.run();
+```ts
+import "fenrir-ts/2d";
+
+const hero = game.assets.requestTexture2D("hero", "/sprites/hero.png");
+hero.subscribe((state) => game.logger.info(`hero texture: ${state.status}`));
+```
+
+To keep a Pixi application your app already owns, pass it in. It must be initialized on the same canvas with its ticker stopped, and the game does not destroy it at exit. The plugin's `renderer` gives game code that draws with Pixi directly the application:
+
+```ts
+import type { Application } from "pixi.js";
+import { createGame } from "fenrir-ts";
+import { pixi2d } from "fenrir-ts/2d";
+
+declare const app: Application; // initialized by your app, with app.ticker.stop() called
+
+const pixi = pixi2d({ application: app });
+const game = await createGame({ canvas: app.canvas, plugins: [pixi] });
+await game.run();
+pixi.renderer.app.stage.addChild(myOverlay);
+```
+
+### Plugins
+
+A plugin is `{ name, install(game) }`. `createGame` installs plugins in order and awaits an async `install`. If an install throws, `createGame` rejects with that error.
+
+`install` may read `game.canvas`, `game.logger`, `game.assets` and `game.events`, and add systems. It should only register: acquire GPU contexts, listeners and other resources in an `Init` system, and release them with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back.
+
+```ts
+import { Schedule, type Plugin } from "fenrir-ts";
+
+const frameLogger: Plugin = {
+  name: "myGame.frameLogger",
+  install(game) {
+    game.addSystem(Schedule.PostUpdate, function logFrame({ time }) {
+      game.logger.debug(`frame took ${time.deltaTime}s`);
+    }, { name: "myGame.frameLogger.postUpdate" });
+  },
+};
 ```
 
 ### Basic Example (3D)
 
-`bootstrapEngine` from `fenrir-ts/3d` registers input, the Three.js renderer, camera and skybox systems in one call.
+The 3D renderer is frozen and has no plugin, so a 3D game still builds an `Engine` itself. `bootstrapEngine` from `fenrir-ts/3d` registers input, the Three.js renderer, camera and skybox systems in one call.
 
 ```ts
 import { ConsoleLogger, Engine, EventBus, SceneManager, Schedule, Scheduler } from "fenrir-ts";
@@ -125,7 +143,7 @@ await engine.run();
 
 ### Components and systems
 
-Define components with `defineComponent`, store them on entities, and query them from systems. Every system receives a `SystemCtx`. Its `signal` aborts when the engine stops, and `onCleanup` registers teardown for the current run.
+Define components with `defineComponent`, store them on entities, and query them from systems. Every system receives a `SystemCtx`. Its `signal` aborts when the game stops, and `onCleanup` registers teardown for the current run.
 
 ```ts
 import { Schedule, defineComponent, type SystemCtx } from "fenrir-ts";
@@ -147,10 +165,36 @@ function regenerate({ entities, time }: SystemCtx): void {
   });
 }
 
-engine.addSystem(Schedule.Init, spawnPlayer).addSystem(Schedule.Update, regenerate);
+game.addSystem(Schedule.Init, spawnPlayer).addSystem(Schedule.Update, regenerate);
 ```
 
-**Important:** The canvas element must exist in the DOM before you create the renderer or call `bootstrapEngine()`. If you're calling it in a script, either:
+### Named systems
+
+A system's name is its function name, or the `name` option. An anonymous function with no `name` throws, and two systems in one stage cannot share a name. Within a stage, systems run in registration order unless `before` or `after` says otherwise. `runIf` is checked each time the system would run.
+
+```ts
+import { Schedule, type SystemCtx } from "fenrir-ts";
+
+function movePlayer(_ctx: SystemCtx): void {}
+function applyDamage(_ctx: SystemCtx): void {}
+function applyDamageV2(_ctx: SystemCtx): void {}
+let paused = false;
+
+game
+  .addSystem(Schedule.Update, applyDamage, { after: "movePlayer", runIf: () => !paused })
+  .addSystem(Schedule.Update, movePlayer, { before: "fenrir.pixi.update" })
+  .addSystem(Schedule.Update, (ctx) => ctx.logger.trace("frame"), { name: "myGame.trace" });
+
+// While the game runs, both take effect from the next frame.
+game.replaceSystem("applyDamage", applyDamageV2); // keeps its position and options
+game.removeSystem("myGame.trace");
+```
+
+Order is resolved when `run()` starts. A `before` or `after` that names a system not in the stage, or a cycle, makes `run()` reject with an error that names both systems. While the game runs, `addSystem`, `replaceSystem` and `removeSystem` check the new order at once and throw at the call if it does not resolve. `replaceSystem` and `removeSystem` act on the name in every stage that has it.
+
+Engine systems are named `fenrir.<module>.<stage>`, for example `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.input.dom.init` and `fenrir.physics.tick`.
+
+**Important:** The canvas element must exist in the DOM before you call `createGame()` or `bootstrapEngine()`. If you're calling it in a script, either:
 
 - Place the script at the end of the body
 - Use `DOMContentLoaded` event listener
@@ -305,10 +349,10 @@ Systems are grouped into **schedules** such as:
 This makes execution order **explicit and debuggable**, rather than hidden behind callbacks.
 
 ```ts
-engine
-  .addSystems(Schedule.Init, [input.init, renderer.init])
-  .addSystems(Schedule.Update, [movementSystem, renderSystem])
-  .run();
+game
+  .addSystem(Schedule.Update, movementSystem)
+  .addSystem(Schedule.Update, renderSystem, { after: "movementSystem" });
+await game.run();
 ```
 
 ---

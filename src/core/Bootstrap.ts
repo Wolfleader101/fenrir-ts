@@ -11,7 +11,7 @@ import { createAnimationSystem } from "./Animation/index.ts";
 import { createCameraSystem } from "./Camera/CameraSystem.ts";
 import { createSkyboxSystem } from "./Skybox/SkyboxSystem.ts";
 import { createStatsSystem } from "./Util/Stats.ts";
-import { Schedule } from "./Scheduler.ts";
+import { Schedule } from "./Schedule.ts";
 import type { ILogger } from "./ILogger.ts";
 import type { AsyncSystemFn, SyncSystemFn } from "./SystemCtx.ts";
 

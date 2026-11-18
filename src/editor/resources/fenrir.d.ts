@@ -7,6 +7,156 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import * as THREE_WEBGPU from 'three/webgpu';
 
+export type AssetSource = {
+	url: string;
+} | {
+	url: string;
+	format?: string;
+};
+export type AssetLoader<T> = (src: AssetSource) => Promise<T>;
+export type AssetKey = string & {
+	__assetKey?: true;
+};
+export declare const assetKey: (k: string) => AssetKey;
+/** A loader and the file extensions it handles. */
+export type LoaderConfig<T> = {
+	loader: AssetLoader<T>;
+	extensions: string[];
+};
+/**
+ * The asset kinds this program can load, mapped to the type a loaded asset of
+ * that kind has. Empty in core: `fenrir-ts/2d` adds `texture2d`, and
+ * `fenrir-ts/3d` adds `model` and `texture3d`. A game adds its own kinds the
+ * same way, with `declare module "fenrir-ts" { interface AssetKinds { ... } }`.
+ */
+export interface AssetKinds {
+}
+/** The name of an asset kind this program knows. */
+export type AssetKind = keyof AssetKinds & string;
+/**
+ * Any loaded asset: the union of every kind this program knows. `never` when
+ * no kind is known, because then nothing can be stored.
+ */
+export type Asset = AssetKinds[AssetKind];
+/**
+ * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
+ * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
+ */
+export interface AssetStoreConfig {
+}
+/**
+ * The asset store as systems see it. Core has the cache only. The 2D and 3D
+ * entries add their typed loading and getter methods to this interface.
+ */
+export interface IAssetStore {
+	/** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
+	get(key: AssetKey): Promise<Asset>;
+	/**
+	 * The asset stored under `key`. Rejects if nothing is stored, or if the asset
+	 * is of another kind; `label` names the kind in that message.
+	 */
+	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
+	clear(): void;
+}
+/** Registers an entry's default loaders and reads its options from the config. */
+export type AssetStoreInstaller = (store: AssetStore, config: AssetStoreConfig) => void;
+/**
+ * Caches loaded assets by key and picks a loader by file extension.
+ *
+ * Core knows nothing about textures or models. Each asset kind ("model",
+ * "texture3d", "texture2d") is added by the entry point that renders it, which
+ * registers its default loaders and typed methods when it loads.
+ */
+export declare class AssetStore implements IAssetStore {
+	private cache;
+	private assetKinds;
+	private loaders;
+	/**
+	 * Adds default loaders to every store constructed from now on. The 2D and 3D
+	 * entries call this when they load.
+	 */
+	static addInstaller(installer: AssetStoreInstaller): void;
+	constructor(config?: AssetStoreConfig);
+	/**
+	 * Registers a loader for one asset kind. `label` names the kind in messages,
+	 * for example "2D texture".
+	 */
+	registerLoader<K extends AssetKind>(kind: K, name: string, config: LoaderConfig<AssetKinds[K]>, label?: string): void;
+	/** Sorted extensions that loaders of this kind handle. */
+	getSupportedExtensions(kind: string): string[];
+	/** The loader of this kind for the URL's extension. Throws if none handles it. */
+	resolveLoader<K extends AssetKind>(kind: K, url: string, label?: string): AssetLoader<AssetKinds[K]>;
+	/** Stores a pending or loaded asset under `key`, replacing whatever was there. */
+	setAsset<K extends AssetKind>(key: AssetKey, kind: K, asset: Promise<AssetKinds[K]>): void;
+	/** The kind of asset stored under `key`, if any. */
+	kindOf(key: AssetKey): AssetKind | undefined;
+	/** The promise stored under `key` if it is of this kind, without awaiting it. */
+	peek<K extends AssetKind>(key: AssetKey, kind: K): Promise<AssetKinds[K]> | undefined;
+	private getFileExtension;
+	get(key: AssetKey): Promise<Asset>;
+	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
+	clear(): void;
+}
+export type EventType<T> = symbol & {
+	__eventType?: T;
+};
+/**
+ * Defines an event type. As with components, the name is the identity: two
+ * calls with the same name return the same type. Prefix names with a namespace
+ * for your game or library. Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
+ */
+export declare function defineEvent<T>(name: string): EventType<T>;
+export type EventReader<T> = {
+	read(): readonly T[];
+};
+export declare class EventQueue<T> {
+	private nextSequence;
+	private current;
+	private previous;
+	private combined;
+	private combinedDirty;
+	send(ev: T): void;
+	/** called once per frame, after all stages */
+	update(): void;
+	/** returns stable array until next send/update */
+	read(): readonly T[];
+	/** A reader has its own cursor over the queue's two retained frame buffers. */
+	createReader(): EventReader<T>;
+	clearAll(): void;
+}
+export declare class EventBus {
+	private queues;
+	private getQueue;
+	send<T>(type: EventType<T>, ev: T): void;
+	read<T>(type: EventType<T>): readonly T[];
+	createReader<T>(type: EventType<T>): EventReader<T>;
+	update(): void;
+	clear(): void;
+}
+export type LogMeta = Record<string, unknown>;
+export interface ILogger {
+	trace(message: string, meta?: LogMeta): void;
+	debug(message: string, meta?: LogMeta): void;
+	info(message: string, meta?: LogMeta): void;
+	warn(message: string, meta?: LogMeta): void;
+	error(message: string, meta?: LogMeta): void;
+}
+export declare const Schedule: {
+	readonly PreInit: "preInit";
+	readonly Init: "init";
+	readonly PostInit: "postInit";
+	readonly PreUpdate: "preUpdate";
+	readonly Tick: "tick";
+	readonly Update: "update";
+	readonly PostUpdate: "postUpdate";
+	readonly Exit: "exit";
+};
+export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
+export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
+export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
 /**
  * Sparse-set component pool (EnTT-style).
  * - sparse[entityId] = denseIndex + 1 (0 means not present)
@@ -171,143 +321,6 @@ export declare class EntityList {
 	private detachFromParent;
 	private destroyChildrenRecursive;
 }
-export type EventType<T> = symbol & {
-	__eventType?: T;
-};
-/**
- * Defines an event type. As with components, the name is the identity: two
- * calls with the same name return the same type. Prefix names with a namespace
- * for your game or library. Names starting with `fenrir.` are reserved for the engine.
- *
- * @example
- * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
- */
-export declare function defineEvent<T>(name: string): EventType<T>;
-export type EventReader<T> = {
-	read(): readonly T[];
-};
-export declare class EventQueue<T> {
-	private nextSequence;
-	private current;
-	private previous;
-	private combined;
-	private combinedDirty;
-	send(ev: T): void;
-	/** called once per frame, after all stages */
-	update(): void;
-	/** returns stable array until next send/update */
-	read(): readonly T[];
-	/** A reader has its own cursor over the queue's two retained frame buffers. */
-	createReader(): EventReader<T>;
-	clearAll(): void;
-}
-export declare class EventBus {
-	private queues;
-	private getQueue;
-	send<T>(type: EventType<T>, ev: T): void;
-	read<T>(type: EventType<T>): readonly T[];
-	createReader<T>(type: EventType<T>): EventReader<T>;
-	update(): void;
-	clear(): void;
-}
-export type LogMeta = Record<string, unknown>;
-export interface ILogger {
-	trace(message: string, meta?: LogMeta): void;
-	debug(message: string, meta?: LogMeta): void;
-	info(message: string, meta?: LogMeta): void;
-	warn(message: string, meta?: LogMeta): void;
-	error(message: string, meta?: LogMeta): void;
-}
-export type AssetSource = {
-	url: string;
-} | {
-	url: string;
-	format?: string;
-};
-export type AssetLoader<T> = (src: AssetSource) => Promise<T>;
-export type AssetKey = string & {
-	__assetKey?: true;
-};
-export declare const assetKey: (k: string) => AssetKey;
-/** A loader and the file extensions it handles. */
-export type LoaderConfig<T> = {
-	loader: AssetLoader<T>;
-	extensions: string[];
-};
-/**
- * The asset kinds this program can load, mapped to the type a loaded asset of
- * that kind has. Empty in core: `fenrir-ts/2d` adds `texture2d`, and
- * `fenrir-ts/3d` adds `model` and `texture3d`. A game adds its own kinds the
- * same way, with `declare module "fenrir-ts" { interface AssetKinds { ... } }`.
- */
-export interface AssetKinds {
-}
-/** The name of an asset kind this program knows. */
-export type AssetKind = keyof AssetKinds & string;
-/**
- * Any loaded asset: the union of every kind this program knows. `never` when
- * no kind is known, because then nothing can be stored.
- */
-export type Asset = AssetKinds[AssetKind];
-/**
- * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
- * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
- */
-export interface AssetStoreConfig {
-}
-/**
- * The asset store as systems see it. Core has the cache only. The 2D and 3D
- * entries add their typed loading and getter methods to this interface.
- */
-export interface IAssetStore {
-	/** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
-	get(key: AssetKey): Promise<Asset>;
-	/**
-	 * The asset stored under `key`. Rejects if nothing is stored, or if the asset
-	 * is of another kind; `label` names the kind in that message.
-	 */
-	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
-	clear(): void;
-}
-/** Registers an entry's default loaders and reads its options from the config. */
-export type AssetStoreInstaller = (store: AssetStore, config: AssetStoreConfig) => void;
-/**
- * Caches loaded assets by key and picks a loader by file extension.
- *
- * Core knows nothing about textures or models. Each asset kind ("model",
- * "texture3d", "texture2d") is added by the entry point that renders it, which
- * registers its default loaders and typed methods when it loads.
- */
-export declare class AssetStore implements IAssetStore {
-	private cache;
-	private assetKinds;
-	private loaders;
-	/**
-	 * Adds default loaders to every store constructed from now on. The 2D and 3D
-	 * entries call this when they load.
-	 */
-	static addInstaller(installer: AssetStoreInstaller): void;
-	constructor(config?: AssetStoreConfig);
-	/**
-	 * Registers a loader for one asset kind. `label` names the kind in messages,
-	 * for example "2D texture".
-	 */
-	registerLoader<K extends AssetKind>(kind: K, name: string, config: LoaderConfig<AssetKinds[K]>, label?: string): void;
-	/** Sorted extensions that loaders of this kind handle. */
-	getSupportedExtensions(kind: string): string[];
-	/** The loader of this kind for the URL's extension. Throws if none handles it. */
-	resolveLoader<K extends AssetKind>(kind: K, url: string, label?: string): AssetLoader<AssetKinds[K]>;
-	/** Stores a pending or loaded asset under `key`, replacing whatever was there. */
-	setAsset<K extends AssetKind>(key: AssetKey, kind: K, asset: Promise<AssetKinds[K]>): void;
-	/** The kind of asset stored under `key`, if any. */
-	kindOf(key: AssetKey): AssetKind | undefined;
-	/** The promise stored under `key` if it is of this kind, without awaiting it. */
-	peek<K extends AssetKind>(key: AssetKey, kind: K): Promise<AssetKinds[K]> | undefined;
-	private getFileExtension;
-	get(key: AssetKey): Promise<Asset>;
-	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
-	clear(): void;
-}
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
 /**
  * Cube map texture configuration for skybox.
@@ -395,10 +408,20 @@ export declare class Time {
 	get elapsed(): number;
 }
 /**
+ * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
+ * same object. `createGame` builds them and passes them to the engine.
+ *
+ * Seams for M2 waves 2 and 3. Each ticket adds its one field on its own line below, builds the
+ * object in `createGame` (src/core/Game.ts, the matching seam there), and needs no other change
+ * to Game or the engine to reach both `game` and `ctx`.
+ */
+export interface GameServices {
+}
+/**
  * What every system receives. An interface so that entry points can add fields:
  * `fenrir-ts/physics` adds `physics`.
  */
-export interface SystemCtx {
+export interface SystemCtx extends GameServices {
 	time: Time;
 	events: EventBus;
 	logger: ILogger;
@@ -413,32 +436,135 @@ export interface SystemCtx {
 }
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
-export declare const Schedule: {
-	readonly PreInit: "preInit";
-	readonly Init: "init";
-	readonly PostInit: "postInit";
-	readonly PreUpdate: "preUpdate";
-	readonly Tick: "tick";
-	readonly Update: "update";
-	readonly PostUpdate: "postUpdate";
-	readonly Exit: "exit";
-};
-export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
-export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
-export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
+/** How a system is registered. Every field is optional. */
+export interface SystemOptions {
+	/** The system's name. Defaults to the function's name. Unique within a stage. */
+	name?: string;
+	/** Run before these systems in the same stage. */
+	before?: string | readonly string[];
+	/** Run after these systems in the same stage. */
+	after?: string | readonly string[];
+	/** Checked each time the system would run. The system is skipped when it returns false. */
+	runIf?: (ctx: SystemCtx) => boolean;
+}
+/** A registered system, in the order its stage runs it. */
+export interface ScheduledSystem {
+	readonly name: string;
+	readonly stage: ScheduleStage;
+	readonly system: SyncSystemFn | AsyncSystemFn;
+	readonly before: readonly string[];
+	readonly after: readonly string[];
+	readonly runIf?: (ctx: SystemCtx) => boolean;
+}
+/**
+ * Holds the systems of each stage and runs them.
+ *
+ * Order is resolved when a run begins (`beginRun`). While a run is active, adding, replacing
+ * or removing a system is checked at once, so a bad change throws at the call, and takes effect
+ * at the next `flush`, which the engine calls before each frame and between startup stages.
+ */
 export declare class Scheduler {
-	private readonly stages;
-	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn): this;
-	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn): this;
+	private readonly entries;
+	private readonly resolved;
+	private readonly active;
+	private readonly functions;
+	private running;
+	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
+	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;
 	addSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
 	addSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
-	getSystems(stage: ScheduleStage): SyncSystemFn[] | AsyncSystemFn[];
-	replaceSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
-	replaceSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
-	clearSystems(stage: ScheduleStage): this;
+	/**
+	 * Swaps the function of every system called `name`, keeping its stage, position and options.
+	 * While running, the new function runs from the next frame.
+	 */
+	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
+	/** Removes every system called `name`. While running, it stops running from the next frame. */
+	removeSystem(name: string): this;
+	/** The system functions of a stage, in the order they run. */
+	getSystems<S extends SyncStage>(stage: S): readonly SyncSystemFn[];
+	getSystems<S extends AsyncStage>(stage: S): readonly AsyncSystemFn[];
+	getSystems(stage: ScheduleStage): readonly (SyncSystemFn | AsyncSystemFn)[];
+	/** The systems of a stage with their names and options, in the order they run. */
+	getSchedule(stage: ScheduleStage): readonly ScheduledSystem[];
+	/** The whole schedule as text, one stage per line: `update: movePlayer, applyDamage`. */
+	describe(): string;
+	/**
+	 * Resolves the order of every stage and starts applying changes at `flush` only.
+	 * Throws, naming the systems involved, if a constraint is unknown or cyclic.
+	 */
+	beginRun(): void;
+	/** Applies changes made since the last flush. Called by the engine between frames. */
+	flush(): void;
+	/** Ends the run: changes apply immediately again and are checked when the next run begins. */
+	endRun(): void;
+	/** The systems a stage runs now, as of the last flush while running. */
+	current(stage: ScheduleStage): readonly ScheduledSystem[];
 	runSyncStage<S extends SyncStage>(stage: S, ctx: SystemCtx): void;
 	runAsyncStage<S extends AsyncStage>(stage: S, ctx: SystemCtx): Promise<void>;
+	private stagesWith;
+	/** Replaces a stage's entries. While running, the new order is resolved now so errors throw here. */
+	private change;
 }
+/**
+ * Something that attaches to a game: a renderer, and later physics, audio or UI.
+ *
+ * `install` runs once, inside `createGame`, before the game runs. It registers systems and
+ * may read `game.canvas`, `game.logger`, `game.assets` and `game.events`. It should not acquire
+ * resources such as GPU contexts or listeners: do that in an `Init` system, and release them
+ * with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back.
+ */
+interface Plugin$1 {
+	/** Namespaced, for example `fenrir.pixi2d` or `myGame.audio`. One plugin per name per game. */
+	readonly name: string;
+	install(game: Game): void | Promise<void>;
+}
+export interface GameOptions {
+	/** The canvas the game draws to. Renderer plugins read it from `game.canvas`. */
+	canvas: HTMLCanvasElement;
+	/** Installed in order. An async `install` is awaited before the next plugin installs. */
+	plugins?: readonly Plugin$1[];
+	/** Defaults to a ConsoleLogger. */
+	logger?: ILogger;
+}
+/**
+ * A running game. Built by `createGame`.
+ *
+ * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
+ * - `resources` (#29), `states` (#30), `random` (#33), `input` (#36): fields of GameServices
+ *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
+ * - `onEnter` / `onExit` (#30) and `on` (#32): methods added below, under "Seams".
+ * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
+ */
+export interface Game extends GameServices {
+	readonly canvas: HTMLCanvasElement;
+	readonly logger: ILogger;
+	readonly assets: AssetStore;
+	readonly events: EventBus;
+	addSystem(stage: SyncStage, system: SyncSystemFn, options?: SystemOptions): this;
+	addSystem(stage: AsyncStage, system: AsyncSystemFn, options?: SystemOptions): this;
+	/** Removes every system called `name`. While running, it stops running from the next frame. */
+	removeSystem(name: string): this;
+	/** Swaps the function of every system called `name`, keeping its position and options. */
+	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
+	/** Runs PreInit, Init and PostInit, then resolves when the first frame is scheduled. */
+	run(): Promise<void>;
+	/** Runs Exit systems, then cleanups in reverse order. */
+	stop(): Promise<void>;
+	pause(): void;
+	resume(): void;
+}
+/**
+ * Builds a game: scheduler, scene manager, event bus, logger and asset store, then installs
+ * each plugin in order, awaiting async installs. Rejects with the plugin's error if an install
+ * throws; nothing has run yet, so there is nothing to roll back.
+ *
+ * ```ts
+ * const game = await createGame({ canvas, plugins: [pixi2d()] });
+ * game.addSystem(Schedule.Update, movePlayer);
+ * await game.run();
+ * ```
+ */
+export declare function createGame(options: GameOptions): Promise<Game>;
 export type EngineOptions = {
 	scheduler: Scheduler;
 	sceneManager: SceneManager;
@@ -448,6 +574,8 @@ export type EngineOptions = {
 	maxFrameDelta?: number;
 	/** Maximum fixed updates per animation frame. Defaults to 8. */
 	maxTicksPerFrame?: number;
+	/** Fields added to every SystemCtx. `createGame` passes the game's services here. */
+	services?: GameServices;
 };
 export declare class Engine {
 	private readonly time;
@@ -457,6 +585,7 @@ export declare class Engine {
 	private readonly events;
 	private readonly sceneManager;
 	private readonly logger;
+	private readonly services;
 	private activeRun?;
 	private rafId;
 	constructor(opts: EngineOptions);
@@ -473,12 +602,14 @@ export declare class Engine {
 	reset(): Promise<void>;
 	getTime(): Time;
 	isRunning(): boolean;
-	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn): this;
-	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn): this;
+	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
+	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;
 	addSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
 	addSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
-	replaceSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
-	replaceSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
+	/** Swaps the function of the system called `name`, keeping its position and options. */
+	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
+	/** Removes the system called `name`. While running, it stops from the next frame. */
+	removeSystem(name: string): this;
 	getScheduler(): Scheduler;
 }
 export declare class ConsoleLogger implements ILogger {
@@ -1946,6 +2077,7 @@ export interface EntityBuilder {
 export {
 	Animation$1 as Animation,
 	InputEvent$1 as InputEvent,
+	Plugin$1 as Plugin,
 };
 
 export {};

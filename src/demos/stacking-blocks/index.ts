@@ -53,9 +53,11 @@ const cameraController = createECSCameraController({
 const demo = createStackingBlocksDemo(assets);
 
 engine
-  .addSystems(Schedule.Init, [cameraController.init, demo.init])
-  .addSystems(Schedule.Update, [cameraController.update, demo.update])
-  .addSystems(Schedule.Exit, [cameraController.exit])
+  .addSystem(Schedule.Init, cameraController.init, { name: "demo.camera.init" })
+  .addSystem(Schedule.Update, cameraController.update, { name: "demo.camera.update" })
+  .addSystem(Schedule.Exit, cameraController.exit, { name: "demo.camera.exit" })
+  .addSystem(Schedule.Init, demo.init, { name: "demo.stackingBlocks.init" })
+  .addSystem(Schedule.Update, demo.update, { name: "demo.stackingBlocks.update" })
   .run();
 
 logger.info("🧱 Stacking Blocks Demo started!");

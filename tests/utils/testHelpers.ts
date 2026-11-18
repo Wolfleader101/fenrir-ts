@@ -10,6 +10,17 @@ import { SceneManager } from "@/core/SceneManager";
 import { NullLogger } from "@/core/NullLogger";
 
 /**
+ * A `vi.fn()` with a function name, so it can be registered as a system:
+ * systems take their name from the function, and every plain `vi.fn()` is called "Mock".
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function namedSpy<T extends (...args: any[]) => any>(name: string, impl?: T) {
+  const spy = impl ? vi.fn(impl) : vi.fn();
+  Object.defineProperty(spy, "name", { value: name });
+  return spy;
+}
+
+/**
  * Creates a mock SystemCtx for testing systems
  */
 export function createMockSystemCtx(

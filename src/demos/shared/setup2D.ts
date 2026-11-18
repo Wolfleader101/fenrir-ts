@@ -1,42 +1,44 @@
 import {
-  AssetStore,
   Schedule,
   createDomInputSystems,
+  createGame,
   createInputStateSystem,
   type AsyncSystemFn,
-  type Engine,
   type ILogger,
   type SyncSystemFn,
 } from "@/index";
-import { createPixiRendererSystem } from "@/2d";
+import { pixi2d } from "@/2d";
 
 /** Physics systems to run alongside the 2D renderer, from `createPhysicsSystem()`. */
 type PhysicsSystems = { init: AsyncSystemFn; tick: SyncSystemFn; exit: AsyncSystemFn };
 
 /**
- * Registers what a 2D demo needs: DOM input, input state and the Pixi renderer,
- * in the order bootstrapEngine used for its old 2D mode. Uses only fenrir-ts and
- * fenrir-ts/2d, so a 2D demo loads no Three.js renderer, camera or skybox.
+ * Boots a 2D demo through `createGame` with the `pixi2d` plugin, then registers DOM input,
+ * input state and optional physics. Uses only fenrir-ts and fenrir-ts/2d (and the physics
+ * systems passed in), so a 2D demo loads no Three.js renderer, camera or skybox.
+ *
+ * Input is registered here until input actions (#36) give `createGame` its own input.
  */
-export function setup2D(
-  engine: Engine,
-  logger: ILogger,
+export async function createDemoGame2D(
   canvas: HTMLCanvasElement,
-  opts: { clearColor?: number; physics?: PhysicsSystems } = {},
+  opts: { logger?: ILogger; background?: number; physics?: PhysicsSystems } = {},
 ) {
-  const { clearColor = 0x101010, physics } = opts;
-  const assets = new AssetStore();
+  const { background = 0x101010, physics, logger } = opts;
+  const pixi = pixi2d({ background });
+  const game = await createGame({ canvas, logger, plugins: [pixi] });
+
   const domInput = createDomInputSystems();
   const input = createInputStateSystem();
-  const renderer = createPixiRendererSystem({ logger, canvas, clearColor, assets });
+  game
+    .addSystem(Schedule.Init, domInput.init)
+    .addSystem(Schedule.PreUpdate, input.preUpdate)
+    .addSystem(Schedule.Exit, domInput.exit);
+  if (physics) {
+    game
+      .addSystem(Schedule.Init, physics.init)
+      .addSystem(Schedule.Tick, physics.tick)
+      .addSystem(Schedule.Exit, physics.exit);
+  }
 
-  engine
-    .addSystems(Schedule.Init, [domInput.init, renderer.init, ...(physics ? [physics.init] : [])])
-    .addSystems(Schedule.PreUpdate, [input.preUpdate])
-    .addSystems(Schedule.Tick, physics ? [physics.tick] : [])
-    .addSystems(Schedule.Update, [renderer.update])
-    .addSystems(Schedule.PostUpdate, [renderer.postUpdate])
-    .addSystems(Schedule.Exit, [domInput.exit, renderer.exit, ...(physics ? [physics.exit] : [])]);
-
-  return { assets, input, renderer };
+  return { game, input, pixi };
 }

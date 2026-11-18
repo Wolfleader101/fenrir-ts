@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import * as THREE from "three";
 import type { Entity, EntityList } from "../ECS";
 import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
@@ -270,5 +271,5 @@ export function createAnimationSystem(opts: {
     }
   }
 
-  return { init, preUpdate, exit } as const;
+  return nameEngineSystems("animation", { init, preUpdate, exit } as const);
 }

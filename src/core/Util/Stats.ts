@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import Stats from "three/addons/libs/stats.module.js";
 import type { SyncSystemFn } from "../SystemCtx";
 
@@ -17,5 +18,5 @@ export function createStatsSystem(parent: HTMLElement) {
 
   const postUpdate: SyncSystemFn = () => statsSystem.postUpdate();
 
-  return { postUpdate } as const;
+  return nameEngineSystems("stats", { postUpdate } as const);
 }

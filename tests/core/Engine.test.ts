@@ -6,10 +6,11 @@ import { SceneManager } from "@/core/SceneManager";
 import { Time } from "@/core/Time";
 import type { SystemCtx, AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
 import type { ILogger } from "@/core/ILogger";
+import { namedSpy } from "../utils/testHelpers";
 
 // Mock requestAnimationFrame and cancelAnimationFrame
-const mockRequestAnimationFrame = vi.fn();
-const mockCancelAnimationFrame = vi.fn();
+const mockRequestAnimationFrame = namedSpy("mockRequestAnimationFrame");
+const mockCancelAnimationFrame = namedSpy("mockCancelAnimationFrame");
 
 // Store original implementations
 const originalRAF = globalThis.requestAnimationFrame;
@@ -81,7 +82,7 @@ describe("Engine", () => {
 
   describe("system registration", () => {
     it("should allow adding systems through engine", () => {
-      const testSystem: AsyncSystemFn = vi.fn();
+      const testSystem: AsyncSystemFn = namedSpy("testSystem");
 
       const result = engine.addSystem(Schedule.Init, testSystem);
 
@@ -90,8 +91,8 @@ describe("Engine", () => {
     });
 
     it("should allow adding multiple systems through engine", () => {
-      const system1: SyncSystemFn = vi.fn();
-      const system2: SyncSystemFn = vi.fn();
+      const system1: SyncSystemFn = namedSpy("system1");
+      const system2: SyncSystemFn = namedSpy("system2");
       const systems = [system1, system2];
 
       const result = engine.addSystems(Schedule.Update, systems);
@@ -101,9 +102,9 @@ describe("Engine", () => {
     });
 
     it("should support method chaining for system registration", () => {
-      const initSystem: AsyncSystemFn = vi.fn();
-      const updateSystem: SyncSystemFn = vi.fn();
-      const exitSystem: AsyncSystemFn = vi.fn();
+      const initSystem: AsyncSystemFn = namedSpy("initSystem");
+      const updateSystem: SyncSystemFn = namedSpy("updateSystem");
+      const exitSystem: AsyncSystemFn = namedSpy("exitSystem");
 
       const result = engine
         .addSystem(Schedule.Init, initSystem)
@@ -119,9 +120,9 @@ describe("Engine", () => {
 
   describe("engine lifecycle", () => {
     it("should run initialization stages when started", async () => {
-      const preInitSystem = vi.fn();
-      const initSystem = vi.fn();
-      const postInitSystem = vi.fn();
+      const preInitSystem = namedSpy("preInitSystem");
+      const initSystem = namedSpy("initSystem");
+      const postInitSystem = namedSpy("postInitSystem");
 
       engine
         .addSystem(Schedule.PreInit, preInitSystem)
@@ -160,7 +161,7 @@ describe("Engine", () => {
     });
 
     it("should not run if already running", async () => {
-      const initSystem = vi.fn();
+      const initSystem = namedSpy("initSystem");
       engine.addSystem(Schedule.Init, initSystem);
 
       await engine.run();
@@ -181,7 +182,7 @@ describe("Engine", () => {
     });
 
     it("should provide correct system context", async () => {
-      const testSystem: AsyncSystemFn = vi.fn();
+      const testSystem: AsyncSystemFn = namedSpy("testSystem");
       engine.addSystem(Schedule.Init, testSystem);
 
       await engine.run();
@@ -236,16 +237,16 @@ describe("Engine", () => {
       engine
         .addSystem(Schedule.PreUpdate, () => {
           executionOrder.push("preUpdate");
-        })
+        }, { name: "preUpdate" })
         .addSystem(Schedule.Tick, () => {
           executionOrder.push("tick");
-        })
+        }, { name: "tick" })
         .addSystem(Schedule.Update, () => {
           executionOrder.push("update");
-        })
+        }, { name: "update" })
         .addSystem(Schedule.PostUpdate, () => {
           executionOrder.push("postUpdate");
-        });
+        }, { name: "postUpdate" });
 
       let loopCallback: Function | null = null;
       mockRequestAnimationFrame.mockImplementation((callback: Function) => {
@@ -264,7 +265,7 @@ describe("Engine", () => {
     });
 
     it("should handle fixed timestep updates", async () => {
-      const tickSystem = vi.fn();
+      const tickSystem = namedSpy("tickSystem");
       engine.addSystem(Schedule.Tick, tickSystem);
 
       let loopCallback: Function | null = null;
@@ -368,7 +369,7 @@ describe("Engine", () => {
     });
 
     it("should run exit stage when stopped", async () => {
-      const exitSystem = vi.fn();
+      const exitSystem = namedSpy("exitSystem");
       engine.addSystem(Schedule.Exit, exitSystem);
 
       await engine.run();
@@ -378,7 +379,7 @@ describe("Engine", () => {
     });
 
     it("should provide system context without stop function in exit stage", async () => {
-      const exitSystem: AsyncSystemFn = vi.fn();
+      const exitSystem: AsyncSystemFn = namedSpy("exitSystem");
       engine.addSystem(Schedule.Exit, exitSystem);
 
       await engine.run();
@@ -424,25 +425,25 @@ describe("Engine", () => {
       engine
         .addSystem(Schedule.PreInit, () => {
           lifecycle.push("preInit");
-        })
+        }, { name: "preInit" })
         .addSystem(Schedule.Init, () => {
           lifecycle.push("init");
-        })
+        }, { name: "init" })
         .addSystem(Schedule.PostInit, () => {
           lifecycle.push("postInit");
-        })
+        }, { name: "postInit" })
         .addSystem(Schedule.PreUpdate, () => {
           lifecycle.push("preUpdate");
-        })
+        }, { name: "preUpdate" })
         .addSystem(Schedule.Update, () => {
           lifecycle.push("update");
-        })
+        }, { name: "update" })
         .addSystem(Schedule.PostUpdate, () => {
           lifecycle.push("postUpdate");
-        })
+        }, { name: "postUpdate" })
         .addSystem(Schedule.Exit, () => {
           lifecycle.push("exit");
-        });
+        }, { name: "exit" });
 
       let loopCallback: Function | null = null;
       mockRequestAnimationFrame.mockImplementation((callback: Function) => {
@@ -476,7 +477,7 @@ describe("Engine", () => {
       const errorSystem: AsyncSystemFn = () => {
         throw new Error("Init error");
       };
-      const normalSystem = vi.fn();
+      const normalSystem = namedSpy("normalSystem");
 
       engine
         .addSystem(Schedule.Init, errorSystem)
@@ -494,7 +495,7 @@ describe("Engine", () => {
       const errorSystem: SyncSystemFn = () => {
         throw new Error("Update error");
       };
-      const normalSystem = vi.fn();
+      const normalSystem = namedSpy("normalSystem");
 
       engine
         .addSystem(Schedule.PreUpdate, normalSystem)
@@ -520,8 +521,8 @@ describe("Engine", () => {
     });
 
     it("should handle rapid start/stop cycles", async () => {
-      const initSystem = vi.fn();
-      const exitSystem = vi.fn();
+      const initSystem = namedSpy("initSystem");
+      const exitSystem = namedSpy("exitSystem");
 
       engine
         .addSystem(Schedule.Init, initSystem)
@@ -603,7 +604,7 @@ describe("Engine", () => {
       const systems: SyncSystemFn[] = [];
 
       for (let i = 0; i < systemCount; i++) {
-        const system = vi.fn();
+        const system = namedSpy(`system${i}`);
         systems.push(system);
         engine.addSystem(Schedule.Update, system);
       }
@@ -638,7 +639,7 @@ describe("Engine", () => {
         return 123;
       });
 
-      const updateSystem: SyncSystemFn = vi.fn();
+      const updateSystem: SyncSystemFn = namedSpy("updateSystem");
       engine.addSystem(Schedule.Update, updateSystem);
 
       await engine.run();
@@ -685,7 +686,7 @@ describe("Engine", () => {
       const time = engine.getTime();
       const originalTickRate = time.tickRate;
 
-      const tickSystem = vi.fn();
+      const tickSystem = namedSpy("tickSystem");
       engine.addSystem(Schedule.Tick, tickSystem);
 
       let loopCallback: Function | null = null;
