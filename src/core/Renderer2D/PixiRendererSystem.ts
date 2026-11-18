@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import type { Entity, EntityList } from "../ECS";
 import type { SystemCtx } from "../SystemCtx";
 import { PixiRenderer } from "./PixiRenderer";
@@ -38,7 +39,7 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
     entities.each([Renderable2D], upsert);
   }
 
-  return {
+  return nameEngineSystems("pixi", {
     renderer,
     init: async (ctx: SystemCtx) => {
       await renderer.init();
@@ -57,5 +58,5 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
       renderer.dispose();
       ctx.logger.info("PixiRendererSystem disposed");
     },
-  };
+  });
 }

@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import * as THREE from "three";
 import type { AsyncSystemFn, SystemCtx } from "../SystemCtx";
 import type { Scene } from "../Scene";
@@ -225,12 +226,12 @@ export function createSkyboxSystem(options: SkyboxSystemOptions) {
   const preUpdate: AsyncSystemFn = (ctx) => skyboxSystem.preUpdate(ctx);
   const exit: AsyncSystemFn = (ctx) => skyboxSystem.cleanup(ctx);
 
-  return {
+  return nameEngineSystems("skybox", {
     init,
     preUpdate,
     exit,
 
     // Utility functions for external access
     getSkyboxInstance: (scene: Scene) => skyboxSystem.getSkyboxInstance(scene),
-  } as const;
+  } as const);
 }

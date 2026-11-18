@@ -19,8 +19,10 @@ export { createPixiTextureLoader } from "./core/Assets/loaders/pixiTextureLoader
 export * from "./core/EntityBuilder/extensions/render2DExtensions";
 
 // Renderer2D (PixiJS)
-export { Renderable2D, PixiRenderer, createPixiRendererSystem } from "./core/Renderer2D";
+export { pixi2d, Renderable2D, PixiRenderer, createPixiRendererSystem } from "./core/Renderer2D";
 export type {
+  Pixi2DOptions,
+  Pixi2DPlugin,
   PixiRendererOptions,
   PixiRendererSystemOptions,
   SpriteDesc,

@@ -33,8 +33,8 @@ describe("run lifetime", () => {
     engine.addSystem(Schedule.PreInit, ({ onCleanup }) => {
       onCleanup(clean);
       onCleanup(() => { throw new Error("cleanup failed"); });
-    });
-    engine.addSystem(Schedule.Init, () => { throw error; });
+    }, { name: "test.registerCleanups" });
+    engine.addSystem(Schedule.Init, () => { throw error; }, { name: "test.failInit" });
     engine.addSystem(Schedule.Exit, exit);
 
     await expect(engine.run()).rejects.toBe(error);
@@ -57,7 +57,7 @@ describe("run lifetime", () => {
       entered();
       await pending;
       if (signal.aborted) onCleanup(clean);
-    });
+    }, { name: "test.slowInit" });
     engine.addSystem(Schedule.Init, later);
 
     const starting = engine.run();
@@ -93,8 +93,8 @@ describe("frame timing", () => {
     const { engine, frame } = setup({ maxFrameDelta: 0.125, maxTicksPerFrame: 2 });
     engine.getTime().tickRate = 0.02;
     const fixedSteps: number[] = [];
-    engine.addSystem(Schedule.PostInit, async () => { now = 3_000; });
-    engine.addSystem(Schedule.Tick, ({ time }) => { fixedSteps.push(time.fixedDeltaTime); });
+    engine.addSystem(Schedule.PostInit, async () => { now = 3_000; }, { name: "test.slowStartup" });
+    engine.addSystem(Schedule.Tick, ({ time }) => { fixedSteps.push(time.fixedDeltaTime); }, { name: "test.recordStep" });
 
     await engine.run();
     frame();

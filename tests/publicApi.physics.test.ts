@@ -27,6 +27,11 @@ describe("fenrir-ts/physics public API", () => {
     expect(physics.PhysicsMaterial).toBeTypeOf("symbol");
   });
 
+  it("names the physics systems fenrir.physics.<stage>", () => {
+    const system = physics.createPhysicsSystem();
+    expect([system.init.name, system.tick.name, system.exit.name]).toEqual(["fenrir.physics.init", "fenrir.physics.tick", "fenrir.physics.exit"]);
+  });
+
   it("adds the physics entity builder methods", () => {
     const { EntityBuilder, EntityList } = core;
     const entities = new EntityList();

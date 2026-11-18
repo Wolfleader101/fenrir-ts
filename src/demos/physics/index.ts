@@ -51,16 +51,16 @@ const cameraController = createECSCameraController({
 });
 
 engine
-  .addSystems(Schedule.Init, [cameraController.init])
-  .addSystems(Schedule.Update, [cameraController.update])
-  .addSystems(Schedule.Exit, [cameraController.exit]);
+  .addSystem(Schedule.Init, cameraController.init, { name: "demo.camera.init" })
+  .addSystem(Schedule.Update, cameraController.update, { name: "demo.camera.update" })
+  .addSystem(Schedule.Exit, cameraController.exit, { name: "demo.camera.exit" });
 
 // Load and initialize physics demo
 const demo = createPhysicsDemo(assets);
 
 engine
-  .addSystem(Schedule.PostInit, demo.init)
-  .addSystem(Schedule.Update, demo.update);
+  .addSystem(Schedule.PostInit, demo.init, { name: "demo.physics.init" })
+  .addSystem(Schedule.Update, demo.update, { name: "demo.physics.update" });
 
 // Start the engine
 engine.run();

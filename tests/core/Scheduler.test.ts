@@ -6,6 +6,7 @@ import { Time } from "@/core/Time";
 import { Scene } from "@/core/Scene";
 import { SceneManager } from "@/core/SceneManager";
 import { ConsoleLogger } from "@/core/ConsoleLogger";
+import { namedSpy } from "../utils/testHelpers";
 
 // Mock SystemCtx for testing
 function createMockSystemCtx(): SystemCtx {
@@ -66,7 +67,7 @@ describe("Scheduler", () => {
     });
 
     it("should be ready to accept systems immediately", () => {
-      const testSystem: AsyncSystemFn = vi.fn();
+      const testSystem: AsyncSystemFn = namedSpy("testSystem");
 
       expect(() => {
         scheduler.addSystem(Schedule.Init, testSystem);
@@ -78,8 +79,8 @@ describe("Scheduler", () => {
 
   describe("addSystem", () => {
     it("should add a system to the correct stage", () => {
-      const initSystem: AsyncSystemFn = vi.fn();
-      const updateSystem: SyncSystemFn = vi.fn();
+      const initSystem: AsyncSystemFn = namedSpy("initSystem");
+      const updateSystem: SyncSystemFn = namedSpy("updateSystem");
 
       scheduler.addSystem(Schedule.Init, initSystem);
       scheduler.addSystem(Schedule.Update, updateSystem);
@@ -89,7 +90,7 @@ describe("Scheduler", () => {
     });
 
     it("should return the scheduler for method chaining", () => {
-      const system: AsyncSystemFn = vi.fn();
+      const system: AsyncSystemFn = namedSpy("system");
 
       const result = scheduler.addSystem(Schedule.Init, system);
 
@@ -97,9 +98,9 @@ describe("Scheduler", () => {
     });
 
     it("should add multiple systems to the same stage", () => {
-      const system1: SyncSystemFn = vi.fn();
-      const system2: SyncSystemFn = vi.fn();
-      const system3: SyncSystemFn = vi.fn();
+      const system1: SyncSystemFn = namedSpy("system1");
+      const system2: SyncSystemFn = namedSpy("system2");
+      const system3: SyncSystemFn = namedSpy("system3");
 
       scheduler.addSystem(Schedule.Update, system1);
       scheduler.addSystem(Schedule.Update, system2);
@@ -112,7 +113,7 @@ describe("Scheduler", () => {
     it("should maintain insertion order", () => {
       const systems: SyncSystemFn[] = [];
       for (let i = 0; i < 10; i++) {
-        const system: SyncSystemFn = vi.fn();
+        const system: SyncSystemFn = namedSpy(`system${i}`);
         systems.push(system);
         scheduler.addSystem(Schedule.Tick, system);
       }
@@ -121,8 +122,8 @@ describe("Scheduler", () => {
     });
 
     it("should allow same system in different stages", () => {
-      const asyncSystem: AsyncSystemFn = vi.fn();
-      const syncSystem: SyncSystemFn = vi.fn();
+      const asyncSystem: AsyncSystemFn = namedSpy("asyncSystem");
+      const syncSystem: SyncSystemFn = namedSpy("syncSystem");
 
       scheduler.addSystem(Schedule.Init, asyncSystem);
       scheduler.addSystem(Schedule.Update, syncSystem);
@@ -133,11 +134,14 @@ describe("Scheduler", () => {
       expect(scheduler.getSystems(Schedule.Exit)).toContain(asyncSystem);
     });
 
-    it("should allow same system multiple times in same stage", () => {
-      const duplicateSystem: SyncSystemFn = vi.fn();
+    it("allows the same system twice in a stage only under a second name", () => {
+      const duplicateSystem: SyncSystemFn = namedSpy("duplicateSystem");
 
       scheduler.addSystem(Schedule.Update, duplicateSystem);
-      scheduler.addSystem(Schedule.Update, duplicateSystem);
+      expect(() => scheduler.addSystem(Schedule.Update, duplicateSystem)).toThrow(
+        'Stage "update" already has a system named "duplicateSystem". Pass a different { name }',
+      );
+      scheduler.addSystem(Schedule.Update, duplicateSystem, { name: "duplicateSystemAgain" });
 
       const systems = scheduler.getSystems(Schedule.Update);
       expect(systems).toEqual([duplicateSystem, duplicateSystem]);
@@ -147,9 +151,9 @@ describe("Scheduler", () => {
 
   describe("addSystems", () => {
     it("should add multiple systems at once", () => {
-      const system1: AsyncSystemFn = vi.fn();
-      const system2: AsyncSystemFn = vi.fn();
-      const system3: AsyncSystemFn = vi.fn();
+      const system1: AsyncSystemFn = namedSpy("system1");
+      const system2: AsyncSystemFn = namedSpy("system2");
+      const system3: AsyncSystemFn = namedSpy("system3");
       const systems = [system1, system2, system3];
 
       scheduler.addSystems(Schedule.Init, systems);
@@ -158,7 +162,7 @@ describe("Scheduler", () => {
     });
 
     it("should return the scheduler for method chaining", () => {
-      const systems: SyncSystemFn[] = [vi.fn(), vi.fn()];
+      const systems: SyncSystemFn[] = [namedSpy("a"), namedSpy("b")];
 
       const result = scheduler.addSystems(Schedule.Update, systems);
 
@@ -174,9 +178,9 @@ describe("Scheduler", () => {
     });
 
     it("should maintain order when adding to existing systems", () => {
-      const existingSystem: SyncSystemFn = vi.fn();
-      const newSystem1: SyncSystemFn = vi.fn();
-      const newSystem2: SyncSystemFn = vi.fn();
+      const existingSystem: SyncSystemFn = namedSpy("existingSystem");
+      const newSystem1: SyncSystemFn = namedSpy("newSystem1");
+      const newSystem2: SyncSystemFn = namedSpy("newSystem2");
 
       scheduler.addSystem(Schedule.Update, existingSystem);
       scheduler.addSystems(Schedule.Update, [newSystem1, newSystem2]);
@@ -189,8 +193,8 @@ describe("Scheduler", () => {
     });
 
     it("should work with readonly arrays", () => {
-      const system1: SyncSystemFn = vi.fn();
-      const system2: SyncSystemFn = vi.fn();
+      const system1: SyncSystemFn = namedSpy("system1");
+      const system2: SyncSystemFn = namedSpy("system2");
       const readonlySystems: readonly SyncSystemFn[] = [
         system1,
         system2,
@@ -206,8 +210,8 @@ describe("Scheduler", () => {
 
   describe("getSystems", () => {
     it("should return systems for the requested stage", () => {
-      const initSystem: AsyncSystemFn = vi.fn();
-      const updateSystem: SyncSystemFn = vi.fn();
+      const initSystem: AsyncSystemFn = namedSpy("initSystem");
+      const updateSystem: SyncSystemFn = namedSpy("updateSystem");
 
       scheduler.addSystem(Schedule.Init, initSystem);
       scheduler.addSystem(Schedule.Update, updateSystem);
@@ -222,7 +226,7 @@ describe("Scheduler", () => {
     });
 
     it("should return arrays that can be safely iterated", () => {
-      const systems: SyncSystemFn[] = [vi.fn(), vi.fn(), vi.fn()];
+      const systems: SyncSystemFn[] = [namedSpy("a"), namedSpy("b"), namedSpy("c")];
       scheduler.addSystems(Schedule.Update, systems);
 
       const retrievedSystems = scheduler.getSystems(Schedule.Update);
@@ -235,7 +239,7 @@ describe("Scheduler", () => {
     });
 
     it("should return the actual array (not a copy)", () => {
-      const system: AsyncSystemFn = vi.fn();
+      const system: AsyncSystemFn = namedSpy("system");
       scheduler.addSystem(Schedule.Init, system);
 
       const systems1 = scheduler.getSystems(Schedule.Init);
@@ -247,9 +251,9 @@ describe("Scheduler", () => {
 
   describe("runSyncStage", () => {
     it("should execute all systems in the stage", () => {
-      const system1 = vi.fn();
-      const system2 = vi.fn();
-      const system3 = vi.fn();
+      const system1 = namedSpy("system1");
+      const system2 = namedSpy("system2");
+      const system3 = namedSpy("system3");
 
       scheduler.addSystems(Schedule.Update, [system1, system2, system3]);
       scheduler.runSyncStage(Schedule.Update, mockCtx);
@@ -260,7 +264,7 @@ describe("Scheduler", () => {
     });
 
     it("should pass the system context to each system", () => {
-      const system = vi.fn();
+      const system = namedSpy("system");
 
       scheduler.addSystem(Schedule.Update, system);
       scheduler.runSyncStage(Schedule.Update, mockCtx);
@@ -290,11 +294,11 @@ describe("Scheduler", () => {
     });
 
     it("should continue execution if a system throws an error", () => {
-      const system1 = vi.fn();
+      const system1 = namedSpy("system1");
       const errorSystem: SyncSystemFn = () => {
         throw new Error("Test error");
       };
-      const system3 = vi.fn();
+      const system3 = namedSpy("system3");
 
       scheduler.addSystems(Schedule.Update, [system1, errorSystem, system3]);
 
@@ -309,8 +313,8 @@ describe("Scheduler", () => {
     });
 
     it("should not affect other stages", () => {
-      const updateSystem = vi.fn();
-      const tickSystem = vi.fn();
+      const updateSystem = namedSpy("updateSystem");
+      const tickSystem = namedSpy("tickSystem");
 
       scheduler.addSystem(Schedule.Update, updateSystem);
       scheduler.addSystem(Schedule.Tick, tickSystem);
@@ -324,9 +328,9 @@ describe("Scheduler", () => {
 
   describe("runAsyncStage", () => {
     it("should execute all async systems in the stage", async () => {
-      const system1 = vi.fn();
-      const system2 = vi.fn();
-      const system3 = vi.fn();
+      const system1 = namedSpy("system1");
+      const system2 = namedSpy("system2");
+      const system3 = namedSpy("system3");
 
       scheduler.addSystems(Schedule.Init, [system1, system2, system3]);
       await scheduler.runAsyncStage(Schedule.Init, mockCtx);
@@ -337,7 +341,7 @@ describe("Scheduler", () => {
     });
 
     it("should pass the system context to each system", async () => {
-      const system = vi.fn();
+      const system = namedSpy("system");
 
       scheduler.addSystem(Schedule.Init, system);
       await scheduler.runAsyncStage(Schedule.Init, mockCtx);
@@ -352,8 +356,8 @@ describe("Scheduler", () => {
     });
 
     it("should not affect other stages", async () => {
-      const initSystem = vi.fn();
-      const exitSystem = vi.fn();
+      const initSystem = namedSpy("initSystem");
+      const exitSystem = namedSpy("exitSystem");
 
       scheduler.addSystem(Schedule.Init, initSystem);
       scheduler.addSystem(Schedule.Exit, exitSystem);
@@ -367,10 +371,10 @@ describe("Scheduler", () => {
 
   describe("method chaining", () => {
     it("should allow fluent configuration", () => {
-      const system1: AsyncSystemFn = vi.fn();
-      const system2: SyncSystemFn = vi.fn();
-      const system3: SyncSystemFn = vi.fn();
-      const system4: AsyncSystemFn = vi.fn();
+      const system1: AsyncSystemFn = namedSpy("system1");
+      const system2: SyncSystemFn = namedSpy("system2");
+      const system3: SyncSystemFn = namedSpy("system3");
+      const system4: AsyncSystemFn = namedSpy("system4");
 
       const result = scheduler
         .addSystem(Schedule.Init, system1)
@@ -386,7 +390,7 @@ describe("Scheduler", () => {
 
   describe("system execution context", () => {
     it("should provide access to time in system context", () => {
-      const system: SyncSystemFn = vi.fn();
+      const system: SyncSystemFn = namedSpy("system");
 
       scheduler.addSystem(Schedule.Update, system);
       scheduler.runSyncStage(Schedule.Update, mockCtx);
@@ -399,7 +403,7 @@ describe("Scheduler", () => {
     });
 
     it("should provide access to events in system context", () => {
-      const system: SyncSystemFn = vi.fn();
+      const system: SyncSystemFn = namedSpy("system");
 
       scheduler.addSystem(Schedule.Update, system);
       scheduler.runSyncStage(Schedule.Update, mockCtx);
@@ -412,7 +416,7 @@ describe("Scheduler", () => {
     });
 
     it("should provide stop function in system context", () => {
-      const system: SyncSystemFn = vi.fn();
+      const system: SyncSystemFn = namedSpy("system");
 
       scheduler.addSystem(Schedule.Update, system);
       scheduler.runSyncStage(Schedule.Update, mockCtx);
@@ -551,7 +555,7 @@ describe("Scheduler", () => {
       const systems: SyncSystemFn[] = [];
 
       for (let i = 0; i < systemCount; i++) {
-        const system = vi.fn();
+        const system = namedSpy(`system${i}`);
         systems.push(system);
         scheduler.addSystem(Schedule.Update, system);
       }
@@ -572,7 +576,7 @@ describe("Scheduler", () => {
     it("should maintain stable performance across multiple runs", () => {
       const systems: SyncSystemFn[] = [];
       for (let i = 0; i < 100; i++) {
-        systems.push(vi.fn());
+        systems.push(namedSpy(`system${i}`));
       }
 
       scheduler.addSystems(Schedule.Update, systems);

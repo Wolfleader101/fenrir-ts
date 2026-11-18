@@ -38,6 +38,7 @@ pnpm test:run
 pnpm build:lib
 pnpm check:size   # each entry in dist/ stays within size-budget.json
 pnpm check:imports  # core loads no renderer, physics or editor package; other entries only their own peers
+pnpm check:consumer  # bundles the fixture games in scripts/consumer/ the way a consumer would and checks their size
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. A README fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`.
@@ -52,8 +53,8 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: engine, scheduler, scenes, ECS, events, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
-| `fenrir-ts/2d` | `src/2d.ts` | Pixi renderer and its system, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, named systems, engine, scheduler, scenes, ECS, events, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
+| `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
 | `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
@@ -78,22 +79,29 @@ Inside the repo, `@/` is an alias for `src/`.
 
 ## Core model
 
-**Schedule.** `Schedule` in `src/core/Scheduler.ts` names the stages. `Engine.run()` awaits `PreInit`, `Init` and `PostInit` in order, then runs frames on `requestAnimationFrame`.
+**Game.** `createGame({ canvas, plugins, logger })` in `src/core/Game.ts` builds the scheduler, scene manager, event bus, logger and asset store, installs each plugin in order (awaiting an async `install`), and returns a `Game`. `Game` wraps an `Engine`, which keeps the frame loop and lifecycle. `game.run()`, `stop()`, `pause()` and `resume()` delegate to it.
+
+**Plugins.** A plugin is `{ name, install(game) }`, as `pixi2d()` from `fenrir-ts/2d` is. `install` reads `game.canvas`, `game.logger`, `game.assets` and `game.events` and adds systems. It registers only: resources are acquired in an `Init` system and released with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back. If an install throws, `createGame` rejects and nothing has run. Core never imports a plugin's types.
+
+**Schedule.** `Schedule` in `src/core/Schedule.ts` (re-exported from `src/core/Scheduler.ts`) names the stages. `game.run()` (`Engine.run()`) resolves the order of every stage, awaits `PreInit`, `Init` and `PostInit` in order, then runs frames on `requestAnimationFrame`. If a startup system throws, `Exit` systems and cleanups run and `run()` rejects with the error.
 Each frame runs `PreUpdate`, then `Tick` zero or more times at the fixed `time.tickRate`, then `Update` and `PostUpdate`, then advances the event buffers. `Engine.stop()` awaits `Exit`.
 `PreInit`, `Init`, `PostInit` and `Exit` may be async and are awaited. `PreUpdate`, `Tick`, `Update` and `PostUpdate` are sync: an async function there type-checks but is not awaited.
 
-**Systems.** A system is a function `(ctx: SystemCtx) => void`, registered with `engine.addSystem(stage, fn)` or `addSystems(stage, [fns])`. Systems in a stage run in registration order.
+**Systems.** A system is a function `(ctx: SystemCtx) => void`, registered with `game.addSystem(stage, fn, options?)`. `options` is `{ name, before, after, runIf }`.
+A system's name is its function name unless `name` is passed; an anonymous function with no `name` throws, and so does a second system with the same name in one stage.
+Systems in a stage run in registration order unless `before` or `after` (names in the same stage) say otherwise. An unknown name or a cycle makes `run()` reject, naming both systems. `runIf(ctx)` is checked each time the system would run.
+`game.replaceSystem(name, fn)` swaps the function and keeps position and options; `game.removeSystem(name)` removes it. Both act on the name in every stage that has it. While running, changes are checked at the call and take effect from the next frame. `scheduler.describe()` prints the schedule with names.
 `SystemCtx` (`src/core/SystemCtx.ts`) gives `time`, `events`, `logger`, `scenes`, `scene`, `entities` and `stop()`.
 It also always has `signal`, an `AbortSignal` that aborts when the run stops, and `onCleanup(fn)`, which registers teardown for this run. Cleanups run in reverse order after the `Exit` systems.
 
 **Components.** `defineComponent<T>(name)` returns a typed key. Set data with `entities.set(entity, Type, value)` and read it with `get`, `tryGet` and `has`.
 Query with `entities.each(QUERY, (entity, ...components) => {})`. Views are cached by the query array's identity, so keep each query tuple in a module-level constant. An inline `[A, B] as const` creates a new array, and a new view, every call.
 
-**Events.** `defineEvent<T>(name)` returns a typed key. `events.send(Type, payload)` queues an event. The bus keeps two frames of events: the frame an event is sent in and the next one.
+**Events.** `defineEvent<T>(name)` returns a typed key. `events.send(Type, payload)` queues an event. The bus keeps two frames of events: the frame an event is sent in and the next one. `game.events` is the same bus as `ctx.events`.
 `events.createReader(Type)` returns a reader whose `read()` returns only events it has not returned before. Create one reader per consumer, once, not inside a system. `events.read(Type)` returns everything retained, so it can return the same event in two frames.
 
 ```ts
-import { Engine, EventBus, NullLogger, SceneManager, Schedule, Scheduler, defineComponent, defineEvent } from "fenrir-ts";
+import { Schedule, createGame, defineComponent, defineEvent } from "fenrir-ts";
 import type { SystemCtx } from "fenrir-ts";
 
 type Health = { current: number; max: number };
@@ -103,17 +111,12 @@ const Damaged = defineEvent<{ amount: number }>("myGame.damaged");
 // Keep the query tuple in a constant: views are cached by array identity.
 const HEALTH_QUERY = [Health] as const;
 
-const logger = new NullLogger();
-const events = new EventBus();
-const engine = new Engine({
-  scheduler: new Scheduler(),
-  sceneManager: new SceneManager(logger),
-  events,
-  logger,
-});
+// A 2D game also passes plugins: [pixi2d()] from fenrir-ts/2d.
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas });
 
 // Create each reader once. It returns only events it has not returned before.
-const damaged = events.createReader(Damaged);
+const damaged = game.events.createReader(Damaged);
 
 function spawnPlayer({ entities, events, onCleanup }: SystemCtx): void {
   const player = entities.createEntity();
@@ -137,21 +140,24 @@ function applyDamage({ entities }: SystemCtx): void {
   }
 }
 
-engine
+game
   .addSystem(Schedule.Init, spawnPlayer)
-  .addSystem(Schedule.Init, listenForKeys)
+  .addSystem(Schedule.Init, listenForKeys, { after: "spawnPlayer" })
   .addSystem(Schedule.Update, applyDamage);
-await engine.run();
+await game.run();
 ```
 
 This example runs in `tests/agentsExample.test.ts`. Change both together.
-A 2D game registers input and the Pixi renderer itself: `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts`, and `createPixiRendererSystem` from `fenrir-ts/2d`. `src/demos/shared/setup2D.ts` shows the order.
-A 3D game can call `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
+A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly. Until input actions (#36) land, a 2D game registers `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts` itself: `src/demos/shared/setup2D.ts` shows how.
+The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
 ## Naming rule
 
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
+
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.pixi.exit`, `fenrir.input.dom.init`, `fenrir.input.state.preUpdate`, `fenrir.input.pointer.init`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
 
@@ -188,8 +194,10 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- `createGame`, `createTestGame` and a headless `step`
-- Resources (`defineResource`), states (`defineState`, `inState`, `onEnter`), named systems and run conditions
-- `inspect()`, viewport scaling, input actions, canvas UI, audio, timers and storage
+- `createTestGame` and a headless `step`
+- Resources (`defineResource`, `game.resources`), states (`defineState`, `inState`, `onEnter`, `onExit`, `game.states`), immediate event listeners (`game.on`), clock and random (`ctx.random`, `seed`)
+- `inspect()`, `debug`, viewport scaling (`design`, `safeArea`, `maxResolution` on `pixi2d`), input actions (`game.input`), canvas UI, audio, timers and storage
 
-Today a game constructs `Engine`, `Scheduler`, `SceneManager` and `EventBus` itself, as in the example above.
+Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`resources`, `states`, `random`, `input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
+
+`createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games and the editor until they go internal.

@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import { Vector3, Quaternion } from "three";
 import initJolt from "jolt-physics/wasm-compat";
 import type { SyncSystemFn, AsyncSystemFn, SystemCtx } from "../SystemCtx";
@@ -472,7 +473,7 @@ export function createPhysicsSystem() {
   const tick: SyncSystemFn = (ctx) => physicsSystem.simulate(ctx);
   const exit: AsyncSystemFn = (ctx) => physicsSystem.cleanup(ctx);
 
-  return {
+  return nameEngineSystems("physics", {
     init,
     tick,
     exit,
@@ -481,7 +482,7 @@ export function createPhysicsSystem() {
      * Available after init() has been called
      */
     getPhysics: (): PhysicsHelpers | null => physicsSystem.getPhysics(),
-  } as const;
+  } as const);
 }
 
 /**

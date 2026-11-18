@@ -3,10 +3,11 @@ import type {
   Scheduler,
   ScheduleStage,
   SyncStage,
+  SystemOptions,
 } from "./Scheduler";
 import { Schedule } from "./Scheduler";
 import { Time } from "./Time";
-import type { AsyncSystemFn, SyncSystemFn, SystemCtx } from "./SystemCtx";
+import type { AsyncSystemFn, GameServices, SyncSystemFn, SystemCtx } from "./SystemCtx";
 import type { EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
 import type { ILogger } from "./ILogger";
@@ -21,6 +22,8 @@ export type EngineOptions = {
   maxFrameDelta?: number;
   /** Maximum fixed updates per animation frame. Defaults to 8. */
   maxTicksPerFrame?: number;
+  /** Fields added to every SystemCtx. `createGame` passes the game's services here. */
+  services?: GameServices;
 };
 
 type Lifecycle = "starting" | "running" | "paused" | "stopping";
@@ -43,6 +46,7 @@ export class Engine {
   private readonly events: EventBus;
   private readonly sceneManager: SceneManager;
   private readonly logger: ILogger;
+  private readonly services: GameServices;
 
   private activeRun?: EngineRun;
   private rafId: number | null = null;
@@ -52,6 +56,7 @@ export class Engine {
     this.sceneManager = opts.sceneManager;
     this.events = opts.events;
     this.logger = opts.logger ?? new NullLogger();
+    this.services = opts.services ?? {};
     this.maxFrameDelta = opts.maxFrameDelta ?? 0.25;
     this.maxTicksPerFrame = opts.maxTicksPerFrame ?? 8;
     if (!Number.isFinite(this.maxFrameDelta) || this.maxFrameDelta <= 0) {
@@ -63,7 +68,7 @@ export class Engine {
   }
 
   private createSystemCtx(run: EngineRun): SystemCtx {
-    return {
+    const ctx: SystemCtx = {
       time: this.time,
       events: this.events,
       logger: this.logger,
@@ -86,6 +91,7 @@ export class Engine {
         void this.stop().catch((error: unknown) => this.logger.error("Engine shutdown failed", { error }));
       },
     };
+    return Object.assign(ctx, this.services);
   }
 
   public run(): Promise<void> {
@@ -94,6 +100,13 @@ export class Engine {
       return active.state === "stopping" && active.shutdown
         ? active.shutdown.then(() => this.run())
         : active.startup;
+    }
+
+    // Resolve system order first: a bad before/after rejects the run before any system runs.
+    try {
+      this.scheduler.beginRun();
+    } catch (error) {
+      return Promise.reject(error);
     }
 
     const run: EngineRun = {
@@ -112,8 +125,11 @@ export class Engine {
 
     try {
       for (const stage of [Schedule.PreInit, Schedule.Init, Schedule.PostInit]) {
-        for (const system of this.scheduler.getSystems(stage)) {
+        // Systems added by an earlier startup stage run from the next stage.
+        this.scheduler.flush();
+        for (const { system, runIf } of this.scheduler.current(stage)) {
           if (run.controller.signal.aborted) break;
+          if (runIf && !runIf(ctx)) continue;
           await system(ctx);
         }
       }
@@ -152,6 +168,8 @@ export class Engine {
   }
 
   private frame(run: EngineRun, ctx: SystemCtx): void {
+    // Systems added, replaced or removed since the last frame take effect now.
+    this.scheduler.flush();
     this.time.update(this.maxFrameDelta);
     this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
 
@@ -186,8 +204,12 @@ export class Engine {
     run.shutdown = Promise.resolve().then(async () => {
       const failures: unknown[] = [];
       try {
-        for (const system of this.scheduler.getSystems(Schedule.Exit)) {
-          try { await system(ctx); } catch (error) { failures.push(error); }
+        this.scheduler.flush();
+        for (const { system, runIf } of this.scheduler.current(Schedule.Exit)) {
+          try {
+            if (runIf && !runIf(ctx)) continue;
+            await system(ctx);
+          } catch (error) { failures.push(error); }
         }
         for (const cleanup of run.cleanups.reverse()) {
           try { await cleanup(); } catch (error) { failures.push(error); }
@@ -195,6 +217,7 @@ export class Engine {
         if (failures.length > 0) throw new AggregateError(failures, "Engine shutdown failed");
       } finally {
         this.events.clear();
+        this.scheduler.endRun();
         this.activeRun = undefined;
       }
     });
@@ -247,11 +270,11 @@ export class Engine {
     return this.activeRun?.state === "running";
   }
 
-  // System Registration methods
-  public addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn): this;
-  public addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn): this;
-  public addSystem(stage: ScheduleStage, system: any) {
-    this.scheduler.addSystem(stage as any, system);
+  // System registration
+  public addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
+  public addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;
+  public addSystem(stage: ScheduleStage, system: SyncSystemFn | AsyncSystemFn, options?: SystemOptions): this {
+    this.scheduler.addSystem(stage as SyncStage, system as SyncSystemFn, options);
     return this;
   }
 
@@ -263,21 +286,20 @@ export class Engine {
     stage: S,
     systems: readonly AsyncSystemFn[],
   ): this;
-  public addSystems(stage: ScheduleStage, systems: readonly any[]) {
-    this.scheduler.addSystems(stage as any, systems);
+  public addSystems(stage: ScheduleStage, systems: readonly (SyncSystemFn | AsyncSystemFn)[]): this {
+    this.scheduler.addSystems(stage as SyncStage, systems as readonly SyncSystemFn[]);
     return this;
   }
 
-  public replaceSystems<S extends SyncStage>(
-    stage: S,
-    systems: readonly SyncSystemFn[],
-  ): this;
-  public replaceSystems<S extends AsyncStage>(
-    stage: S,
-    systems: readonly AsyncSystemFn[],
-  ): this;
-  public replaceSystems(stage: ScheduleStage, systems: readonly any[]) {
-    this.scheduler.replaceSystems(stage as any, systems);
+  /** Swaps the function of the system called `name`, keeping its position and options. */
+  public replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this {
+    this.scheduler.replaceSystem(name, system);
+    return this;
+  }
+
+  /** Removes the system called `name`. While running, it stops from the next frame. */
+  public removeSystem(name: string): this {
+    this.scheduler.removeSystem(name);
     return this;
   }
 

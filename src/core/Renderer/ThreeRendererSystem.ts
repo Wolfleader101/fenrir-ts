@@ -1,3 +1,4 @@
+import { nameEngineSystems } from "../SystemName";
 import type { IAssetStore } from "../Assets/AssetStore";
 import type { ILogger } from "../ILogger";
 import type { SyncSystemFn, AsyncSystemFn } from "../SystemCtx";
@@ -110,5 +111,5 @@ export function createThreeRendererSystem(opts: {
     cleanupFns.length = 0;
   };
 
-  return { init, update, postUpdate, exit, renderer: three } as const;
+  return nameEngineSystems("three", { init, update, postUpdate, exit, renderer: three } as const);
 }

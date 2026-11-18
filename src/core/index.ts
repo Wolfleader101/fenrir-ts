@@ -7,6 +7,10 @@
  * `fenrir-ts/editor`. scripts/check-entry-imports.mjs enforces this on the build.
  */
 
+// Game: the way to start a game
+export { createGame } from "./Game";
+export type { Game, GameOptions, Plugin } from "./Game";
+
 // Core engine
 export { Engine } from "./Engine";
 export type { EngineOptions } from "./Engine";
@@ -14,6 +18,7 @@ export { Time } from "./Time";
 export { Scene } from "./Scene";
 export { SceneManager } from "./SceneManager";
 export { Schedule, Scheduler } from "./Scheduler";
+export type { ScheduleStage, SyncStage, AsyncStage, SystemOptions, ScheduledSystem } from "./Scheduler";
 export { EventBus } from "./EventBus";
 export { EventQueue, defineEvent } from "./EventQueue";
 
@@ -25,7 +30,7 @@ export { ConsoleLogger } from "./ConsoleLogger";
 export { NullLogger } from "./NullLogger";
 
 // System context
-export type { SystemCtx, SyncSystemFn, AsyncSystemFn } from "./SystemCtx";
+export type { SystemCtx, SyncSystemFn, AsyncSystemFn, GameServices } from "./SystemCtx";
 
 // ECS
 export { EntityList, View, Pool } from "./ECS";

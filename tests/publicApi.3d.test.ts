@@ -39,6 +39,29 @@ describe("fenrir-ts/3d public API", () => {
     }
   });
 
+  it("registers every bootstrapEngine system under a namespaced fenrir name", async () => {
+    const { Engine, EventBus, NullLogger, SceneManager, Scheduler } = await import("@/index");
+    const { bootstrapEngine } = await import("@/3d");
+    const scheduler = new Scheduler();
+    const logger = new NullLogger();
+    const engine = new Engine({ scheduler, sceneManager: new SceneManager(logger), events: new EventBus(), logger });
+    const physics = { init: function init() {}, tick: function tick() {}, exit: function exit() {} };
+    for (const [key, fn] of Object.entries(physics)) Object.defineProperty(fn, "name", { value: `fenrir.physics.${key}` });
+
+    bootstrapEngine(engine, logger, { canvas: document.createElement("canvas"), physics, enableAnimations: true });
+
+    expect(scheduler.describe()).toBe([
+      "preInit: ",
+      "init: fenrir.input.dom.init, fenrir.three.init, fenrir.animation.init, fenrir.physics.init, fenrir.camera.init, fenrir.skybox.init",
+      "postInit: ",
+      "preUpdate: fenrir.input.state.preUpdate, fenrir.camera.preUpdate, fenrir.skybox.preUpdate, fenrir.animation.preUpdate",
+      "tick: fenrir.physics.tick",
+      "update: fenrir.camera.update, fenrir.three.update",
+      "postUpdate: fenrir.three.postUpdate",
+      "exit: fenrir.input.dom.exit, fenrir.three.exit, fenrir.animation.exit, fenrir.physics.exit, fenrir.camera.exit, fenrir.skybox.exit",
+    ].join("\n"));
+  });
+
   it("types Transform with Three and makes default transforms out of Three objects", async () => {
     const { EntityBuilder, EntityList, Transform: CoreTransform } = await import("@/index");
     const { Transform } = await import("@/3d");

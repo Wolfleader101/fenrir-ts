@@ -1,10 +1,11 @@
+import { nameEngineSystems } from "../SystemName";
 import type { SystemCtx } from "../SystemCtx";
 import { InputEvent } from "./InputEvents";
 
 export function createPointerInputSystems(canvas: HTMLCanvasElement) {
   let listeners: AbortController | undefined;
 
-  return {
+  return nameEngineSystems("input.pointer", {
     init({ events }: SystemCtx): void {
       if (listeners) return;
       listeners = new AbortController();
@@ -36,5 +37,5 @@ export function createPointerInputSystems(canvas: HTMLCanvasElement) {
       listeners?.abort();
       listeners = undefined;
     },
-  };
+  });
 }

@@ -110,7 +110,7 @@ describe("fenrir-ts core public API", () => {
       expectTypeOf(signal).toEqualTypeOf<AbortSignal>();
       lifetime = signal;
       onCleanup(cleanup);
-    });
+    }, { name: "test.lifetime" });
 
     await engine.run();
     expect(engine.isRunning()).toBe(true);

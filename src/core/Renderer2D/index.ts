@@ -12,3 +12,6 @@ export type { PixiRendererOptions } from "./PixiRenderer";
 
 export { createPixiRendererSystem } from "./PixiRendererSystem";
 export type { PixiRendererSystemOptions } from "./PixiRendererSystem";
+
+export { pixi2d } from "./pixi2d";
+export type { Pixi2DOptions, Pixi2DPlugin } from "./pixi2d";
