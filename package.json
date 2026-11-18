@@ -32,6 +32,8 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:demos": "vite build",
     "type-check": "tsc --noEmit",
+    "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md",
+    "check:size": "node scripts/check-size.mjs",
     "types:bundle": "dts-bundle-generator -o public/fenrir.d.ts --external-imports=three --no-banner src/core/index.ts",
     "preview": "vite preview",
     "test": "vitest",

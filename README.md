@@ -34,7 +34,7 @@ You can import the entire package or use specific modules:
 
 ```ts
 // Import everything
-import * from 'fenrir-ts';
+import * as Fenrir from 'fenrir-ts';
 
 // Import only the core engine
 import { Engine, EntityList, Schedule } from 'fenrir-ts/core';
