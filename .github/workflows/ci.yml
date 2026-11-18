@@ -41,3 +41,5 @@ jobs:
         run: pnpm check:size
       - name: Check entries load only their own peers (core loads none)
         run: pnpm check:imports
+      - name: Check what a consumer ships stays within budget (fixture games bundled with Vite)
+        run: pnpm check:consumer

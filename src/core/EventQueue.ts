@@ -8,6 +8,7 @@ export type EventType<T> = symbol & { __eventType?: T };
  * @example
  * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
  */
+/* @__NO_SIDE_EFFECTS__ */
 export function defineEvent<T>(name: string): EventType<T> {
   return Symbol.for(`event:${name}`) as EventType<T>;
 }

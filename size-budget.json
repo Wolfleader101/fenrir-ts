@@ -2,8 +2,18 @@
   "entries": {
     "index.js": 34000,
     "2d.js": 27000,
-    "3d.js": 202000,
+    "3d.js": 60000,
     "physics.js": 24000,
-    "editor.js": 758000
+    "editor.js": 173000
+  },
+  "consumers": {
+    "game-2d": {
+      "minified": 27400,
+      "gzip": 8500
+    },
+    "core-only": {
+      "minified": 19300,
+      "gzip": 5800
+    }
   }
 }

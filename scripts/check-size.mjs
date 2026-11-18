@@ -1,7 +1,8 @@
 // Fails when a built entry point grows past its budget in size-budget.json.
 //
 // An entry's size is the entry file plus every chunk it statically imports,
-// which is what a consumer's bundler has to read. Sizes are uncompressed bytes.
+// which is what a program loads up front. Chunks behind a dynamic import() are
+// reported beside it but not budgeted. Sizes are uncompressed bytes.
 // Run `build:lib` first. Pass --update to rewrite the budget from this build.
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -16,18 +17,23 @@ const HEADROOM = 1.03;
 
 const budget = JSON.parse(readFileSync(budgetPath, "utf8"));
 
-/** Every file reachable from `entry` through static relative imports. */
-function reachable(entry) {
+/** Every file reachable from `entry` through relative imports: static only, or dynamic import() too. */
+function reachable(entry, { dynamic = false } = {}) {
+  const pattern = dynamic
+    ? /(?:from|import)\s*\(?\s*["']\.\/([^"']+\.js)["']/g
+    : /(?:from|import)\s*["']\.\/([^"']+\.js)["']/g;
   const seen = new Set();
   const visit = (file) => {
     if (seen.has(file)) return;
     seen.add(file);
     const code = readFileSync(join(dist, file), "utf8");
-    for (const match of code.matchAll(/(?:from|import)\s*["']\.\/([^"']+\.js)["']/g)) visit(match[1]);
+    for (const match of code.matchAll(pattern)) visit(match[1]);
   };
   visit(entry);
   return [...seen];
 }
+
+const bytesOf = (files) => files.reduce((total, file) => total + statSync(join(dist, file)).size, 0);
 
 const kB = (bytes) => `${(bytes / 1000).toFixed(1)} kB`;
 let failed = false;
@@ -38,15 +44,19 @@ for (const [entry, limit] of Object.entries(budget.entries)) {
     failed = true;
     continue;
   }
-  const size = reachable(entry).reduce((total, file) => total + statSync(join(dist, file)).size, 0);
+  const files = reachable(entry);
+  const size = bytesOf(files);
+  // Chunks behind a dynamic import() load only when that code runs. Reported, not budgeted.
+  const lazy = bytesOf(reachable(entry, { dynamic: true }).filter((file) => !files.includes(file)));
+  const onDemand = lazy > 0 ? `, plus ${kB(lazy)} loaded on demand` : "";
   if (update) {
     budget.entries[entry] = Math.ceil((size * HEADROOM) / 1000) * 1000;
-    console.log(`${entry}: ${kB(size)}, budget set to ${kB(budget.entries[entry])}`);
+    console.log(`${entry}: ${kB(size)}${onDemand}, budget set to ${kB(budget.entries[entry])}`);
   } else if (size > limit) {
     console.error(`${entry}: ${kB(size)} is over its ${kB(limit)} budget by ${kB(size - limit)}.`);
     failed = true;
   } else {
-    console.log(`${entry}: ${kB(size)} of ${kB(limit)}`);
+    console.log(`${entry}: ${kB(size)} of ${kB(limit)}${onDemand}`);
   }
 }
 

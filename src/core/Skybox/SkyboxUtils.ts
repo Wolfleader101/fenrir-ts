@@ -6,14 +6,6 @@ import {
   createEquirectangularSkybox,
 } from "./SkyboxComponents";
 
-// Import default skybox textures as embedded assets
-import rightUrl from "./assets/right.png";
-import leftUrl from "./assets/left.png";
-import topUrl from "./assets/top.png";
-import bottomUrl from "./assets/bottom.png";
-import frontUrl from "./assets/front.png";
-import backUrl from "./assets/back.png";
-
 /**
  * Utility functions for skybox management and common skybox configurations
  */
@@ -120,14 +112,17 @@ export class SkyboxUtils {
       negZ: "skybox/back.png",
     };
 
+    // The embedded images are a separate chunk, loaded only when this runs.
+    const images = await import("./defaultSkyboxImages");
+
     // Load all textures using embedded asset URLs
     await Promise.all([
-      assets.loadTexture(faceTextures.posX as AssetKey, rightUrl),
-      assets.loadTexture(faceTextures.negX as AssetKey, leftUrl),
-      assets.loadTexture(faceTextures.posY as AssetKey, topUrl),
-      assets.loadTexture(faceTextures.negY as AssetKey, bottomUrl),
-      assets.loadTexture(faceTextures.posZ as AssetKey, frontUrl),
-      assets.loadTexture(faceTextures.negZ as AssetKey, backUrl),
+      assets.loadTexture(faceTextures.posX as AssetKey, images.right),
+      assets.loadTexture(faceTextures.negX as AssetKey, images.left),
+      assets.loadTexture(faceTextures.posY as AssetKey, images.top),
+      assets.loadTexture(faceTextures.negY as AssetKey, images.bottom),
+      assets.loadTexture(faceTextures.posZ as AssetKey, images.front),
+      assets.loadTexture(faceTextures.negZ as AssetKey, images.back),
     ]);
 
     // Create and set skybox
