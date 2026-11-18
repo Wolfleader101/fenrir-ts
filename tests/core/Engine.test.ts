@@ -24,6 +24,10 @@ describe("Engine", () => {
   let mockLogger: ILogger;
 
   beforeEach(() => {
+    // Freeze the clock. Frames otherwise add the real time since the last frame
+    // to the accumulator, so a slow runner gets extra Tick calls.
+    vi.spyOn(performance, "now").mockReturnValue(0);
+
     // Setup mocks
     globalThis.requestAnimationFrame = mockRequestAnimationFrame;
     globalThis.cancelAnimationFrame = mockCancelAnimationFrame;
@@ -60,6 +64,8 @@ describe("Engine", () => {
     if (engine.isRunning()) {
       engine.stop();
     }
+
+    vi.restoreAllMocks();
   });
 
   describe("initialization", () => {
@@ -599,7 +605,7 @@ describe("Engine", () => {
   });
 
   describe("performance considerations", () => {
-    it("should handle many systems efficiently", async () => {
+    it("should run each of many systems once per frame", async () => {
       const systemCount = 100;
       const systems: SyncSystemFn[] = [];
 
@@ -617,14 +623,9 @@ describe("Engine", () => {
 
       await engine.run();
 
-      const start = performance.now();
       if (loopCallback) {
         (loopCallback as Function)();
       }
-      const end = performance.now();
-
-      // Should complete within reasonable time
-      expect(end - start).toBeLessThan(50);
 
       // All systems should have been called
       systems.forEach((system) => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Pool } from "@/core/ECS";
 import { at } from "../../utils/testHelpers";
 
@@ -390,21 +390,28 @@ describe("Pool", () => {
   });
 
   describe("performance characteristics", () => {
-    it("should maintain O(1) operations with large entity IDs", () => {
+    it("should size packed storage by component count, not entity ID", () => {
+      // A large ID must not make the dense arrays, or anything that iterates
+      // them, proportional to the ID.
       const largeId = 999999999;
       const component = { x: 42, y: 24 };
 
-      // These operations should be O(1)
-      const startTime = performance.now();
       pool.set(largeId, component);
       expect(pool.has(largeId)).toBe(true);
       expect(pool.get(largeId)).toEqual(component);
       expect(pool.indexOf(largeId)).toBe(0);
-      pool.remove(largeId);
-      const endTime = performance.now();
+      expect(pool.size()).toBe(1);
+      expect(pool.entities()).toEqual([largeId]);
+      expect(pool.components()).toEqual([component]);
 
-      // Should complete very quickly (this is more of a sanity check)
-      expect(endTime - startTime).toBeLessThan(10); // 10ms is very generous
+      const visit = vi.fn();
+      pool.forEach(visit);
+      expect(visit).toHaveBeenCalledOnce();
+      expect(visit).toHaveBeenCalledWith(largeId, component);
+
+      expect(pool.remove(largeId)).toBe(component);
+      expect(pool.size()).toBe(0);
+      expect(pool.has(largeId)).toBe(false);
     });
   });
 });

@@ -550,9 +550,9 @@ describe("Scheduler", () => {
   });
 
   describe("performance considerations", () => {
-    it("should handle large numbers of systems efficiently", () => {
+    it("should run a large number of systems once each, in registration order", () => {
       const systemCount = 1000;
-      const systems: SyncSystemFn[] = [];
+      const systems: ReturnType<typeof namedSpy>[] = [];
 
       for (let i = 0; i < systemCount; i++) {
         const system = namedSpy(`system${i}`);
@@ -560,35 +560,35 @@ describe("Scheduler", () => {
         scheduler.addSystem(Schedule.Update, system);
       }
 
-      const start = performance.now();
       scheduler.runSyncStage(Schedule.Update, mockCtx);
-      const end = performance.now();
 
-      // Should complete within a reasonable time (this is a loose check)
-      expect(end - start).toBeLessThan(100); // 100ms threshold
-
-      // All systems should have been called
+      // All systems should have been called, in the order they were added
       systems.forEach((system) => {
         expect(system).toHaveBeenCalledOnce();
       });
+      const callOrder = systems.map((system) => system.mock.invocationCallOrder[0]!);
+      expect(callOrder).toEqual([...callOrder].sort((a, b) => a - b));
     });
 
-    it("should maintain stable performance across multiple runs", () => {
-      const systems: SyncSystemFn[] = [];
+    it("should resolve the order once and reuse it across runs", () => {
+      const systems: ReturnType<typeof namedSpy>[] = [];
       for (let i = 0; i < 100; i++) {
         systems.push(namedSpy(`system${i}`));
       }
 
       scheduler.addSystems(Schedule.Update, systems);
+      const order = scheduler.getSchedule(Schedule.Update);
 
-      // Run multiple times to check for performance degradation
+      // Running the stage repeatedly must not re-sort it: the cached order is
+      // the same array after every run.
       for (let run = 0; run < 10; run++) {
-        const start = performance.now();
         scheduler.runSyncStage(Schedule.Update, mockCtx);
-        const end = performance.now();
-
-        expect(end - start).toBeLessThan(50); // Should stay fast
+        expect(scheduler.getSchedule(Schedule.Update)).toBe(order);
       }
+
+      systems.forEach((system) => {
+        expect(system).toHaveBeenCalledTimes(10);
+      });
     });
   });
 });
