@@ -121,6 +121,40 @@ describe("fenrir-ts core public API", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("delivers events to game.on and ctx.events.on listeners, each with its own lifetime", async () => {
+    const { Schedule, createGame, defineEvent, NullLogger } = core;
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const Scored = defineEvent<{ points: number }>("publicApi.scored");
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
+    const forGame: number[] = [];
+    const forRun: number[] = [];
+    const off = game.on(Scored, ({ points }, ctx) => {
+      expectTypeOf(points).toEqualTypeOf<number>();
+      expectTypeOf(ctx).toEqualTypeOf<import("@/index").SystemCtx>();
+      forGame.push(points);
+    });
+    let firstRun = true;
+    game.addSystem(Schedule.Init, function listen({ events }) {
+      if (firstRun) events.on(Scored, ({ points }) => void forRun.push(points));
+      firstRun = false;
+    });
+
+    await game.run();
+    game.events.send(Scored, { points: 1 });
+    await game.stop();
+    await game.run();
+    game.events.send(Scored, { points: 2 });
+    off();
+    game.events.send(Scored, { points: 3 });
+    await game.stop();
+
+    expect(forGame).toEqual([1, 2]);
+    expect(forRun).toEqual([1]);
+    expectTypeOf<import("@/index").EventHandler<{ points: number }>>().toBeFunction();
+  });
+
   it("gives each game its own typed resources on game and ctx", async () => {
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());

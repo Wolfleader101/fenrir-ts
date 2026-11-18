@@ -149,6 +149,44 @@ await game.run();
 ```
 
 This example runs in `tests/agentsExample.test.ts`. Change both together.
+
+**Immediate listeners.** `game.on(Type, (payload, ctx) => {})` and `ctx.events.on(Type, handler)` call the handler inside `send`. Use `on` for side effects that do not feed back into the frame (audio, analytics, notices); use a reader when the result changes game state and order matters. Do not write your own pub/sub or abort-signal helper for listeners: lifetime is handled.
+
+```ts
+import { Schedule, defineEvent, type SystemCtx } from "fenrir-ts";
+
+const Scored = defineEvent<{ points: number }>("myGame.scored");
+declare function playFanfare(points: number): void;
+
+// Reaction: called inside every send while the game runs. Stays across stop() and run().
+const off = game.on(Scored, ({ points }, ctx) => {
+  playFanfare(points);
+  ctx.logger.info("scored", { points });
+});
+
+// Simulation: read in a system, in schedule order. Create the reader once.
+const scored = game.events.createReader(Scored);
+let total = 0;
+function addScore(_ctx: SystemCtx): void {
+  for (const { points } of scored.read()) total += points;
+}
+
+// A listener for one run: added in a system, removed when that run stops.
+function showNotices({ events }: SystemCtx): void {
+  events.on(Scored, ({ points }) => console.log(`+${points}`));
+}
+
+game.addSystem(Schedule.Update, addScore).addSystem(Schedule.Init, showNotices);
+// Send from a system or, while the game runs, from anywhere else, such as a DOM handler.
+document.querySelector("#goal")?.addEventListener("click", () => game.events.send(Scored, { points: 10 }));
+off(); // removes the game.on listener early
+```
+
+- `game.on(Event, handler)` is setup, like `addSystem`: the listener stays across `stop()` and `run()` until the function it returns is called.
+- `ctx.events.on(Event, handler)` belongs to the run it is called in and is removed when that run stops, after its `Exit` systems and cleanups. Calling `events.on` with no run going throws; use `game.on` there.
+- Listeners are called synchronously inside `send`, in registration order, after the event is buffered, with the current run's `ctx`. A `send` before the first run or after a stop only buffers the event.
+- A listener may send events; they are delivered at once, depth first. A listener removed during delivery is not called after that; one added during delivery receives only later events. Events nested 32 deep stop being delivered, with an error logged.
+- A listener that throws, or an async one that rejects, is logged through the game's logger with the event name; the other listeners and the sender carry on. Async listeners are not awaited.
 A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly. Until input actions (#36) land, a 2D game registers `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts` itself: `src/demos/shared/setup2D.ts` shows how.
 The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
@@ -267,7 +305,6 @@ These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12)
 
 - The `fenrir-ts/ui` entry point
 - `createTestGame` and a headless `step`
-- Immediate event listeners (`game.on`)
 - `inspect()`, `debug`, viewport scaling (`design`, `safeArea`, `maxResolution` on `pixi2d`), input actions (`game.input`), canvas UI, audio, timers and storage
 
 Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.

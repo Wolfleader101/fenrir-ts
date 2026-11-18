@@ -11,7 +11,7 @@ import type { Clock } from "./Clock";
 import { realClock } from "./Clock";
 import { Random, seedFromClock } from "./Random";
 import type { AsyncSystemFn, GameServices, SyncSystemFn, SystemCtx } from "./SystemCtx";
-import type { EventBus } from "./EventBus";
+import { beginEventRun, endEventRun, type EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
 import type { ILogger } from "./ILogger";
 import { NullLogger } from "./NullLogger";
@@ -138,6 +138,8 @@ export class Engine {
 
   private async start(run: EngineRun): Promise<void> {
     const ctx = (run.ctx = this.createSystemCtx(run));
+    // Immediate listeners receive this run's ctx, from PreInit until the last cleanup.
+    beginEventRun(this.events, ctx);
     this.time.reset();
 
     try {
@@ -232,6 +234,7 @@ export class Engine {
         if (failures.length > 0) throw new AggregateError(failures, "Engine shutdown failed");
       } finally {
         this.events.clear();
+        endEventRun(this.events);
         this.scheduler.endRun();
         this.activeRun = undefined;
       }

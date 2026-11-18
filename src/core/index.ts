@@ -26,6 +26,7 @@ export { SceneManager } from "./SceneManager";
 export { Schedule, Scheduler } from "./Scheduler";
 export type { ScheduleStage, SyncStage, AsyncStage, SystemOptions, ScheduledSystem } from "./Scheduler";
 export { EventBus } from "./EventBus";
+export type { EventHandler } from "./EventBus";
 export { EventQueue, defineEvent } from "./EventQueue";
 
 export type { EventReader, EventType } from "./EventQueue";

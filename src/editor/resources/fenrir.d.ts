@@ -127,36 +127,6 @@ export declare class EventQueue<T> {
 	createReader(): EventReader<T>;
 	clearAll(): void;
 }
-export declare class EventBus {
-	private queues;
-	private getQueue;
-	send<T>(type: EventType<T>, ev: T): void;
-	read<T>(type: EventType<T>): readonly T[];
-	createReader<T>(type: EventType<T>): EventReader<T>;
-	update(): void;
-	clear(): void;
-}
-export type LogMeta = Record<string, unknown>;
-export interface ILogger {
-	trace(message: string, meta?: LogMeta): void;
-	debug(message: string, meta?: LogMeta): void;
-	info(message: string, meta?: LogMeta): void;
-	warn(message: string, meta?: LogMeta): void;
-	error(message: string, meta?: LogMeta): void;
-}
-export declare const Schedule: {
-	readonly PreInit: "preInit";
-	readonly Init: "init";
-	readonly PostInit: "postInit";
-	readonly PreUpdate: "preUpdate";
-	readonly Tick: "tick";
-	readonly Update: "update";
-	readonly PostUpdate: "postUpdate";
-	readonly Exit: "exit";
-};
-export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
-export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
-export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
 /**
  * Sparse-set component pool (EnTT-style).
  * - sparse[entityId] = denseIndex + 1 (0 means not present)
@@ -358,6 +328,14 @@ export declare class Resources {
 	/** Replaces the resource's value. Works before `game.run()` and from any system. */
 	set<T>(resource: ResourceType<T>, value: NoInfer<T>): void;
 }
+export type LogMeta = Record<string, unknown>;
+export interface ILogger {
+	trace(message: string, meta?: LogMeta): void;
+	debug(message: string, meta?: LogMeta): void;
+	info(message: string, meta?: LogMeta): void;
+	warn(message: string, meta?: LogMeta): void;
+	error(message: string, meta?: LogMeta): void;
+}
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
 /**
  * Cube map texture configuration for skybox.
@@ -468,6 +446,62 @@ export declare class Random {
 	pick<T>(items: readonly T[]): T;
 	private nextUint32;
 }
+export declare const Schedule: {
+	readonly PreInit: "preInit";
+	readonly Init: "init";
+	readonly PostInit: "postInit";
+	readonly PreUpdate: "preUpdate";
+	readonly Tick: "tick";
+	readonly Update: "update";
+	readonly PostUpdate: "postUpdate";
+	readonly Exit: "exit";
+};
+export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
+export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
+export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
+/**
+ * A state machine's definition: its name, its values and the value each run starts at.
+ * Made by `defineState`. `V` is the union of the value strings.
+ */
+export interface StateType<V extends string> {
+	readonly name: string;
+	readonly values: readonly V[];
+	readonly initial: V;
+}
+/** The current value of each state, for one game. `game.states` and `ctx.states` are the same object. */
+export interface States {
+	/** The current value. A change queued with `set` is not visible until it is applied. */
+	get<V extends string>(state: StateType<V>): V;
+	/**
+	 * Queues a change, applied after the current system returns: exit hooks for the old value,
+	 * then enter hooks for the new value, then the next system. Setting the current value does nothing.
+	 */
+	set<V extends string>(state: StateType<V>, value: NoInfer<V>): void;
+	/** Seconds of game time since the current value was entered. Pauses do not count. */
+	timeIn(state: StateType<string>): number;
+}
+/**
+ * Defines a state machine. As with components and events, the name is the identity: every game
+ * keeps one current value per name. Prefix names with a namespace for your game or library.
+ * Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const Phase = defineState("myGame.Phase", { values: ["idle", "casting"], initial: "idle" });
+ */
+export declare function defineState<V extends string>(name: string, options: {
+	readonly values: readonly V[];
+	readonly initial: NoInfer<V>;
+}): StateType<V>;
+/**
+ * A `runIf` condition: true while `state` has one of `values`.
+ *
+ * @example
+ * game.addSystem(Schedule.Update, meter, { runIf: inState(Phase, "casting") });
+ */
+export declare function inState<V extends string>(state: StateType<V>, ...values: [
+	NoInfer<V>,
+	...NoInfer<V>[]
+]): (ctx: SystemCtx) => boolean;
 /**
  * Frame and game time: `ctx.time`. Reads only the clock it is given, which defaults to the
  * real one, so tests can control every reading.
@@ -535,48 +569,34 @@ export interface SystemCtx extends GameServices {
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
 /**
- * A state machine's definition: its name, its values and the value each run starts at.
- * Made by `defineState`. `V` is the union of the value strings.
+ * An immediate listener: called synchronously inside `send`, with the payload and the context
+ * of the run that is going. It may be async; the promise is not awaited, and a rejection is
+ * logged like a throw.
  */
-export interface StateType<V extends string> {
-	readonly name: string;
-	readonly values: readonly V[];
-	readonly initial: V;
-}
-/** The current value of each state, for one game. `game.states` and `ctx.states` are the same object. */
-export interface States {
-	/** The current value. A change queued with `set` is not visible until it is applied. */
-	get<V extends string>(state: StateType<V>): V;
+export type EventHandler<T> = (payload: T, ctx: SystemCtx) => void;
+export declare class EventBus {
+	private queues;
+	private listeners;
+	private ctx?;
+	private depth;
+	private getQueue;
 	/**
-	 * Queues a change, applied after the current system returns: exit hooks for the old value,
-	 * then enter hooks for the new value, then the next system. Setting the current value does nothing.
+	 * Buffers the event for readers, then calls the immediate listeners in registration order.
+	 * Listeners are called only while a run is going; outside one the event is only buffered.
 	 */
-	set<V extends string>(state: StateType<V>, value: NoInfer<V>): void;
-	/** Seconds of game time since the current value was entered. Pauses do not count. */
-	timeIn(state: StateType<string>): number;
+	send<T>(type: EventType<T>, ev: T): void;
+	/**
+	 * Calls `handler` at every `send` of `type` for the rest of the current run, and removes it
+	 * when the run stops. Call it from a system. Returns a function that removes it sooner.
+	 * For a listener that outlives a run, use `game.on`.
+	 */
+	on<T>(type: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
+	private listen;
+	read<T>(type: EventType<T>): readonly T[];
+	createReader<T>(type: EventType<T>): EventReader<T>;
+	update(): void;
+	clear(): void;
 }
-/**
- * Defines a state machine. As with components and events, the name is the identity: every game
- * keeps one current value per name. Prefix names with a namespace for your game or library.
- * Names starting with `fenrir.` are reserved for the engine.
- *
- * @example
- * export const Phase = defineState("myGame.Phase", { values: ["idle", "casting"], initial: "idle" });
- */
-export declare function defineState<V extends string>(name: string, options: {
-	readonly values: readonly V[];
-	readonly initial: NoInfer<V>;
-}): StateType<V>;
-/**
- * A `runIf` condition: true while `state` has one of `values`.
- *
- * @example
- * game.addSystem(Schedule.Update, meter, { runIf: inState(Phase, "casting") });
- */
-export declare function inState<V extends string>(state: StateType<V>, ...values: [
-	NoInfer<V>,
-	...NoInfer<V>[]
-]): (ctx: SystemCtx) => boolean;
 /** How a system is registered. Every field is optional. */
 export interface SystemOptions {
 	/** The system's name. Defaults to the function's name. Unique within a stage. */
@@ -684,7 +704,6 @@ export interface GameOptions {
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
  * - `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `on` (#32): a method added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
  */
 export interface Game extends GameServices {
@@ -711,6 +730,13 @@ export interface Game extends GameServices {
 	onEnter<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
 	/** Runs `system` each time `state` changes away from `value`, before the enter hooks of the new value. */
 	onExit<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
+	/**
+	 * Calls `handler(payload, ctx)` synchronously at every `send` of `event` while the game runs,
+	 * in registration order. Setup, like `addSystem`: it stays across `stop()` and `run()` until
+	 * the returned function removes it. For a listener that belongs to one run, call
+	 * `ctx.events.on` from a system.
+	 */
+	on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
 }
 /**
  * Builds a game: scheduler, scene manager, event bus, logger and asset store, then installs
