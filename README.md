@@ -46,20 +46,64 @@ import { bootstrapEditor } from 'fenrir-ts/editor';
 ### Basic Example
 
 ```ts
-import { Engine, Schedule, bootstrapEngine } from "fenrir-ts/core";
+import {
+  ConsoleLogger,
+  Engine,
+  EventBus,
+  SceneManager,
+  Schedule,
+  Scheduler,
+  bootstrapEngine,
+} from "fenrir-ts/core";
 
 // IMPORTANT: Ensure the canvas element exists in the DOM before bootstrapping
-const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
+const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
 if (!canvas) {
   throw new Error("Canvas element not found");
 }
 
-const engine = bootstrapEngine({
-  canvas,
+const logger = new ConsoleLogger();
+const engine = new Engine({
+  scheduler: new Scheduler(),
+  sceneManager: new SceneManager(logger),
+  events: new EventBus(),
+  logger,
 });
 
-// Add your systems
-engine.addSystems(Schedule.Update, [yourGameSystem]).run();
+// Registers input, rendering, camera and skybox systems on the engine.
+// Pass `enable2D: true` for the PixiJS renderer instead of Three.js.
+bootstrapEngine(engine, logger, { canvas });
+
+// Add your systems, then start the loop
+engine.addSystems(Schedule.Update, [yourGameSystem]);
+await engine.run();
+```
+
+### Components and systems
+
+Define components with `defineComponent`, store them on entities, and query them from systems. Every system receives a `SystemCtx`. Its `signal` aborts when the engine stops, and `onCleanup` registers teardown for the current run.
+
+```ts
+import { Schedule, defineComponent, type SystemCtx } from "fenrir-ts/core";
+
+type Health = { current: number; max: number };
+const Health = defineComponent<Health>("myGame.Health");
+
+// Keep the query tuple in a constant so the engine can cache the view.
+const HEALTH_QUERY = [Health] as const;
+
+function spawnPlayer({ entities }: SystemCtx): void {
+  const player = entities.createEntity();
+  entities.set(player, Health, { current: 10, max: 10 });
+}
+
+function regenerate({ entities, time }: SystemCtx): void {
+  entities.each(HEALTH_QUERY, (_entity, health) => {
+    health.current = Math.min(health.max, health.current + time.deltaTime);
+  });
+}
+
+engine.addSystem(Schedule.Init, spawnPlayer).addSystem(Schedule.Update, regenerate);
 ```
 
 **Important:** The canvas element must exist in the DOM before calling `bootstrapEngine()`. If you're calling it in a script, either:

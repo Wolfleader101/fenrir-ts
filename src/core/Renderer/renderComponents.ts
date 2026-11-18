@@ -38,13 +38,4 @@ export type Renderable = {
   batchKey?: string;
 };
 
-export const Renderable = defineComponent<Renderable>("Renderable");
-
-export type Camera = {
-  fov: number;
-  near: number;
-  far: number;
-  active?: boolean;
-};
-
-export const Camera = defineComponent<Camera>("Camera");
+export const Renderable = defineComponent<Renderable>("fenrir.Renderable");

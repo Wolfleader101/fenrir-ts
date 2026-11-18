@@ -3,7 +3,7 @@ import { typescript } from "monaco-editor";
 import type { Engine } from "@/core/Engine";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 import type { ILogger } from "@/core/ILogger";
-import type { SystemCtx } from "@/core/SystemCtx";
+import type { SandboxContext } from "@/editor/types";
 import {
   TypeScriptTranspiler,
   CodeExecutor,
@@ -55,7 +55,7 @@ export interface EditorBootstrapOptions {
   readonly engine: Engine;
   readonly assets: IAssetStore;
   readonly logger: ILogger;
-  readonly buildContext: () => SystemCtx;
+  readonly buildContext: () => SandboxContext;
   readonly monacoWorkers: MonacoWorkerLoaders;
   readonly editorContainerId?: string;
   readonly defaultScript?: string;

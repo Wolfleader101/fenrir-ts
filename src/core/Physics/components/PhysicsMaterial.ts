@@ -27,7 +27,7 @@ export type PhysicsMaterial = {
 };
 
 export const PhysicsMaterial =
-  defineComponent<PhysicsMaterial>("PhysicsMaterial");
+  defineComponent<PhysicsMaterial>("fenrir.PhysicsMaterial");
 
 /**
  * Helper function to create a physics material with sensible defaults

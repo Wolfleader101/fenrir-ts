@@ -33,4 +33,4 @@ export type Animation = {
   fadeDuration?: number;
 };
 
-export const Animation = defineComponent<Animation>("Animation");
+export const Animation = defineComponent<Animation>("fenrir.Animation");

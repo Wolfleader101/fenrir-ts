@@ -1,11 +1,11 @@
-import type { SystemCtx, SystemFn } from "../SystemCtx";
+import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
 import type { EventBus } from "../EventBus";
 import { InputEvent } from "./InputEvents";
 import { InputState } from "./InputState";
 
 export function createInputStateSystem(): {
   state: InputState;
-  preUpdate: SystemFn;
+  preUpdate: SyncSystemFn;
 } {
   const state = new InputState();
 
@@ -19,7 +19,7 @@ export function createInputStateSystem(): {
   let bus: EventBus | undefined;
   let readers: ReturnType<typeof createReaders>;
 
-  const preUpdate: SystemFn = (ctx: SystemCtx) => {
+  const preUpdate: SyncSystemFn = (ctx: SystemCtx) => {
     if (bus !== ctx.events) {
       bus = ctx.events;
       readers = createReaders(bus);

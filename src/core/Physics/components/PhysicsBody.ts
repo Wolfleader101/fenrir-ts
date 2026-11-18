@@ -46,7 +46,7 @@ export type PhysicsBody = {
   joltBody?: JoltBody; // Direct reference to Jolt body for physics operations
 };
 
-export const PhysicsBody = defineComponent<PhysicsBody>("PhysicsBody");
+export const PhysicsBody = defineComponent<PhysicsBody>("fenrir.PhysicsBody");
 
 /**
  * Helper function to create a physics body configuration

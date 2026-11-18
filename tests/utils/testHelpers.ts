@@ -22,6 +22,8 @@ export function createMockSystemCtx(
     scenes: new SceneManager(),
     scene: new SceneManager().getActiveScene(),
     entities: new EntityList(),
+    signal: new AbortController().signal,
+    onCleanup: vi.fn(),
     stop: vi.fn(),
     ...overrides,
   };

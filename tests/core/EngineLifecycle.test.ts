@@ -31,8 +31,8 @@ describe("run lifetime", () => {
     const exit = vi.fn();
     const error = new Error("asset init failed");
     engine.addSystem(Schedule.PreInit, ({ onCleanup }) => {
-      onCleanup!(clean);
-      onCleanup!(() => { throw new Error("cleanup failed"); });
+      onCleanup(clean);
+      onCleanup(() => { throw new Error("cleanup failed"); });
     });
     engine.addSystem(Schedule.Init, () => { throw error; });
     engine.addSystem(Schedule.Exit, exit);
@@ -56,7 +56,7 @@ describe("run lifetime", () => {
     engine.addSystem(Schedule.Init, async ({ signal, onCleanup }) => {
       entered();
       await pending;
-      if (signal?.aborted) onCleanup!(clean);
+      if (signal.aborted) onCleanup(clean);
     });
     engine.addSystem(Schedule.Init, later);
 

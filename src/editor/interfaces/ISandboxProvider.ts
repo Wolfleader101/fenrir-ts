@@ -1,6 +1,6 @@
-import type { SystemCtx } from "@/core/SystemCtx";
+import type { SandboxContext } from "@/editor/types";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 
 export interface ISandboxProvider {
-  build(ctx: SystemCtx, assets: IAssetStore): Record<string, unknown>;
+  build(ctx: SandboxContext, assets: IAssetStore): Record<string, unknown>;
 }
