@@ -3,8 +3,9 @@ import { realClock } from "./Clock";
 import type { Clock } from "./Clock";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { Engine } from "./Engine";
+import { EventBus, listenAcrossRuns, type EventHandler } from "./EventBus";
+import type { EventType } from "./EventQueue";
 import { Resources } from "./Resource";
-import { EventBus } from "./EventBus";
 import type { ILogger } from "./ILogger";
 import { Random, seedFromClock } from "./Random";
 import { SceneManager } from "./SceneManager";
@@ -50,7 +51,6 @@ export interface GameOptions {
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
  * - `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `on` (#32): a method added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
  */
 export interface Game extends GameServices {
@@ -81,8 +81,15 @@ export interface Game extends GameServices {
   /** Runs `system` each time `state` changes away from `value`, before the enter hooks of the new value. */
   onExit<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
 
+  /**
+   * Calls `handler(payload, ctx)` synchronously at every `send` of `event` while the game runs,
+   * in registration order. Setup, like `addSystem`: it stays across `stop()` and `run()` until
+   * the returned function removes it. For a listener that belongs to one run, call
+   * `ctx.events.on` from a system.
+   */
+  on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
+
   // Seams:
-  // #32 immediate events: on(...)
 
   // #34 headless step: step(dt?: number, frames?: number): void
 
@@ -140,6 +147,10 @@ class GameImpl implements Game {
   public onExit<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this {
     gameStates(this).hook("exit", state, value, system);
     return this;
+  }
+
+  public on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void {
+    return listenAcrossRuns(this.events, event, handler);
   }
 
   public run(): Promise<void> {

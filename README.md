@@ -276,6 +276,47 @@ game
 - Use `DOMContentLoaded` event listener
 - In frameworks like React/Vue, call it in a mounted lifecycle hook
 
+### Events
+
+`defineEvent<T>(name)` returns a typed key, and `events.send(Event, payload)` sends one. There are two ways to receive it. Use `on` for side effects that do not feed back into the frame, such as audio, analytics and notices. Use a reader when the result changes game state and order matters: `read()` runs in a system, in schedule order, and returns each event once.
+
+```ts
+import { Schedule, defineEvent, type SystemCtx } from "fenrir-ts";
+
+const Scored = defineEvent<{ points: number }>("myGame.scored");
+declare function playFanfare(points: number): void;
+
+// Reaction: called inside every send while the game runs. Stays across stop() and run().
+const off = game.on(Scored, ({ points }, ctx) => {
+  playFanfare(points);
+  ctx.logger.info("scored", { points });
+});
+
+// Simulation: read in a system, in schedule order. Create the reader once.
+const scored = game.events.createReader(Scored);
+let total = 0;
+function addScore(_ctx: SystemCtx): void {
+  for (const { points } of scored.read()) total += points;
+}
+
+// A listener for one run: added in a system, removed when that run stops.
+function showNotices({ events }: SystemCtx): void {
+  events.on(Scored, ({ points }) => console.log(`+${points}`));
+}
+
+game.addSystem(Schedule.Update, addScore).addSystem(Schedule.Init, showNotices);
+// Send from a system or, while the game runs, from anywhere else, such as a DOM handler.
+document.querySelector("#goal")?.addEventListener("click", () => game.events.send(Scored, { points: 10 }));
+off(); // removes the game.on listener early
+```
+
+- `game.on(Event, handler)` is setup, like `addSystem`: the listener stays across `stop()` and `run()` until the function it returns is called.
+- `ctx.events.on(Event, handler)` belongs to the run it is called in and is removed when that run stops, after its `Exit` systems and cleanups. Calling `events.on` with no run going throws; use `game.on` there.
+- Listeners are called synchronously inside `send`, in registration order, after the event is buffered, with the current run's `ctx`. A `send` before the first run or after a stop only buffers the event.
+- A listener may send events; they are delivered at once, depth first. A listener removed during delivery is not called after that; one added during delivery receives only later events. Events nested 32 deep stop being delivered, with an error logged.
+- A listener that throws, or an async one that rejects, is logged through the game's logger with the event name; the other listeners and the sender carry on. Async listeners are not awaited.
+- Readers are unchanged: the bus keeps two frames of events, and `createReader(Event).read()` returns each one once.
+
 ### Live Code Editor Example
 
 Fenrir TS includes a built-in live code editor powered by Monaco Editor. The worker configuration is built into the bootstrap process.
