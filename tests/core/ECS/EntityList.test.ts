@@ -132,15 +132,6 @@ describe("EntityList", () => {
       expect(entityList.get(entity, Position)).toEqual(pos2);
     });
 
-    it("should use add as alias for set", () => {
-      const pos = { x: 10, y: 20 };
-      const wasAdded = entityList.add(entity, Position, pos);
-
-      expect(wasAdded).toBe(true);
-      expect(entityList.has(entity, Position)).toBe(true);
-      expect(entityList.get(entity, Position)).toEqual(pos);
-    });
-
     it("should remove components from entities", () => {
       const pos = { x: 10, y: 20 };
       entityList.set(entity, Position, pos);

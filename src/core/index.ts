@@ -30,6 +30,7 @@ export type { SystemCtx, SyncSystemFn, AsyncSystemFn } from "./SystemCtx";
 export { EntityList, View, Pool } from "./ECS";
 export type { Entity } from "./ECS";
 export { Name, Transform, Relationship } from "./ECS/DefaultComponents";
+export { defineComponent } from "./ECS/Component";
 export type { ComponentType } from "./ECS/Component";
 
 // Entity Builder

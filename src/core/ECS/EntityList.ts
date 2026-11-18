@@ -205,13 +205,6 @@ export class EntityList {
     return inserted;
   }
 
-  /**
-   * Alias fror set<T>
-   */
-  public add<T>(entity: Entity, type: ComponentType<T>, component: T): boolean {
-    return this.set(entity, type, component);
-  }
-
   public has<T>(entity: Entity, type: ComponentType<T>): boolean {
     const id = this.assertAlive(entity);
     return this.getPool(type).has(id);

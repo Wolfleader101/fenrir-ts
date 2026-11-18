@@ -18,19 +18,12 @@ export type SystemCtx = {
   // Physics helpers (set by PhysicsSystem when initialized)
   physics?: PhysicsHelpers;
 
-  /** Provided by Engine and aborted when the run stops or rolls back. */
-  readonly signal?: AbortSignal;
-  /** Provided by Engine. Registers cleanup for this run, in reverse order of acquisition. */
-  onCleanup?(cleanup: () => void | Promise<void>): void;
+  /** Aborted when the engine run that owns this context stops or rolls back. */
+  readonly signal: AbortSignal;
+  /** Registers cleanup for this run. Cleanups run in reverse order of registration. */
+  onCleanup(cleanup: () => void | Promise<void>): void;
   stop(): void;
 };
 
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
-
-/**
- *
- * @deprecated This type is deprecated and just an alias.
- * Please use {@link SyncSystemFn} or {@link AsyncSystemFn} instead.
- */
-export type SystemFn = SyncSystemFn;

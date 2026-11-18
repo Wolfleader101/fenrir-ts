@@ -4,7 +4,7 @@ import type { IEngineController } from "../../interfaces";
 import type { ITranspiler } from "../../interfaces";
 import type { ICodeExecutor } from "../../interfaces";
 import type { ISandboxProvider } from "../../interfaces";
-import type { SystemCtx } from "@/core/SystemCtx";
+import type { SandboxContext } from "@/editor/types";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 import type { ILogger } from "@/core/ILogger";
 import type { ErrorBus } from "../../events";
@@ -27,7 +27,7 @@ export class MainEditorPresenter {
   private readonly codeExecutor: ICodeExecutor;
   private readonly sandboxProvider: ISandboxProvider;
   private readonly errorBus: ErrorBus;
-  private readonly buildContext: () => SystemCtx;
+  private readonly buildContext: () => SandboxContext;
   private readonly assets: IAssetStore;
   private readonly logger: ILogger;
 
@@ -43,7 +43,7 @@ export class MainEditorPresenter {
     readonly codeExecutor: ICodeExecutor;
     readonly sandboxProvider: ISandboxProvider;
     readonly errorBus: ErrorBus;
-    readonly buildContext: () => SystemCtx;
+    readonly buildContext: () => SandboxContext;
     readonly assets: IAssetStore;
     readonly logger: ILogger;
   }) {

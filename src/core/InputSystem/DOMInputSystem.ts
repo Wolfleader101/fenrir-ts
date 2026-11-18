@@ -1,4 +1,4 @@
-import type { SystemCtx, SystemFn } from "../SystemCtx";
+import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
 import { InputEvent } from "./InputEvents";
 
 export type DomInputOptions = {
@@ -117,7 +117,7 @@ export function createDomInputSystems(opts: DomInputOptions = {}) {
   let hFocus: ((e: Event) => void) | null = null;
   let hBlur: ((e: Event) => void) | null = null;
 
-  const init: SystemFn = (ctx: SystemCtx) => {
+  const init: SyncSystemFn = (ctx: SystemCtx) => {
     if (installed) return;
     installed = true;
 
@@ -153,7 +153,7 @@ export function createDomInputSystems(opts: DomInputOptions = {}) {
     ctx.logger.info("DOM input listeners installed");
   };
 
-  const exit: SystemFn = (ctx: SystemCtx) => {
+  const exit: SyncSystemFn = (ctx: SystemCtx) => {
     if (!installed) return;
     installed = false;
 

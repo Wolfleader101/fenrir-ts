@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Entity, EntityList } from "../ECS";
-import type { SystemCtx, SystemFn } from "../SystemCtx";
+import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
 import { Animation } from "./AnimationComponent";
 import { Renderable } from "../Renderer/renderComponents";
 import type { IAssetStore } from "../Assets/AssetStore";
@@ -23,7 +23,7 @@ export function createAnimationSystem(opts: {
   // Map of entity -> mixer data
   const mixers = new Map<Entity, AnimationMixerData>();
 
-  const init: SystemFn = (ctx: SystemCtx) => {
+  const init: SyncSystemFn = (ctx: SystemCtx) => {
     // Handle animation components being added
     ctx.entities.signals.onAdd(Animation, async (_entity, _animState) => {
       // Don't set up immediately - renderer might still be loading assets
@@ -47,7 +47,7 @@ export function createAnimationSystem(opts: {
 
   let hasInitializedExisting = false;
 
-  const preUpdate: SystemFn = (ctx: SystemCtx) => {
+  const preUpdate: SyncSystemFn = (ctx: SystemCtx) => {
     // On first preUpdate, set up existing animations (renderer should be ready now)
     if (!hasInitializedExisting) {
       // Collect entities first, then setup synchronously to avoid async iteration issues
@@ -86,7 +86,7 @@ export function createAnimationSystem(opts: {
     }
   };
 
-  const exit: SystemFn = () => {
+  const exit: SyncSystemFn = () => {
     // Clean up all mixers
     for (const entity of mixers.keys()) {
       cleanupAnimationMixer(entity);

@@ -18,6 +18,8 @@ function createMockSystemCtx(): SystemCtx {
     events: new EventBus(),
     scenes: new SceneManager(),
     logger: new ConsoleLogger(),
+    signal: new AbortController().signal,
+    onCleanup: vi.fn(),
     stop: vi.fn(),
   };
 }
