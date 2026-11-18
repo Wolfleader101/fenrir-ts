@@ -179,6 +179,18 @@ describe("input listeners on the canvas", () => {
     expect(document.activeElement).toBe(canvas);
   });
 
+  it("still takes the press and focuses the canvas when the browser refuses pointer capture", async () => {
+    const canvas = canvasAt(0, 0);
+    canvas.setPointerCapture = () => {
+      throw new DOMException("No active pointer with the given id is found.", "NotFoundError");
+    };
+    const game = await running(canvas);
+
+    expect(() => pointer(canvas, "pointerdown", { x: 5, y: 5, buttons: 1 })).not.toThrow();
+    game.step();
+    expect([game.input.pressed(Tap), document.activeElement]).toEqual([true, canvas]);
+  });
+
   it("reports inside false when the captured pointer is dragged off the canvas or the mouse leaves", async () => {
     const canvas = canvasAt(0, 0, 100, 100);
     const game = await running(canvas);

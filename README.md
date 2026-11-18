@@ -204,7 +204,7 @@ await game.run();
 | `pointer` | `{ x, y, down, inside }`: the primary pointer's last position in logical units, whether it is down, and whether it is over the canvas |
 | `consumePointer()` | Stops this frame's pointer press reaching actions, for UI that handled it |
 
-**Frames.** Input is latched when a frame starts, before `PreUpdate`, so every system in the frame, in every stage, reads the same answers; an event that arrives during a frame counts from the next one. `pressed` and `released` are each true for exactly one frame. A tap that goes down and up between two frames is not lost: it is pressed and held in one frame and released in the next. A second binding going down while another is held gives no second `pressed`.
+**Frames.** Input is latched when a frame starts, before `PreUpdate`, so every system in the frame, in every stage, reads the same answers; an event that arrives during a frame counts from the next one. `pressed` and `released` are each true for exactly one frame. A tap that goes down and up between two frames is not lost: it is pressed and held in one frame and released in the next. A second binding going down while another is held gives no second `pressed`. Two presses of the same binding between two frames count as one.
 
 **Tick.** In the `Tick` stage, `pressed` and `released` are true in exactly one tick: the first tick that runs after the edge. A frame that runs several ticks reports the press in the first only; a frame that runs none keeps it for the next frame's first tick. A tap carried past a frame with no tick can be pressed and released in the same tick. `held` is the frame's answer in every tick.
 

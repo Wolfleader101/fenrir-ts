@@ -63,9 +63,14 @@ export function listenOnCanvas(
 
     if (event.type === "pointerdown") {
       active = event.pointerId;
-      // Capture, so the release arrives even when the pointer leaves the canvas while down.
-      canvas.setPointerCapture?.(event.pointerId);
       if (canvas.ownerDocument.activeElement !== canvas) canvas.focus({ preventScroll: true });
+      // Capture, so the release arrives even when the pointer leaves the canvas while down. It
+      // throws for a pointer the browser no longer tracks, such as one already lifted.
+      try {
+        canvas.setPointerCapture?.(event.pointerId);
+      } catch {
+        // Not captured: the release still arrives while the pointer is over the canvas.
+      }
     }
     if (event.buttons === 0) active = undefined;
   };

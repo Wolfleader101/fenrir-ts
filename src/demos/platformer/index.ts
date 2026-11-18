@@ -19,7 +19,7 @@ const logger = new ConsoleLogger();
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
 // createGame with the pixi2d plugin. Input comes with createGame; click the canvas to give it the keys.
-const { game } = await createDemoGame2D(canvas, { logger });
+const { game } = await createDemoGame2D(canvas, { logger, debug: true }); // window.__FENRIR__.inspect() in the console
 
 const demo = createPlatformerDemo();
 
