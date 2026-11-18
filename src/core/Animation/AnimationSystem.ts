@@ -74,7 +74,7 @@ export function createAnimationSystem(opts: {
       hasInitializedExisting = true;
     }
 
-    const deltaTime = ctx.time.deltaTime;
+    const deltaTime = ctx.time.delta;
 
     for (const [entity, mixerData] of mixers) {
       mixerData.mixer.update(deltaTime);

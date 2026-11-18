@@ -105,7 +105,7 @@ const frameLogger: Plugin = {
   name: "myGame.frameLogger",
   install(game) {
     game.addSystem(Schedule.PostUpdate, function logFrame({ time }) {
-      game.logger.debug(`frame took ${time.deltaTime}s`);
+      game.logger.debug(`frame took ${time.delta}s`);
     }, { name: "myGame.frameLogger.postUpdate" });
   },
 };
@@ -161,11 +161,38 @@ function spawnPlayer({ entities }: SystemCtx): void {
 
 function regenerate({ entities, time }: SystemCtx): void {
   entities.each(HEALTH_QUERY, (_entity, health) => {
-    health.current = Math.min(health.max, health.current + time.deltaTime);
+    health.current = Math.min(health.max, health.current + time.delta);
   });
 }
 
 game.addSystem(Schedule.Init, spawnPlayer).addSystem(Schedule.Update, regenerate);
+```
+
+### Time and random
+
+Read time and draw random numbers from the context, not from `Date.now()`, `performance.now()` or `Math.random()`, so a game replays exactly under test.
+
+- `time.delta`: seconds since the last frame, clamped. `time.fixedDelta`: seconds per `Tick`, settable, 1/60 by default. `time.elapsed`: seconds of game time since `run()`, excluding pauses. `time.now()`: wall-clock milliseconds, like `Date.now()`.
+- `random.next()` is in [0, 1), `random.int(min, max)` includes both ends, and `random.pick(items)` returns one item and throws on an empty list. The generator is mulberry32.
+- `createGame({ seed })` seeds `ctx.random` and `game.random`. Without a seed it is seeded from the clock; `game.random.seed` reports the seed either way, so log it to replay a run. Stopping and running a game again continues the sequence.
+- `Time` reads only the `Clock` it is given: `{ monotonic(), now() }`. `Engine` takes one as `clock`; the default is the browser's.
+
+```ts
+import { Schedule, createGame, type SystemCtx } from "fenrir-ts";
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, seed: 2024 });
+
+let nextSpawnAt = 0;
+
+function spawnEnemies({ time, random, logger }: SystemCtx): void {
+  if (time.elapsed < nextSpawnAt) return;
+  nextSpawnAt = time.elapsed + random.int(2, 5);
+  const kind = random.pick(["slime", "bat", "ghost"] as const);
+  logger.info(`spawned a ${kind} at ${new Date(time.now()).toISOString()}`);
+}
+
+game.addSystem(Schedule.Update, spawnEnemies);
 ```
 
 ### Named systems

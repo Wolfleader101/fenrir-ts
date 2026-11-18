@@ -291,7 +291,7 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
 
     // Create a timed spawner system (inline)
     const spawnerSystem: SyncSystemFn = (ctx) => {
-      spawnTimer += ctx.time.deltaTime;
+      spawnTimer += ctx.time.delta;
 
       // Spawn a new object every 2 seconds
       if (spawnTimer > 2.0 && spawnCount < maxSpawns) {

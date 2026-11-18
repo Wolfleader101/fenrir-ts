@@ -389,23 +389,78 @@ export declare class SceneManager {
 	getScene(name: string): Scene;
 	listScenes(): readonly Scene[];
 }
+/**
+ * Where the engine reads time. `Time` reads only its clock, never `performance.now()` or
+ * `Date.now()` directly, so a test can pass a clock it controls.
+ *
+ * Two readings, because they are different quantities:
+ * - `monotonic()` measures intervals: frame deltas and `time.elapsed`. It never jumps when the
+ *   system clock is adjusted. The real clock uses `performance.now()`.
+ * - `now()` is the wall clock in epoch milliseconds, what `Date.now()` returns, for timestamps
+ *   that must survive a reload. The real clock uses `Date.now()`.
+ *
+ * One clock supplies both, so moving a test clock moves both together.
+ */
+export interface Clock {
+	/** Milliseconds from an arbitrary origin. Never goes backwards. */
+	monotonic(): number;
+	/** Wall-clock milliseconds since the Unix epoch. */
+	now(): number;
+}
+/**
+ * A seeded random source: `ctx.random` and `game.random`. The same seed gives the same
+ * sequence, so a game that draws only from here replays exactly in a test.
+ *
+ * The generator is mulberry32 (Tommy Ettinger, 2017): 32 bits of state, period 2^32,
+ * good enough statistically for gameplay. Not for cryptography.
+ */
+export declare class Random {
+	/** The 32-bit seed this source started from. Log it to replay a run. */
+	readonly seed: number;
+	private state;
+	/** @param seed A safe integer. It is reduced to 32 bits, so `seed` and `seed + 2 ** 32` match. */
+	constructor(seed: number);
+	/** A float in [0, 1). */
+	next(): number;
+	/**
+	 * An integer from `min` to `max`, both included. Unbiased: draws are rejected rather than
+	 * folded with `%`. `max - min` may be at most 2^32 - 1.
+	 */
+	int(min: number, max: number): number;
+	/** One item of `items`, each equally likely. Throws on an empty list. */
+	pick<T>(items: readonly T[]): T;
+	private nextUint32;
+}
+/**
+ * Frame and game time: `ctx.time`. Reads only the clock it is given, which defaults to the
+ * real one, so tests can control every reading.
+ */
 export declare class Time {
-	deltaTime: number;
-	tickRate: number;
+	/** Seconds per fixed tick. Settable; defaults to 1/60. */
+	fixedDelta: number;
+	/**
+	 * Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame.
+	 * `accumulator / fixedDelta` is the interpolation factor between the last two ticks.
+	 */
 	accumulator: number;
+	private readonly clock;
+	private frameDelta;
 	private startTime;
 	private prevTime;
 	private paused;
 	private pauseStartTime;
 	private totalPausedTime;
-	constructor();
+	constructor(clock?: Clock);
+	/** Seconds since the last frame, clamped to the engine's maximum frame delta. */
+	get delta(): number;
+	/** Seconds of game time since the run started, excluding pauses. */
+	get elapsed(): number;
+	/** Wall-clock milliseconds since the Unix epoch. Use instead of `Date.now()`. */
+	now(): number;
 	update(maxDelta?: number): void;
 	pause(): void;
 	resume(): void;
 	reset(): void;
-	get fixedDeltaTime(): number;
-	get delta(): number;
-	get elapsed(): number;
 }
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
@@ -416,6 +471,8 @@ export declare class Time {
  * to Game or the engine to reach both `game` and `ctx`.
  */
 export interface GameServices {
+	/** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
+	readonly random: Random;
 }
 /**
  * What every system receives. An interface so that entry points can add fields:
@@ -525,12 +582,18 @@ export interface GameOptions {
 	plugins?: readonly Plugin$1[];
 	/** Defaults to a ConsoleLogger. */
 	logger?: ILogger;
+	/**
+	 * Seeds `game.random` and `ctx.random`: a safe integer. Without one, the seed comes from the
+	 * clock, and `game.random.seed` reports it. Stopping and running the game again continues
+	 * the sequence; it does not restart it.
+	 */
+	seed?: number;
 }
 /**
  * A running game. Built by `createGame`.
  *
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `resources` (#29), `states` (#30), `random` (#33), `input` (#36): fields of GameServices
+ * - `resources` (#29), `states` (#30), `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
  * - `onEnter` / `onExit` (#30) and `on` (#32): methods added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
@@ -574,8 +637,13 @@ export type EngineOptions = {
 	maxFrameDelta?: number;
 	/** Maximum fixed updates per animation frame. Defaults to 8. */
 	maxTicksPerFrame?: number;
-	/** Fields added to every SystemCtx. `createGame` passes the game's services here. */
+	/**
+	 * Fields added to every SystemCtx. `createGame` passes the game's services here. Without
+	 * them, the engine makes its own, with `random` seeded from the clock.
+	 */
 	services?: GameServices;
+	/** Where `ctx.time` reads time. Defaults to the real clock; pass one you control in tests. */
+	clock?: Clock;
 };
 export declare class Engine {
 	private readonly time;

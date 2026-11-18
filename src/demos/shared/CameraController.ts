@@ -207,7 +207,7 @@ export function createECSCameraController(
   };
 
   const update: SyncSystemFn = (ctx) => {
-    const deltaTime = ctx.time.deltaTime;
+    const deltaTime = ctx.time.delta;
 
     // Handle keyboard movement (move target)
     const moveVector = new Vector3();

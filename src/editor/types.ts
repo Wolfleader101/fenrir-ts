@@ -1,4 +1,4 @@
-import type { SyncSystemFn, AsyncSystemFn, SystemCtx } from "@/core/SystemCtx";
+import type { SyncSystemFn, AsyncSystemFn, GameServices, SystemCtx } from "@/core/SystemCtx";
 
 export type EngineState = "stopped" | "running" | "paused";
 
@@ -23,6 +23,7 @@ export interface OperationResult {
 
 /**
  * The engine state exposed to live scripts. It is built outside an engine run,
- * so it has no run lifetime ({@link SystemCtx.signal}, {@link SystemCtx.onCleanup}).
+ * so it has no run lifetime ({@link SystemCtx.signal}, {@link SystemCtx.onCleanup}) and
+ * none of a game's services ({@link GameServices}).
  */
-export type SandboxContext = Omit<SystemCtx, "signal" | "onCleanup">;
+export type SandboxContext = Omit<SystemCtx, "signal" | "onCleanup" | keyof GameServices>;

@@ -85,14 +85,14 @@ Inside the repo, `@/` is an alias for `src/`.
 **Plugins.** A plugin is `{ name, install(game) }`, as `pixi2d()` from `fenrir-ts/2d` is. `install` reads `game.canvas`, `game.logger`, `game.assets` and `game.events` and adds systems. It registers only: resources are acquired in an `Init` system and released with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back. If an install throws, `createGame` rejects and nothing has run. Core never imports a plugin's types.
 
 **Schedule.** `Schedule` in `src/core/Schedule.ts` (re-exported from `src/core/Scheduler.ts`) names the stages. `game.run()` (`Engine.run()`) resolves the order of every stage, awaits `PreInit`, `Init` and `PostInit` in order, then runs frames on `requestAnimationFrame`. If a startup system throws, `Exit` systems and cleanups run and `run()` rejects with the error.
-Each frame runs `PreUpdate`, then `Tick` zero or more times at the fixed `time.tickRate`, then `Update` and `PostUpdate`, then advances the event buffers. `Engine.stop()` awaits `Exit`.
+Each frame runs `PreUpdate`, then `Tick` zero or more times at the fixed `time.fixedDelta`, then `Update` and `PostUpdate`, then advances the event buffers. `Engine.stop()` awaits `Exit`.
 `PreInit`, `Init`, `PostInit` and `Exit` may be async and are awaited. `PreUpdate`, `Tick`, `Update` and `PostUpdate` are sync: an async function there type-checks but is not awaited.
 
 **Systems.** A system is a function `(ctx: SystemCtx) => void`, registered with `game.addSystem(stage, fn, options?)`. `options` is `{ name, before, after, runIf }`.
 A system's name is its function name unless `name` is passed; an anonymous function with no `name` throws, and so does a second system with the same name in one stage.
 Systems in a stage run in registration order unless `before` or `after` (names in the same stage) say otherwise. An unknown name or a cycle makes `run()` reject, naming both systems. `runIf(ctx)` is checked each time the system would run.
 `game.replaceSystem(name, fn)` swaps the function and keeps position and options; `game.removeSystem(name)` removes it. Both act on the name in every stage that has it. While running, changes are checked at the call and take effect from the next frame. `scheduler.describe()` prints the schedule with names.
-`SystemCtx` (`src/core/SystemCtx.ts`) gives `time`, `events`, `logger`, `scenes`, `scene`, `entities` and `stop()`.
+`SystemCtx` (`src/core/SystemCtx.ts`) gives `time`, `random`, `events`, `logger`, `scenes`, `scene`, `entities` and `stop()`.
 It also always has `signal`, an `AbortSignal` that aborts when the run stops, and `onCleanup(fn)`, which registers teardown for this run. Cleanups run in reverse order after the `Exit` systems.
 
 **Components.** `defineComponent<T>(name)` returns a typed key. Set data with `entities.set(entity, Type, value)` and read it with `get`, `tryGet` and `has`.
@@ -152,6 +152,27 @@ This example runs in `tests/agentsExample.test.ts`. Change both together.
 A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly. Until input actions (#36) land, a 2D game registers `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts` itself: `src/demos/shared/setup2D.ts` shows how.
 The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
+**Time and random.** Gameplay code reads `ctx.time` and `ctx.random`, never `Date.now()`, `performance.now()` or `Math.random()`, so frames are deterministic under test.
+`time.delta` is seconds since the last frame, clamped to `maxFrameDelta`. `time.fixedDelta` is seconds per `Tick`, settable, default 1/60. `time.elapsed` is seconds since `run()`, excluding pauses. `time.now()` is wall-clock epoch milliseconds. `time.accumulator` is the unconsumed frame time, below `fixedDelta` after each frame.
+`Time` (`src/core/Time.ts`) reads only its `Clock` (`src/core/Clock.ts`): `monotonic()` for deltas and `elapsed`, `now()` for wall time. `Engine` takes `clock`; the default `realClock` is the only core code that reads `performance.now()` or `Date.now()`. `ManualClock` is internal: tests use it through `createManualTime()` in `tests/utils/testHelpers.ts`.
+`ctx.random` and `game.random` are one `Random` (`src/core/Random.ts`, mulberry32): `next()` in [0, 1), `int(min, max)` inclusive and unbiased, `pick(items)`, which throws on an empty list, and `seed`. `createGame({ seed })` seeds it; without a seed it is seeded from the clock. A stopped game that runs again continues the sequence.
+
+```ts
+import { Schedule, createGame } from "fenrir-ts";
+import type { SystemCtx } from "fenrir-ts";
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, seed: 7 });
+
+function rollLoot({ random, time, logger }: SystemCtx): void {
+  const gold = random.int(1, 6) * 10;
+  const item = random.pick(["sword", "shield", "potion"] as const);
+  logger.info(`loot at ${time.now()}: ${gold} gold and a ${item}`);
+}
+
+game.addSystem(Schedule.Init, rollLoot);
+```
+
 ## Naming rule
 
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage.
@@ -197,9 +218,9 @@ These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12)
 
 - The `fenrir-ts/ui` entry point
 - `createTestGame` and a headless `step`
-- Resources (`defineResource`, `game.resources`), states (`defineState`, `inState`, `onEnter`, `onExit`, `game.states`), immediate event listeners (`game.on`), clock and random (`ctx.random`, `seed`)
+- Resources (`defineResource`, `game.resources`), states (`defineState`, `inState`, `onEnter`, `onExit`, `game.states`), immediate event listeners (`game.on`)
 - `inspect()`, `debug`, viewport scaling (`design`, `safeArea`, `maxResolution` on `pixi2d`), input actions (`game.input`), canvas UI, audio, timers and storage
 
-Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`resources`, `states`, `random`, `input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
+Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`resources`, `states`, `input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
 
 `createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games and the editor until they go internal.

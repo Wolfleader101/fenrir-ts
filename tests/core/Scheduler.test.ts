@@ -3,6 +3,7 @@ import { Scheduler, Schedule } from "@/core/Scheduler";
 import type { SystemCtx, SyncSystemFn, AsyncSystemFn } from "@/core/SystemCtx";
 import { EventBus } from "@/core/EventBus";
 import { Time } from "@/core/Time";
+import { Random } from "@/core/Random";
 import { Scene } from "@/core/Scene";
 import { SceneManager } from "@/core/SceneManager";
 import { ConsoleLogger } from "@/core/ConsoleLogger";
@@ -13,6 +14,7 @@ function createMockSystemCtx(): SystemCtx {
   const scene = new Scene("test");
   return {
     time: new Time(),
+    random: new Random(1),
     scene,
     entities: scene.entityList,
     events: new EventBus(),

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Time } from "@/core/Time";
-import { at } from "../utils/testHelpers";
+import { at, createManualTime } from "../utils/testHelpers";
 
 describe("Time", () => {
   let time: Time;
@@ -13,12 +13,12 @@ describe("Time", () => {
 
   describe("initialization", () => {
     it("should initialize with correct default values", () => {
-      expect(time.deltaTime).toBe(0);
-      expect(time.tickRate).toBe(1.0 / 60.0); // 60 FPS
+      expect(time.delta).toBe(0);
+      expect(time.fixedDelta).toBe(1.0 / 60.0); // 60 FPS
       expect(time.accumulator).toBe(0);
     });
 
-    it("should set start time to current performance time", () => {
+    it("should read the real clock by default", () => {
       const mockPerformanceNow = vi
         .spyOn(performance, "now")
         .mockReturnValue(1000);
@@ -31,63 +31,33 @@ describe("Time", () => {
   });
 
   describe("update method", () => {
-    it("should calculate deltaTime correctly", () => {
-      const mockTimes = [1000, 1050]; // 50ms difference
-      let callCount = 0;
-
-      vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
-      });
-
-      // Create time instance (uses first mock value)
-      const testTime = new Time();
-
-      // Call update (uses second mock value)
+    it("should calculate delta correctly", () => {
+      const { time: testTime, clock } = createManualTime();
+      clock.advance(50);
       testTime.update();
 
-      expect(testTime.deltaTime).toBe(0.05); // 50ms = 0.05 seconds
-
-      vi.restoreAllMocks();
+      expect(testTime.delta).toBe(0.05); // 50ms = 0.05 seconds
     });
 
     it("should update accumulator correctly", () => {
-      const mockTimes = [1000, 1016.67]; // ~16.67ms (60 FPS frame)
-      let callCount = 0;
-
-      vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
-      });
-
-      const testTime = new Time();
-      const initialAccumulator = testTime.accumulator;
-
+      const { time: testTime, clock } = createManualTime();
+      clock.advance(16.67); // a 60 FPS frame
       testTime.update();
 
-      expect(testTime.accumulator).toBeGreaterThan(initialAccumulator);
-      expect(testTime.accumulator).toBeCloseTo(0.01667, 4); // ~16.67ms
-
-      vi.restoreAllMocks();
+      expect(testTime.accumulator).toBeCloseTo(0.01667, 4);
     });
 
     it("should accumulate time across multiple updates", () => {
-      const mockTimes = [1000, 1016.67, 1033.34]; // Two 16.67ms frames
-      let callCount = 0;
-
-      vi.spyOn(performance, "now").mockImplementation(() => {
-        return mockTimes[callCount++] || at(mockTimes, mockTimes.length - 1);
-      });
-
-      const testTime = new Time();
-
+      const { time: testTime, clock } = createManualTime();
+      clock.advance(16.67);
       testTime.update(); // First frame
       const firstAccumulator = testTime.accumulator;
 
+      clock.advance(16.67);
       testTime.update(); // Second frame
 
       expect(testTime.accumulator).toBeGreaterThan(firstAccumulator);
       expect(testTime.accumulator).toBeCloseTo(0.03334, 4); // ~33.34ms total
-
-      vi.restoreAllMocks();
     });
 
     it("should handle very small time differences", () => {
@@ -101,7 +71,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.update();
 
-      expect(testTime.deltaTime).toBeCloseTo(0.0001, 6); // 0.1ms = 0.0001 seconds
+      expect(testTime.delta).toBeCloseTo(0.0001, 6); // 0.1ms = 0.0001 seconds
       expect(testTime.accumulator).toBeCloseTo(0.0001, 6);
 
       vi.restoreAllMocks();
@@ -118,7 +88,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.update();
 
-      expect(testTime.deltaTime).toBe(1.0); // 1000ms = 1.0 seconds
+      expect(testTime.delta).toBe(1.0); // 1000ms = 1.0 seconds
       expect(testTime.accumulator).toBe(1.0);
 
       vi.restoreAllMocks();
@@ -127,19 +97,19 @@ describe("Time", () => {
 
   describe("tick rate", () => {
     it("should have correct default tick rate for 60 FPS", () => {
-      expect(time.tickRate).toBeCloseTo(0.01667, 4); // 1/60 ≈ 0.01667
+      expect(time.fixedDelta).toBeCloseTo(0.01667, 4); // 1/60 ≈ 0.01667
     });
 
     it("should allow modification of tick rate", () => {
-      time.tickRate = 1.0 / 30.0; // 30 FPS
+      time.fixedDelta = 1.0 / 30.0; // 30 FPS
 
-      expect(time.tickRate).toBeCloseTo(0.03333, 4); // 1/30 ≈ 0.03333
+      expect(time.fixedDelta).toBeCloseTo(0.03333, 4); // 1/30 ≈ 0.03333
     });
 
     it("should work with custom tick rates", () => {
-      time.tickRate = 0.1; // 10 Hz
+      time.fixedDelta = 0.1; // 10 Hz
 
-      expect(time.tickRate).toBe(0.1);
+      expect(time.fixedDelta).toBe(0.1);
     });
   });
 
@@ -152,7 +122,7 @@ describe("Time", () => {
 
     it("should support accumulator reduction (for fixed timestep)", () => {
       time.accumulator = 0.1;
-      time.accumulator -= time.tickRate;
+      time.accumulator -= time.fixedDelta;
 
       expect(time.accumulator).toBeCloseTo(0.1 - 1.0 / 60.0, 5);
     });
@@ -180,7 +150,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.update();
 
-      expect(testTime.deltaTime).toBeCloseTo(frameTimeMs / 1000, 4);
+      expect(testTime.delta).toBeCloseTo(frameTimeMs / 1000, 4);
       expect(testTime.accumulator).toBeCloseTo(frameTimeMs / 1000, 4);
 
       vi.restoreAllMocks();
@@ -205,11 +175,11 @@ describe("Time", () => {
 
       // Normal frame
       testTime.update();
-      const normalDelta = testTime.deltaTime;
+      const normalDelta = testTime.delta;
 
       // Dropped frame
       testTime.update();
-      const droppedDelta = testTime.deltaTime;
+      const droppedDelta = testTime.delta;
 
       expect(normalDelta).toBeCloseTo(0.01667, 4);
       expect(droppedDelta).toBeCloseTo(0.05, 4);
@@ -223,7 +193,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.accumulator = 0.05; // 50ms accumulated
 
-      const tickRate = testTime.tickRate; // ~16.67ms
+      const tickRate = testTime.fixedDelta; // ~16.67ms
       let tickCount = 0;
 
       // Simulate consuming fixed timesteps
@@ -245,7 +215,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.update();
 
-      expect(testTime.deltaTime).toBe(0);
+      expect(testTime.delta).toBe(0);
       expect(testTime.accumulator).toBe(0);
 
       vi.restoreAllMocks();
@@ -263,7 +233,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.update();
 
-      expect(testTime.deltaTime).toBe(-0.001); // -1ms
+      expect(testTime.delta).toBe(-0.001); // -1ms
       expect(testTime.accumulator).toBe(-0.001);
 
       vi.restoreAllMocks();
@@ -280,7 +250,7 @@ describe("Time", () => {
       const testTime = new Time();
       testTime.update();
 
-      expect(testTime.deltaTime).toBeCloseTo(0.000000001, 6); // 0.001ms
+      expect(testTime.delta).toBeCloseTo(0.000000001, 6); // 0.001ms
 
       vi.restoreAllMocks();
     });
@@ -302,7 +272,7 @@ describe("Time", () => {
       }
 
       expect(clock).toHaveBeenCalledTimes(iterations);
-      expect(testTime.deltaTime).toBeCloseTo(0.001, 9);
+      expect(testTime.delta).toBeCloseTo(0.001, 9);
       expect(testTime.accumulator).toBeCloseTo(1, 9);
 
       clock.mockRestore();
@@ -324,7 +294,7 @@ describe("Time", () => {
       // Perform 100 updates
       for (let i = 0; i < 100; i++) {
         testTime.update();
-        totalAccumulated += testTime.deltaTime;
+        totalAccumulated += testTime.delta;
       }
 
       // Should accumulate ~1.667 seconds (100 * 16.67ms)
@@ -352,7 +322,7 @@ describe("Time", () => {
       // Simulate 3 frame updates
       for (let i = 0; i < 3; i++) {
         testTime.update();
-        frameDeltas.push(testTime.deltaTime);
+        frameDeltas.push(testTime.delta);
       }
 
       // All frames should be ~16.67ms
@@ -375,15 +345,15 @@ describe("Time", () => {
 
       // Normal frame
       testTime.update();
-      const normalDelta = testTime.deltaTime;
+      const normalDelta = testTime.delta;
 
       // After pause (large delta time)
       testTime.update();
-      const pauseDelta = testTime.deltaTime;
+      const pauseDelta = testTime.delta;
 
       // Resume normal
       testTime.update();
-      const resumeDelta = testTime.deltaTime;
+      const resumeDelta = testTime.delta;
 
       expect(normalDelta).toBeCloseTo(0.01667, 4);
       expect(pauseDelta).toBeCloseTo(3.98333, 4); // ~4 seconds

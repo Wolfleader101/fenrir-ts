@@ -3,6 +3,8 @@ import { Engine } from "@/core/Engine";
 import { Scheduler } from "@/core/Scheduler";
 import { EventBus } from "@/core/EventBus";
 import { Time } from "@/core/Time";
+import { ManualClock } from "@/core/Clock";
+import { Random } from "@/core/Random";
 import { EntityList } from "@/core/ECS/EntityList";
 import type { SystemCtx } from "@/core/SystemCtx";
 import type { Entity } from "@/core/ECS/EntityList";
@@ -28,6 +30,7 @@ export function createMockSystemCtx(
 ): SystemCtx {
   return {
     time: new Time(),
+    random: new Random(1),
     events: new EventBus(),
     logger: new NullLogger(),
     scenes: new SceneManager(),
@@ -140,40 +143,12 @@ export function createStatefulSystem<T extends Record<string, any>>(
 }
 
 /**
- * Time manipulation utilities for testing
+ * A `Time` on a clock that moves only when told to, so no test reads the real clock.
+ * `clock.advance(ms)` moves `time.elapsed`, the next `time.delta` and `time.now()`.
  */
-export class TimeController {
-  private time: Time;
-
-  constructor(time: Time) {
-    this.time = time;
-  }
-
-  advance(deltaMs: number) {
-    // Simulate time passage
-    const now = performance.now() + deltaMs;
-    Object.defineProperty(this.time, "lastTime", {
-      value: now - deltaMs,
-      writable: true,
-    });
-    this.time.update();
-  }
-
-  setTickRate(tickRateMs: number) {
-    this.time.tickRate = tickRateMs / 1000;
-  }
-
-  addAccumulator(deltaMs: number) {
-    this.time.accumulator += deltaMs / 1000;
-  }
-
-  reset() {
-    this.time.accumulator = 0;
-    Object.defineProperty(this.time, "lastTime", {
-      value: performance.now(),
-      writable: true,
-    });
-  }
+export function createManualTime(now = 0): { time: Time; clock: ManualClock } {
+  const clock = new ManualClock(now);
+  return { time: new Time(clock), clock };
 }
 
 /**

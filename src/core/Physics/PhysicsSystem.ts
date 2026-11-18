@@ -387,7 +387,7 @@ class PhysicsSystem {
         },
       );
 
-      this.joltInterface.Step(ctx.time.fixedDeltaTime, 1);
+      this.joltInterface.Step(ctx.time.fixedDelta, 1);
 
       // Update transform components from physics (like demo's transform update loop)
       for (let i = this.physicsObjects.length - 1; i >= 0; i--) {

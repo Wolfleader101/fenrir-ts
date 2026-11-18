@@ -15,6 +15,8 @@ export type { Game, GameOptions, Plugin } from "./Game";
 export { Engine } from "./Engine";
 export type { EngineOptions } from "./Engine";
 export { Time } from "./Time";
+export type { Clock } from "./Clock";
+export { Random } from "./Random";
 export { Scene } from "./Scene";
 export { SceneManager } from "./SceneManager";
 export { Schedule, Scheduler } from "./Scheduler";
