@@ -1,6 +1,7 @@
 import { Schedule } from "./Schedule";
 import type { AsyncStage, ScheduleStage, SyncStage } from "./Schedule";
 import type { AsyncSystemFn, SyncSystemFn, SystemCtx } from "./SystemCtx";
+import { afterSystem, beforeStage } from "./State";
 
 export { Schedule } from "./Schedule";
 export type { AsyncStage, ScheduleStage, SyncStage } from "./Schedule";
@@ -244,18 +245,29 @@ export class Scheduler {
     return this.running ? this.active.get(stage)! : this.getSchedule(stage);
   }
 
+  /**
+   * Runs a stage's systems in order. State changes queued by a system are applied after it
+   * returns, before the next system's `runIf`; changes made outside a system, before the first.
+   */
   public runSyncStage<S extends SyncStage>(stage: S, ctx: SystemCtx): void {
+    beforeStage(stage, ctx);
     for (const entry of this.current(stage)) {
       if (entry.runIf && !entry.runIf(ctx)) continue;
       entry.system(ctx);
+      afterSystem(ctx);
     }
   }
 
+  /** As `runSyncStage`, awaiting each system. Stops before the next system once `ctx.signal` aborts. */
   public async runAsyncStage<S extends AsyncStage>(stage: S, ctx: SystemCtx): Promise<void> {
+    if (ctx.signal.aborted) return;
+    beforeStage(stage, ctx);
     for (const entry of this.current(stage)) {
+      if (ctx.signal.aborted) return;
       if (entry.runIf && !entry.runIf(ctx)) continue;
       const res = entry.system(ctx);
       if (isPromise(res)) await res;
+      afterSystem(ctx);
     }
   }
 

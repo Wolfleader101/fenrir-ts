@@ -471,6 +471,8 @@ export declare class Time {
  * to Game or the engine to reach both `game` and `ctx`.
  */
 export interface GameServices {
+	/** The current value of each state. See `defineState`. */
+	readonly states: States;
 	/** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
 	readonly random: Random;
 }
@@ -493,6 +495,49 @@ export interface SystemCtx extends GameServices {
 }
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
+/**
+ * A state machine's definition: its name, its values and the value each run starts at.
+ * Made by `defineState`. `V` is the union of the value strings.
+ */
+export interface StateType<V extends string> {
+	readonly name: string;
+	readonly values: readonly V[];
+	readonly initial: V;
+}
+/** The current value of each state, for one game. `game.states` and `ctx.states` are the same object. */
+export interface States {
+	/** The current value. A change queued with `set` is not visible until it is applied. */
+	get<V extends string>(state: StateType<V>): V;
+	/**
+	 * Queues a change, applied after the current system returns: exit hooks for the old value,
+	 * then enter hooks for the new value, then the next system. Setting the current value does nothing.
+	 */
+	set<V extends string>(state: StateType<V>, value: NoInfer<V>): void;
+	/** Seconds of game time since the current value was entered. Pauses do not count. */
+	timeIn(state: StateType<string>): number;
+}
+/**
+ * Defines a state machine. As with components and events, the name is the identity: every game
+ * keeps one current value per name. Prefix names with a namespace for your game or library.
+ * Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const Phase = defineState("myGame.Phase", { values: ["idle", "casting"], initial: "idle" });
+ */
+export declare function defineState<V extends string>(name: string, options: {
+	readonly values: readonly V[];
+	readonly initial: NoInfer<V>;
+}): StateType<V>;
+/**
+ * A `runIf` condition: true while `state` has one of `values`.
+ *
+ * @example
+ * game.addSystem(Schedule.Update, meter, { runIf: inState(Phase, "casting") });
+ */
+export declare function inState<V extends string>(state: StateType<V>, ...values: [
+	NoInfer<V>,
+	...NoInfer<V>[]
+]): (ctx: SystemCtx) => boolean;
 /** How a system is registered. Every field is optional. */
 export interface SystemOptions {
 	/** The system's name. Defaults to the function's name. Unique within a stage. */
@@ -556,7 +601,12 @@ export declare class Scheduler {
 	endRun(): void;
 	/** The systems a stage runs now, as of the last flush while running. */
 	current(stage: ScheduleStage): readonly ScheduledSystem[];
+	/**
+	 * Runs a stage's systems in order. State changes queued by a system are applied after it
+	 * returns, before the next system's `runIf`; changes made outside a system, before the first.
+	 */
 	runSyncStage<S extends SyncStage>(stage: S, ctx: SystemCtx): void;
+	/** As `runSyncStage`, awaiting each system. Stops before the next system once `ctx.signal` aborts. */
 	runAsyncStage<S extends AsyncStage>(stage: S, ctx: SystemCtx): Promise<void>;
 	private stagesWith;
 	/** Replaces a stage's entries. While running, the new order is resolved now so errors throw here. */
@@ -593,9 +643,9 @@ export interface GameOptions {
  * A running game. Built by `createGame`.
  *
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `resources` (#29), `states` (#30), `input` (#36): fields of GameServices
+ * - `resources` (#29), `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `onEnter` / `onExit` (#30) and `on` (#32): methods added below, under "Seams".
+ * - `on` (#32): a method added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
  */
 export interface Game extends GameServices {
@@ -615,6 +665,13 @@ export interface Game extends GameServices {
 	stop(): Promise<void>;
 	pause(): void;
 	resume(): void;
+	/**
+	 * Runs `system` each time `state` changes to `value`, after the exit hooks of the old value.
+	 * Each run starts every state at its initial value and runs its enter hooks before the first PreInit system.
+	 */
+	onEnter<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
+	/** Runs `system` each time `state` changes away from `value`, before the enter hooks of the new value. */
+	onExit<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
 }
 /**
  * Builds a game: scheduler, scene manager, event bus, logger and asset store, then installs

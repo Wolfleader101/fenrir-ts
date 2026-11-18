@@ -8,6 +8,8 @@ import type { ILogger } from "./ILogger";
 import { Random, seedFromClock } from "./Random";
 import { SceneManager } from "./SceneManager";
 import { Scheduler } from "./Scheduler";
+import { GameStates } from "./State";
+import type { StateType, States } from "./State";
 import type { AsyncStage, ScheduleStage, SyncStage, SystemOptions } from "./Scheduler";
 import type { AsyncSystemFn, GameServices, SyncSystemFn } from "./SystemCtx";
 
@@ -45,9 +47,9 @@ export interface GameOptions {
  * A running game. Built by `createGame`.
  *
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `resources` (#29), `states` (#30), `input` (#36): fields of GameServices
+ * - `resources` (#29), `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `onEnter` / `onExit` (#30) and `on` (#32): methods added below, under "Seams".
+ * - `on` (#32): a method added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
  */
 export interface Game extends GameServices {
@@ -70,9 +72,15 @@ export interface Game extends GameServices {
   pause(): void;
   resume(): void;
 
-  // Seams:
-  // #30 states: onEnter(...) and onExit(...)
+  /**
+   * Runs `system` each time `state` changes to `value`, after the exit hooks of the old value.
+   * Each run starts every state at its initial value and runs its enter hooks before the first PreInit system.
+   */
+  onEnter<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
+  /** Runs `system` each time `state` changes away from `value`, before the enter hooks of the new value. */
+  onExit<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this;
 
+  // Seams:
   // #32 immediate events: on(...)
 
   // #34 headless step: step(dt?: number, frames?: number): void
@@ -86,6 +94,7 @@ class GameImpl implements Game {
   public readonly assets: AssetStore;
   public readonly events: EventBus;
   declare public readonly random: Random;
+  declare public readonly states: States;
   private readonly engine: Engine;
 
   constructor(options: GameOptions, services: GameServices, clock: Clock) {
@@ -121,6 +130,16 @@ class GameImpl implements Game {
     return this;
   }
 
+  public onEnter<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this {
+    gameStates(this).hook("enter", state, value, system);
+    return this;
+  }
+
+  public onExit<V extends string>(state: StateType<V>, value: NoInfer<V>, system: SyncSystemFn): this {
+    gameStates(this).hook("exit", state, value, system);
+    return this;
+  }
+
   public run(): Promise<void> {
     return this.engine.run();
   }
@@ -137,6 +156,9 @@ class GameImpl implements Game {
     this.engine.resume();
   }
 }
+
+/** The game's own `States`, which `createGame` always builds as a GameStates. */
+const gameStates = (game: Game): GameStates => game.states as GameStates;
 
 /**
  * Builds a game: scheduler, scene manager, event bus, logger and asset store, then installs
@@ -158,7 +180,7 @@ export async function createGame(options: GameOptions): Promise<Game> {
   const services: GameServices = {
     // Seam for #29: resources: new Resources(),
 
-    // Seam for #30: states: new States(),
+    states: new GameStates(),
 
     random: new Random(options.seed ?? seedFromClock(clock)),
 

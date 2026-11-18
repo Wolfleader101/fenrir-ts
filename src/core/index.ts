@@ -11,6 +11,10 @@
 export { createGame } from "./Game";
 export type { Game, GameOptions, Plugin } from "./Game";
 
+// States: state machines with enter and exit hooks, and the inState run condition
+export { defineState, inState } from "./State";
+export type { StateType, States } from "./State";
+
 // Core engine
 export { Engine } from "./Engine";
 export type { EngineOptions } from "./Engine";

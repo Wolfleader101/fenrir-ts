@@ -10,6 +10,7 @@ import type { SystemCtx } from "@/core/SystemCtx";
 import type { Entity } from "@/core/ECS/EntityList";
 import { SceneManager } from "@/core/SceneManager";
 import { NullLogger } from "@/core/NullLogger";
+import { GameStates } from "@/core/State";
 
 /**
  * A `vi.fn()` with a function name, so it can be registered as a system:
@@ -39,6 +40,7 @@ export function createMockSystemCtx(
     signal: new AbortController().signal,
     onCleanup: vi.fn(),
     stop: vi.fn(),
+    states: new GameStates(),
     ...overrides,
   };
 }

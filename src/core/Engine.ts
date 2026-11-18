@@ -15,6 +15,7 @@ import type { EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
 import type { ILogger } from "./ILogger";
 import { NullLogger } from "./NullLogger";
+import { GameStates, afterSystem, beforeStage } from "./State";
 
 export type EngineOptions = {
   scheduler: Scheduler;
@@ -66,7 +67,7 @@ export class Engine {
     this.logger = opts.logger ?? new NullLogger();
     const clock = opts.clock ?? realClock;
     this.time = new Time(clock);
-    this.services = opts.services ?? { random: new Random(seedFromClock(clock)) };
+    this.services = opts.services ?? { random: new Random(seedFromClock(clock)), states: new GameStates() };
     this.maxFrameDelta = opts.maxFrameDelta ?? 0.25;
     this.maxTicksPerFrame = opts.maxTicksPerFrame ?? 8;
     if (!Number.isFinite(this.maxFrameDelta) || this.maxFrameDelta <= 0) {
@@ -138,11 +139,7 @@ export class Engine {
       for (const stage of [Schedule.PreInit, Schedule.Init, Schedule.PostInit]) {
         // Systems added by an earlier startup stage run from the next stage.
         this.scheduler.flush();
-        for (const { system, runIf } of this.scheduler.current(stage)) {
-          if (run.controller.signal.aborted) break;
-          if (runIf && !runIf(ctx)) continue;
-          await system(ctx);
-        }
+        await this.scheduler.runAsyncStage(stage, ctx);
       }
       if (!run.controller.signal.aborted) {
         this.time.reset();
@@ -216,10 +213,12 @@ export class Engine {
       const failures: unknown[] = [];
       try {
         this.scheduler.flush();
+        beforeStage(Schedule.Exit, ctx);
         for (const { system, runIf } of this.scheduler.current(Schedule.Exit)) {
           try {
             if (runIf && !runIf(ctx)) continue;
             await system(ctx);
+            afterSystem(ctx);
           } catch (error) { failures.push(error); }
         }
         for (const cleanup of run.cleanups.reverse()) {

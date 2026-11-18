@@ -4,6 +4,7 @@ import type { ILogger } from "./ILogger";
 import type { Scene } from "./Scene";
 import type { SceneManager } from "./SceneManager";
 import type { Random } from "./Random";
+import type { States } from "./State";
 import type { Time } from "./Time";
 
 /**
@@ -17,7 +18,8 @@ import type { Time } from "./Time";
 export interface GameServices {
   // #29 resources: readonly resources: Resources;
 
-  // #30 states: readonly states: States;
+  /** The current value of each state. See `defineState`. */
+  readonly states: States;
 
   /** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
   readonly random: Random;

@@ -173,6 +173,36 @@ function rollLoot({ random, time, logger }: SystemCtx): void {
 game.addSystem(Schedule.Init, rollLoot);
 ```
 
+**States.** `defineState(name, { values, initial })` returns a `StateType` whose value type is the union of `values`; no `as const` is needed. `ctx.states` and `game.states` are the same object, one per game, with `get`, `set` and `timeIn` (seconds of game time in the current value, pauses excluded). `game.onEnter(state, value, fn)` and `game.onExit(state, value, fn)` register synchronous hooks that get the normal `SystemCtx`. `inState(state, ...values)` is the only `runIf` helper. The code is in `src/core/State.ts`.
+`states.set` queues the change, and it is applied after the current system returns: exit hooks, then enter hooks, then the next system, whose `runIf` sees the new value, in every stage including startup and `Exit`.
+The last `set` of a state in one system wins, and setting the current value is a no-op. A run starts each state at `initial` and runs its enter hooks before the first `PreInit` system. A `set` from a hook is applied when that transition's hooks finish; one made outside a system is applied before the first system of the next stage. Stopping drops unapplied changes and runs no exit hooks. More than 16 transitions of one state in a frame throws. A throwing hook behaves like a throwing system in that stage.
+The engine applies changes through `beforeStage` and `afterSystem` in `src/core/State.ts`, called from `Scheduler.runSyncStage`, `Scheduler.runAsyncStage` (which `Engine` uses for startup) and the `Exit` loop in `Engine`.
+
+```ts
+import { Schedule, createGame, defineState, inState } from "fenrir-ts";
+import type { SystemCtx } from "fenrir-ts";
+
+const Phase = defineState("myGame.Phase", { values: ["loading", "playing", "over"], initial: "loading" });
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas });
+
+function finishLoading({ states }: SystemCtx): void {
+  states.set(Phase, "playing"); // applied when this system returns
+}
+
+function play({ states }: SystemCtx): void {
+  if (states.timeIn(Phase) > 60) states.set(Phase, "over");
+}
+
+game
+  .onEnter(Phase, "playing", ({ logger }) => logger.info("go"))
+  .onExit(Phase, "playing", ({ logger }) => logger.info("time up"))
+  .addSystem(Schedule.PostInit, finishLoading)
+  .addSystem(Schedule.Update, play, { runIf: inState(Phase, "playing") });
+await game.run();
+```
+
 ## Naming rule
 
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage.
@@ -218,9 +248,9 @@ These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12)
 
 - The `fenrir-ts/ui` entry point
 - `createTestGame` and a headless `step`
-- Resources (`defineResource`, `game.resources`), states (`defineState`, `inState`, `onEnter`, `onExit`, `game.states`), immediate event listeners (`game.on`)
+- Resources (`defineResource`, `game.resources`), immediate event listeners (`game.on`)
 - `inspect()`, `debug`, viewport scaling (`design`, `safeArea`, `maxResolution` on `pixi2d`), input actions (`game.input`), canvas UI, audio, timers and storage
 
-Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`resources`, `states`, `input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
+Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`resources`, `input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.
 
 `createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games and the editor until they go internal.
