@@ -13,6 +13,7 @@ export type ComponentType<T> = symbol & { __component?: T };
  * export type Health = { current: number; max: number };
  * export const Health = defineComponent<Health>("myGame.Health");
  */
+/* @__NO_SIDE_EFFECTS__ */
 export function defineComponent<T>(name: string): ComponentType<T> {
   return Symbol.for(`component:${name}`) as ComponentType<T>;
 }

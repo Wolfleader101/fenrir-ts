@@ -1,7 +1,20 @@
 import { defineConfig } from "vite";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import dts from "vite-plugin-dts";
 import postcssLit from "postcss-lit";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+
+// lucide's package.json "module" names a file it does not ship, so the build fell
+// back to its CommonJS bundle, and the editor source map embedded all 546 kB of it.
+// Point the editor at lucide's ES modules instead: one small module per icon.
+const lucideEsm = resolve(
+  dirname(createRequire(import.meta.url).resolve("lucide")),
+  "../esm/lucide/src/lucide.js",
+);
+if (!existsSync(lucideEsm)) {
+  throw new Error(`lucide's ES module build is not at ${lucideEsm}. Update the alias in vite.config.lib.ts.`);
+}
 
 export default defineConfig({
   publicDir: false,
@@ -18,6 +31,8 @@ export default defineConfig({
         "**/*.test.ts",
         "**/*.spec.ts",
         "src/demos/**/*",
+        // Demo navigation, used only by the demo pages.
+        "src/shared/**/*",
         "src/editor/resources/**/*",
         "tests/**/*",
       ],
@@ -70,8 +85,9 @@ export default defineConfig({
     outDir: "dist",
   },
   resolve: {
-    alias: {
-      "@": new URL("./src", import.meta.url).pathname,
-    },
+    alias: [
+      { find: "@", replacement: new URL("./src", import.meta.url).pathname },
+      { find: /^lucide$/, replacement: lucideEsm },
+    ],
   },
 });

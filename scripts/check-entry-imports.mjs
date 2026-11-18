@@ -4,8 +4,8 @@
 // packages, and no skybox images. Each other entry may load only its own peers, so
 // a 2D game (core plus fenrir-ts/2d) never loads Three.js.
 //
-// For each entry it walks the entry file and every chunk it statically imports,
-// the same set check-size.mjs measures, and fails if any of them:
+// For each entry it walks the entry file and every chunk it imports, statically
+// or with a dynamic import(), and fails if any of them:
 // - imports a package the entry may not load, or a subpath of it (static or dynamic import)
 // - was built from a file inside such a package (read from the chunk's source map,
 //   so code bundled in rather than imported is caught too)
@@ -45,14 +45,17 @@ const ENTRIES = {
 const peerOf = (specifier) =>
   PEERS.find((name) => specifier === name || specifier.startsWith(`${name}/`));
 
-/** Every file reachable from `entry` through static relative imports. */
+/**
+ * Every file reachable from `entry` through relative imports, static or dynamic.
+ * A chunk loaded on demand still runs in the program, so it obeys the same rules.
+ */
 function reachable(entry) {
   const seen = new Set();
   const visit = (file) => {
     if (seen.has(file)) return;
     seen.add(file);
     const code = readFileSync(join(dist, file), "utf8");
-    for (const match of code.matchAll(/(?:from|import)\s*["']\.\/([^"']+\.js)["']/g)) visit(match[1]);
+    for (const match of code.matchAll(/(?:from|import)\s*\(?\s*["']\.\/([^"']+\.js)["']/g)) visit(match[1]);
   };
   visit(entry);
   return [...seen];

@@ -1,6 +1,9 @@
 import { html } from "lit-html";
 import type { TemplateResult } from "lit-html";
-import { createIcons, icons as allIcons } from "lucide";
+import { createIcons } from "lucide";
+
+/** Icon definitions by name, as `createIcons` takes them. */
+type Icons = NonNullable<Parameters<typeof createIcons>[0]>["icons"];
 
 /**
  * Helper to create a Lucide icon element (for lit-html templates)
@@ -13,17 +16,16 @@ export function icon(name: string, className = "w-4 h-4"): TemplateResult {
 }
 
 /**
- * Initialize all Lucide icons in the current DOM context
+ * Initialize Lucide icons in the current DOM context
  * Call this after rendering HTML that contains icon elements
- * @param iconsToInclude - Specific icons to include (for tree-shaking)
+ * @param iconsToInclude - The icons the rendered HTML uses. Required: a fallback to
+ *   every Lucide icon would put the whole icon set into the editor bundle.
  */
 export function initIcons(
-  iconsToInclude?: Record<string, typeof allIcons.Play>,
+  iconsToInclude: Icons,
   shadowRoot?: DocumentFragment,
 ): void {
-  const iconConfig = iconsToInclude
-    ? { icons: iconsToInclude, root: shadowRoot }
-    : { icons: allIcons, root: shadowRoot };
+  const iconConfig = { icons: iconsToInclude, root: shadowRoot };
 
   if (shadowRoot) {
     // For shadow DOM, we need to pass the shadow root as the element to search in
