@@ -7,6 +7,7 @@ import { ManualClock } from "@/core/Clock";
 import { Random } from "@/core/Random";
 import { Resources } from "@/core/Resource";
 import { GameStates } from "@/core/State";
+import { InputImpl } from "@/core/Input/Input";
 import { NullLogger } from "@/core/NullLogger";
 import type { SystemCtx } from "@/core/SystemCtx";
 
@@ -24,7 +25,7 @@ function engineOn(clock: ManualClock, seed: number) {
     sceneManager: new SceneManager(new NullLogger()),
     logger: new NullLogger(),
     clock,
-    services: { resources: new Resources(), random: new Random(seed), states: new GameStates() },
+    services: { resources: new Resources(), random: new Random(seed), states: new GameStates(), input: new InputImpl(new Resources()) },
   });
 }
 

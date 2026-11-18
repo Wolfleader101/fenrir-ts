@@ -9,6 +9,7 @@ import { SceneManager } from "@/core/SceneManager";
 import { ConsoleLogger } from "@/core/ConsoleLogger";
 import { Resources } from "@/core/Resource";
 import { GameStates } from "@/core/State";
+import { InputImpl } from "@/core/Input/Input";
 import { namedSpy } from "../utils/testHelpers";
 
 // Mock SystemCtx for testing
@@ -27,6 +28,7 @@ function createMockSystemCtx(): SystemCtx {
     stop: vi.fn(),
     resources: new Resources(),
     states: new GameStates(),
+    input: new InputImpl(new Resources()),
   };
 }
 

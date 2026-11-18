@@ -89,6 +89,16 @@ describe("fenrir-ts/2d public API", () => {
       expect(sizes).toEqual([520]);
       expect(pixi.renderer.root.scale.x).toBeCloseTo(900 / 520, 9);
       expect(application.stage.children).toEqual([pixi.renderer.backdrop, pixi.renderer.root]);
+      // The pointer reads in design units: the frame is 676 px wide, centred, 900 / 520 px per unit.
+      game.pause();
+      const press = new MouseEvent("pointerdown", { clientX: 720, clientY: 450, buttons: 1 });
+      Object.defineProperties(press, { pointerId: { value: 1 }, isPrimary: { value: true } });
+      canvas.dispatchEvent(press);
+      game.step();
+      expect(game.input.pointer.x).toBeCloseTo(195, 9);
+      expect(game.input.pointer.y).toBeCloseTo(260, 9);
+      expect(game.input.pointer.down).toBe(true);
+
       const logical = screenToLogical(seen!, { x: 720, y: 450 })!;
       expect(logical.x).toBeCloseTo(195, 9);
       expect(logicalToScreen(seen!, logical).x).toBeCloseTo(720, 9);

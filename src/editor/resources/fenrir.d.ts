@@ -569,13 +569,96 @@ export declare class Time {
 	resume(): void;
 	reset(): void;
 }
+export type KeyLetter = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z";
+export type KeyDigit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+export type KeyFunction = `F${Exclude<KeyDigit, "0">}` | `F1${KeyDigit}` | `F2${"0" | "1" | "2" | "3" | "4"}`;
+/**
+ * A `KeyboardEvent.code` value: the physical key, whatever the layout. These are the standard
+ * sections of the UI Events "KeyboardEvent code Values" spec: the writing-system keys, the
+ * functional keys, the control and arrow pads, the numpad and the function row. Media and
+ * browser keys are left out.
+ */
+export type KeyCode = `Key${KeyLetter}` | `Digit${KeyDigit}` | "Backquote" | "Backslash" | "BracketLeft" | "BracketRight" | "Comma" | "Equal" | "IntlBackslash" | "IntlRo" | "IntlYen" | "Minus" | "Period" | "Quote" | "Semicolon" | "Slash" | "AltLeft" | "AltRight" | "Backspace" | "CapsLock" | "ContextMenu" | "ControlLeft" | "ControlRight" | "Enter" | "MetaLeft" | "MetaRight" | "ShiftLeft" | "ShiftRight" | "Space" | "Tab" | "Convert" | "KanaMode" | "NonConvert" | "Delete" | "End" | "Help" | "Home" | "Insert" | "PageDown" | "PageUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | `Numpad${KeyDigit}` | "NumLock" | "NumpadAdd" | "NumpadComma" | "NumpadDecimal" | "NumpadDivide" | "NumpadEnter" | "NumpadEqual" | "NumpadMultiply" | "NumpadSubtract" | "Escape" | KeyFunction | "PrintScreen" | "ScrollLock" | "Pause";
+/** The primary pointer (left mouse button, a finger, a pen tip) or the secondary one (right mouse button, pen barrel). */
+export type PointerBinding = "pointer.primary" | "pointer.secondary";
+/** What an action can be bound to: a key by `KeyboardEvent.code`, or a pointer button. */
+export type InputBinding = KeyCode | PointerBinding;
+/** A named action and the inputs that drive it. Made by `defineAction`. */
+export interface ActionType {
+	readonly name: string;
+	readonly bindings: readonly InputBinding[];
+}
+/**
+ * Defines an action: something the player does, bound to keys and pointer buttons. Read it with
+ * `ctx.input.pressed(Action)`, `released` and `held`. The action is held while any of its
+ * bindings is down.
+ *
+ * Keys are `KeyboardEvent.code` values, which name the physical key: `"KeyA"`, `"Space"`,
+ * `"ArrowLeft"`, `"Enter"`. Pointers are `"pointer.primary"` (mouse left button, a finger or a
+ * pen) and `"pointer.secondary"` (mouse right button). Prefix names with a namespace for your
+ * game or library; names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const Tap = defineAction("myGame.tap", ["pointer.primary", "Space", "Enter"]);
+ */
+export declare function defineAction(name: string, bindings: readonly InputBinding[]): ActionType;
+/** The primary pointer as of the start of this frame. */
+export interface InputPointer {
+	/** Logical x of the last pointer position: design units with `pixi2d({ design })`, else CSS pixels from the canvas's left edge. */
+	readonly x: number;
+	/** Logical y of the last pointer position. */
+	readonly y: number;
+	/** The primary pointer is down: left mouse button, a finger or a pen tip. `consumePointer` does not change it. */
+	readonly down: boolean;
+	/** The pointer is over the canvas. False after a finger lifts or the mouse leaves. */
+	readonly inside: boolean;
+}
+/**
+ * Actions and the pointer, latched when each frame starts: every system in a frame, in every
+ * stage, reads the same answers. `game.input` and `ctx.input` are the same object.
+ */
+export interface Input {
+	/**
+	 * The action went down this frame: none of its bindings was held last frame and one is now.
+	 * True for exactly one frame, even for a tap that went down and up between two frames. In the
+	 * `Tick` stage it is true in exactly one tick: the first that runs after the press.
+	 */
+	pressed(action: ActionType): boolean;
+	/** The action went up this frame: it was held last frame and no binding is down now. In `Tick`, true in exactly one tick. */
+	released(action: ActionType): boolean;
+	/** Any of the action's bindings is down. A tap is held for the one frame it is pressed in. */
+	held(action: ActionType): boolean;
+	readonly pointer: InputPointer;
+	/**
+	 * Stops this frame's pointer press reaching actions: for UI that handled the tap. Systems that
+	 * run after this call see no `pressed`, `held` or `released` from the pointer bindings until
+	 * the pointer is lifted; keys bound to the same action still count. Systems that ran earlier
+	 * in the frame already saw the press, so the UI system must run first. `pointer.down` still
+	 * reports the pointer. Does nothing in a frame with no new pointer press.
+	 */
+	consumePointer(): void;
+}
+/**
+ * `game.input` in a test game: `Input`, plus calls that stand in for the player. Each takes
+ * effect when the next frame starts, as a DOM event would.
+ */
+export interface TestInput extends Input {
+	/** Presses the action's first binding, as if that key or pointer button went down. */
+	press(action: ActionType): void;
+	/** Releases every binding of the action. */
+	release(action: ActionType): void;
+	/** Moves the primary pointer to logical `x`, `y` over the canvas and presses it. */
+	pointerDown(x: number, y: number): void;
+	/** Moves the primary pointer to logical `x`, `y` over the canvas. */
+	pointerMove(x: number, y: number): void;
+	/** Lifts the primary pointer where it is. */
+	pointerUp(): void;
+}
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
  * same object. `createGame` builds them and passes them to the engine.
  *
- * Seams for M2 waves 2 and 3. Each ticket adds its one field on its own line below, builds the
- * object in `createGame` (src/core/Game.ts, the matching seam there), and needs no other change
- * to Game or the engine to reach both `game` and `ctx`.
+ * A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
  */
 export interface GameServices {
 	/** Singleton values this game owns. See `defineResource`. */
@@ -584,6 +667,8 @@ export interface GameServices {
 	readonly states: States;
 	/** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
 	readonly random: Random;
+	/** Actions and the pointer, latched when each frame starts. See `defineAction`. */
+	readonly input: Input;
 }
 /**
  * What every system receives. An interface so that entry points can add fields:
@@ -748,6 +833,7 @@ export declare class Engine {
 	 */
 	step(dt?: number, frames?: number): void;
 	reset(): Promise<void>;
+	private get input();
 	getTime(): Time;
 	isRunning(): boolean;
 	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
@@ -882,13 +968,7 @@ export interface GameBase extends GameServices {
 	 */
 	inspect(): GameSnapshot;
 }
-/**
- * A running game. Built by `createGame`.
- *
- * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `input` (#36): fields of GameServices
- *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- */
+/** A running game. Built by `createGame`. */
 export interface Game extends GameBase {
 	readonly canvas: HTMLCanvasElement;
 	/** Runs PreInit, Init and PostInit, then resolves when the first frame is scheduled. */
@@ -942,6 +1022,11 @@ export interface TestGame extends GameBase {
 	 * startup system throws. Schedules no frame: call `step(dt)`.
 	 */
 	start(): Promise<void>;
+	/**
+	 * The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`,
+	 * `pointerMove` and `pointerUp`, which stand in for the player and take effect on the next `step`.
+	 */
+	readonly input: TestInput;
 }
 /**
  * Builds a game for tests and tools: the same scheduler, services, states, events and plugins
@@ -1027,106 +1112,6 @@ export interface EntityBuilder {
 	transform(pos?: Vec3Like, rot?: QuatLike, scale?: Vec3Like): EntityBuilder;
 	name(value: string): EntityBuilder;
 }
-export declare class InputState {
-	private down;
-	private pressed;
-	private released;
-	mouseX: number;
-	mouseY: number;
-	mouseDX: number;
-	mouseDY: number;
-	wheelDX: number;
-	wheelDY: number;
-	hasFocus: boolean;
-	beginFrame(): void;
-	isDown(code: string): boolean;
-	wasPressed(code: string): boolean;
-	wasReleased(code: string): boolean;
-	_setKeyDown(code: string): void;
-	_setKeyUp(code: string): void;
-	clearAll(): void;
-}
-export type KeyEvent = {
-	code: string;
-	key: string;
-	repeat: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-export type MouseButtonEvent = {
-	button: number;
-	buttons: number;
-	x: number;
-	y: number;
-	altKey: boolean;
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-export type MouseMoveEvent = {
-	x: number;
-	y: number;
-	dx: number;
-	dy: number;
-	buttons: number;
-	altKey: boolean;
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-export type MouseWheelEvent = {
-	dx: number;
-	dy: number;
-	dz: number;
-	ctrlKey: boolean;
-	altKey: boolean;
-	shiftKey: boolean;
-	metaKey: boolean;
-};
-type FocusEvent$1 = {
-	hasFocus: boolean;
-};
-/** Pointer position in CSS pixels relative to the canvas bounds. */
-export type CanvasPointerEvent = {
-	pointerId: number;
-	pointerType: string;
-	isPrimary: boolean;
-	button: number;
-	buttons: number;
-	x: number;
-	y: number;
-};
-declare const InputEvent$1: {
-	readonly KeyDown: EventType<KeyEvent>;
-	readonly KeyUp: EventType<KeyEvent>;
-	readonly MouseDown: EventType<MouseButtonEvent>;
-	readonly MouseUp: EventType<MouseButtonEvent>;
-	readonly MouseMove: EventType<MouseMoveEvent>;
-	readonly MouseWheel: EventType<MouseWheelEvent>;
-	readonly PointerDown: EventType<CanvasPointerEvent>;
-	readonly PointerUp: EventType<CanvasPointerEvent>;
-	readonly PointerMove: EventType<CanvasPointerEvent>;
-	readonly PointerCancel: EventType<CanvasPointerEvent>;
-	readonly Focus: EventType<FocusEvent$1>;
-};
-export declare function createPointerInputSystems(canvas: HTMLCanvasElement): {
-	init({ events }: SystemCtx): void;
-	exit(): void;
-};
-export type DomInputOptions = {
-	target?: Window | HTMLElement;
-	preventDefaults?: boolean;
-};
-export declare function createDomInputSystems(opts?: DomInputOptions): {
-	readonly init: SyncSystemFn;
-	readonly exit: SyncSystemFn;
-};
-export declare function createInputStateSystem(): {
-	state: InputState;
-	preUpdate: SyncSystemFn;
-};
 /**
  * The engine's `fenrir.Transform` component, typed with Three's classes.
  *
@@ -1406,6 +1391,37 @@ export interface EntityBuilder {
 	mainCamera(options?: PerspectiveCameraOptions): EntityBuilder;
 	uiCamera(options?: OrthographicCameraOptions): EntityBuilder;
 }
+export type DomInputOptions = {
+	target?: Window | HTMLElement;
+	preventDefaults?: boolean;
+};
+export declare function createDomInputSystems(opts?: DomInputOptions): {
+	readonly init: SyncSystemFn;
+	readonly exit: SyncSystemFn;
+};
+export declare class InputState {
+	private down;
+	private pressed;
+	private released;
+	mouseX: number;
+	mouseY: number;
+	mouseDX: number;
+	mouseDY: number;
+	wheelDX: number;
+	wheelDY: number;
+	hasFocus: boolean;
+	beginFrame(): void;
+	isDown(code: string): boolean;
+	wasPressed(code: string): boolean;
+	wasReleased(code: string): boolean;
+	_setKeyDown(code: string): void;
+	_setKeyUp(code: string): void;
+	clearAll(): void;
+}
+export declare function createInputStateSystem(): {
+	state: InputState;
+	preUpdate: SyncSystemFn;
+};
 /**
  * Runtime skybox instance managed by the skybox system.
  * Uses Three.js scene.background for proper skybox rendering.
@@ -1745,6 +1761,57 @@ export declare class SkyboxUtils {
 	 */
 	static cloneSkyboxDescriptor(descriptor: SkyboxDescriptor): SkyboxDescriptor;
 }
+export type KeyEvent = {
+	code: string;
+	key: string;
+	repeat: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+export type MouseButtonEvent = {
+	button: number;
+	buttons: number;
+	x: number;
+	y: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+export type MouseMoveEvent = {
+	x: number;
+	y: number;
+	dx: number;
+	dy: number;
+	buttons: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+export type MouseWheelEvent = {
+	dx: number;
+	dy: number;
+	dz: number;
+	ctrlKey: boolean;
+	altKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+};
+type FocusEvent$1 = {
+	hasFocus: boolean;
+};
+declare const InputEvent$1: {
+	readonly KeyDown: EventType<KeyEvent>;
+	readonly KeyUp: EventType<KeyEvent>;
+	readonly MouseDown: EventType<MouseButtonEvent>;
+	readonly MouseUp: EventType<MouseButtonEvent>;
+	readonly MouseMove: EventType<MouseMoveEvent>;
+	readonly MouseWheel: EventType<MouseWheelEvent>;
+	readonly Focus: EventType<FocusEvent$1>;
+};
 /**
  * 32-bit collision layer system similar to Godot
  * Each layer is represented as a single bit (1, 2, 4, 8, etc.)

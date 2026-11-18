@@ -17,6 +17,7 @@ import type { ILogger } from "./ILogger";
 import { NullLogger } from "./NullLogger";
 import { Resources, clearResources } from "./Resource";
 import { GameStates, afterSystem, beforeStage } from "./State";
+import { InputImpl } from "./Input/Input";
 
 export type EngineOptions = {
   scheduler: Scheduler;
@@ -83,10 +84,12 @@ export class Engine {
     this.logger = opts.logger ?? new NullLogger();
     const clock = opts.clock ?? realClock;
     this.time = new Time(clock);
+    const resources = new Resources();
     this.services = opts.services ?? {
-      resources: new Resources(),
+      resources,
       random: new Random(seedFromClock(clock)),
       states: new GameStates(),
+      input: new InputImpl(resources),
     };
     this.loop = opts.loop ?? "animationFrame";
     this.beforeStep = opts.beforeStep;
@@ -157,6 +160,8 @@ export class Engine {
     const ctx = (run.ctx = this.createSystemCtx(run));
     // Immediate listeners receive this run's ctx, from PreInit until the last cleanup.
     beginEventRun(this.events, ctx);
+    // Listeners for this run; removed when it stops or rolls back.
+    this.input.start(ctx.signal, ctx.onCleanup);
     this.time.reset();
     this.frames = { count: 0, elapsed: 0 };
 
@@ -215,6 +220,8 @@ export class Engine {
     this.scheduler.flush();
     this.time.update(this.maxFrameDelta, dt);
     this.frames.count++, (this.frames.elapsed = this.time.elapsed);
+    // Edges are latched here, so every system in the frame reads the same input.
+    this.input.latch();
     this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
 
     const step = this.time.fixedDelta;
@@ -222,7 +229,12 @@ export class Engine {
     if (!Number.isFinite(step) || step <= 0) throw new RangeError(`time.fixedDelta must be a positive finite number of seconds, got ${step}`);
 
     for (let ticks = 0; this.time.accumulator >= step && ticks < this.maxTicksPerFrame; ticks++) {
-      this.scheduler.runSyncStage(Schedule.Tick, ctx);
+      this.input.tick(true);
+      try {
+        this.scheduler.runSyncStage(Schedule.Tick, ctx);
+      } finally {
+        this.input.tick(false);
+      }
       this.time.accumulator -= step;
       if (run.state !== live) return;
     }
@@ -356,6 +368,10 @@ export class Engine {
     clearResources(this.services.resources);
     this.time.reset();
     if (wasRunning) await this.run();
+  }
+
+  private get input(): InputImpl {
+    return this.services.input as InputImpl;
   }
 
   public getTime(): Time {

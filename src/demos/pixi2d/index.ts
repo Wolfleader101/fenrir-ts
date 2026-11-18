@@ -10,12 +10,13 @@ initDemoInfo("2D Demo (PixiJS)", [
   "Designed on a 390 x 520 portrait grid",
   "Full-bleed background, frame inside the safe area",
   "Resize the window: the frame grows taller or centres",
+  "Tap, click, Space or Enter: the counter reads ctx.input",
 ]);
 
 const logger = new ConsoleLogger();
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
-// createGame with pixi2d({ design }), plus DOM input and input state.
+// createGame with pixi2d({ design }). Input comes with createGame: a tap, click, Space or Enter counts a tap.
 // debug: true puts game.inspect on window.__FENRIR__: try window.__FENRIR__.inspect() in the console.
 const { game, pixi } = await createDemoGame2D(canvas, { logger, design: DESIGN, debug: true });
 

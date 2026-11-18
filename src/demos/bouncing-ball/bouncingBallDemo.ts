@@ -4,7 +4,7 @@ import { EntityBuilder } from "@/index";
 import type { IAssetStore } from "@/index";
 import { SkyboxUtils } from "@/3d";
 import { PhysicsBody } from "@/physics";
-import { InputEvent } from "@/index";
+import { InputEvent } from "@/3d";
 
 /**
  * Bouncing Ball Demo

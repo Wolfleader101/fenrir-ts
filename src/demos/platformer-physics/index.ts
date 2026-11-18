@@ -9,7 +9,8 @@ import { initDemoNav, initDemoInfo } from "@/shared/demoNav.ts";
 initDemoNav("platformer-physics.html");
 initDemoInfo("2D Platformer (Physics Engine)", [
   "WASD or Arrow keys to move",
-  "SPACE to jump",
+  "SPACE, W, up or a tap to jump",
+  "Click the game first: keys go to the focused canvas",
   "Powered by Jolt Physics Engine",
   "Realistic physics simulation",
   "Platform collision detection",
@@ -18,10 +19,10 @@ initDemoInfo("2D Platformer (Physics Engine)", [
 const logger = new ConsoleLogger();
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
-// createGame with the pixi2d plugin, plus DOM input and input state
-const { game, input } = await createDemoGame2D(canvas, { logger, physics: createPhysicsSystem() });
+// createGame with the pixi2d plugin. Input comes with createGame; click the canvas to give it the keys.
+const { game } = await createDemoGame2D(canvas, { logger, physics: createPhysicsSystem() });
 
-const demo = createPlatformerPhysicsDemo(input.state);
+const demo = createPlatformerPhysicsDemo();
 
 game
   .addSystem(Schedule.Init, demo.init, { name: "demo.platformerPhysics.init" })

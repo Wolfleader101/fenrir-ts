@@ -32,7 +32,8 @@ afterAll(() => {
 
 describe("fenrir-ts core public API", () => {
   it("exports no renderer, physics or 3D setup", () => {
-    for (const name of ["bootstrapEngine", "createPixiRendererSystem", "PixiRenderer", "Renderable2D", "Camera", "SkyboxUtils", "PhysicsBody"]) {
+    for (const name of ["bootstrapEngine", "createPixiRendererSystem", "PixiRenderer", "Renderable2D", "Camera", "SkyboxUtils", "PhysicsBody",
+      "createDomInputSystems", "createInputStateSystem", "createPointerInputSystems", "InputState", "InputEvent"]) {
       expect(core).not.toHaveProperty(name);
     }
   });
@@ -149,6 +150,44 @@ describe("fenrir-ts core public API", () => {
     game.clock.advance(5_000);
     expect(ticks).toBe(30);
     expect(now).toBeCloseTo(1_700_000_000_500, 6);
+    await game.stop();
+  });
+
+  it("reads actions on ctx.input, driven by a test game's input and by keys on the canvas", async () => {
+    const { Schedule, createGame, createTestGame, defineAction, NullLogger } = core;
+    type Input = import("@/index").Input;
+    type SystemCtx = import("@/index").SystemCtx;
+    const Tap = defineAction("publicApi.input.tap", ["pointer.primary", "Space", "Enter"]);
+    expectTypeOf<SystemCtx["input"]>().toEqualTypeOf<Input>();
+
+    // The same system runs in a test game and in a real one.
+    const taps: Array<{ x: number; y: number }> = [];
+    function countTaps({ input }: SystemCtx): void {
+      if (input.pressed(Tap)) taps.push({ x: input.pointer.x, y: input.pointer.y });
+    }
+
+    const test = await createTestGame({ seed: 1, logger: new NullLogger() });
+    test.addSystem(Schedule.Update, countTaps);
+    await test.start();
+    test.input.pointerDown(120, 340);
+    test.input.pointerUp();
+    test.step(1 / 60, 2);
+    test.input.press(Tap);
+    test.step();
+    expect(taps).toEqual([{ x: 120, y: 340 }, { x: 120, y: 340 }]);
+    await test.stop();
+
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const canvas = document.createElement("canvas");
+    const game = await createGame({ canvas, logger: new NullLogger() });
+    game.addSystem(Schedule.Update, countTaps);
+    await game.run();
+    game.pause();
+    const space = new KeyboardEvent("keydown", { code: "Space", cancelable: true });
+    canvas.dispatchEvent(space);
+    game.step();
+    expect([taps.length, space.defaultPrevented, canvas.tabIndex]).toEqual([3, true, 0]);
     await game.stop();
   });
 

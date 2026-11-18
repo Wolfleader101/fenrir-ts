@@ -7,14 +7,13 @@ import type { SceneManager } from "./SceneManager";
 import type { Random } from "./Random";
 import type { States } from "./State";
 import type { Time } from "./Time";
+import type { Input } from "./Input/Input";
 
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
  * same object. `createGame` builds them and passes them to the engine.
  *
- * Seams for M2 waves 2 and 3. Each ticket adds its one field on its own line below, builds the
- * object in `createGame` (src/core/Game.ts, the matching seam there), and needs no other change
- * to Game or the engine to reach both `game` and `ctx`.
+ * A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
  */
 export interface GameServices {
   /** Singleton values this game owns. See `defineResource`. */
@@ -26,7 +25,8 @@ export interface GameServices {
   /** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
   readonly random: Random;
 
-  // #36 input actions: readonly input: Input;
+  /** Actions and the pointer, latched when each frame starts. See `defineAction`. */
+  readonly input: Input;
 }
 
 /**

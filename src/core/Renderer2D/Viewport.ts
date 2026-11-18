@@ -1,4 +1,4 @@
-// Plain data and maths, no Pixi: core's input (#36) imports this file to report pointers in
+// Plain data and maths, no Pixi: core's input (src/core/Input/Input.ts) imports this file to report pointers in
 // logical units, and `pnpm check:imports` forbids core reaching pixi.js. Keep it that way.
 import { defineEvent } from "../EventQueue";
 import { defineResource } from "../Resource";

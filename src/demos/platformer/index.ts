@@ -8,7 +8,8 @@ import { initDemoNav, initDemoInfo } from "@/shared/demoNav.ts";
 initDemoNav("platformer.html");
 initDemoInfo("2D Platformer", [
   "WASD or Arrow keys to move",
-  "SPACE to jump",
+  "SPACE, W, up or a tap to jump",
+  "Click the game first: keys go to the focused canvas",
   "Collect coins and reach the goal",
   "Simple 2D physics with gravity",
   "Platform collision detection",
@@ -17,10 +18,10 @@ initDemoInfo("2D Platformer", [
 const logger = new ConsoleLogger();
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
-// createGame with the pixi2d plugin, plus DOM input and input state
-const { game, input } = await createDemoGame2D(canvas, { logger });
+// createGame with the pixi2d plugin. Input comes with createGame; click the canvas to give it the keys.
+const { game } = await createDemoGame2D(canvas, { logger });
 
-const demo = createPlatformerDemo(input.state);
+const demo = createPlatformerDemo();
 
 game
   .addSystem(Schedule.Init, demo.init, { name: "demo.platformer.init" })

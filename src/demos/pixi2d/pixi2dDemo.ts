@@ -1,5 +1,5 @@
 import { Graphics, Text } from "pixi.js";
-import { EntityBuilder, Name, Transform } from "@/index";
+import { EntityBuilder, Name, Transform, defineAction, defineResource } from "@/index";
 import type { AsyncSystemFn, QuatLike, SyncSystemFn } from "@/index";
 import { Renderable2D, Viewport, ViewportResized } from "@/2d";
 import type { PixiRenderer } from "@/2d";
@@ -17,6 +17,12 @@ function setZRotation(q: QuatLike, angle: number): void {
 
 const ORBIT_QUERY = [Transform, Renderable2D, Name] as const;
 
+/** A tap: the primary pointer on the canvas, or Space or Enter while it has focus. */
+export const Tap = defineAction("demo.pixi2d.tap", ["pointer.primary", "Space", "Enter"]);
+
+/** The pointer as the demo last saw it, in design units. Read it with `window.__FENRIR__.inspect()`. */
+export const PointerSeen = defineResource("demo.pixi2d.pointer", () => ({ x: 0, y: 0, down: false, inside: false, taps: 0 }));
+
 /**
  * 2D demo laid out in design units with `pixi2d({ design })`.
  *
@@ -29,6 +35,9 @@ export function create2DDemo(renderer: PixiRenderer) {
   const frame = new Graphics();
   const title = new Text({ text: "Fenrir-TS viewport", style: { fontFamily: "Arial", fontSize: 30, fill: 0xffffff } });
   const footer = new Text({ text: "", style: { fontFamily: "monospace", fontSize: 13, fill: 0xb8e0d2, align: "center" } });
+  const pointerLabel = new Text({ text: "", style: { fontFamily: "monospace", fontSize: 13, fill: 0xf9ca24, align: "center" } });
+  const marker = new Graphics().circle(0, 0, 10).stroke({ color: 0xf9ca24, width: 3 });
+  pointerLabel.anchor.set(0.5, 0);
   title.anchor.set(0.5, 0);
   footer.anchor.set(0.5, 1);
   let centreY = DESIGN.minHeight / 2;
@@ -49,6 +58,7 @@ export function create2DDemo(renderer: PixiRenderer) {
     // Design units: the frame is always 390 wide and at least 520 tall.
     frame.clear().roundRect(4, 4, width - 8, height - 8, 18).fill(0x1a1a2e).stroke({ color: 0x4ecdc4, width: 4 });
     title.position.set(width / 2, 24);
+    pointerLabel.position.set(width / 2, 64);
     footer.position.set(width / 2, height - 16);
     footer.text = [
       `logical ${width} x ${height.toFixed(1)}  scale ${viewport.scale.toFixed(3)}`,
@@ -60,9 +70,9 @@ export function create2DDemo(renderer: PixiRenderer) {
 
   const init: AsyncSystemFn = (ctx) => {
     renderer.backdrop.addChild(backdrop);
-    renderer.root.addChild(frame, title, footer);
+    renderer.root.addChild(frame, title, footer, pointerLabel, marker);
     frame.zIndex = -10;
-    title.zIndex = footer.zIndex = 100;
+    title.zIndex = footer.zIndex = pointerLabel.zIndex = marker.zIndex = 100;
     layout(ctx.resources.get(Viewport));
     ctx.events.on(ViewportResized, layout);
 
@@ -94,12 +104,22 @@ export function create2DDemo(renderer: PixiRenderer) {
       frame.removeFromParent();
       title.removeFromParent();
       footer.removeFromParent();
+      pointerLabel.removeFromParent();
+      marker.removeFromParent();
     });
   };
 
   // Circles orbit the centre of the frame, which moves down as the frame grows taller.
   const update: SyncSystemFn = (ctx) => {
     const time = ctx.time.elapsed;
+    const { pointer } = ctx.input;
+    const seen = ctx.resources.get(PointerSeen);
+    if (ctx.input.pressed(Tap)) seen.taps++;
+    Object.assign(seen, { x: pointer.x, y: pointer.y, down: pointer.down, inside: pointer.inside });
+    marker.position.set(pointer.x, pointer.y);
+    marker.visible = pointer.inside;
+    marker.scale.set(pointer.down ? 1.6 : 1);
+    pointerLabel.text = `pointer ${pointer.x.toFixed(1)}, ${pointer.y.toFixed(1)}${pointer.down ? " down" : ""}  taps ${seen.taps}`;
     ctx.entities.each(ORBIT_QUERY, (_e, transform, _renderable, { name }) => {
       if (name.startsWith("Circle ")) {
         const angle = (Number(name.slice(7)) / 8) * Math.PI * 2 + time * 0.5;

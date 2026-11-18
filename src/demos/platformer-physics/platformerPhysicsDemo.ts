@@ -1,6 +1,7 @@
 import { Vector3, Quaternion } from "three";
 import { EntityBuilder, Transform, defineComponent } from "@/index";
-import type { AsyncSystemFn, InputState, SyncSystemFn } from "@/index";
+import type { AsyncSystemFn, SyncSystemFn } from "@/index";
+import { Jump, MoveLeft, MoveRight } from "../shared/actions2D.ts";
 import { Renderable2D } from "@/2d";
 import {
   PhysicsBody,
@@ -37,7 +38,7 @@ export const PlayerController =
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 
-export function createPlatformerPhysicsDemo(inputState: InputState) {
+export function createPlatformerPhysicsDemo() {
   const init: AsyncSystemFn = async (ctx) => {
     const entities = ctx.scene.entityList;
 
@@ -271,10 +272,10 @@ export function createPlatformerPhysicsDemo(inputState: InputState) {
 
       // Horizontal movement with force
       let moveDir = 0;
-      if (inputState.isDown("ArrowLeft") || inputState.isDown("KeyA")) {
+      if (ctx.input.held(MoveLeft)) {
         moveDir = -1;
       }
-      if (inputState.isDown("ArrowRight") || inputState.isDown("KeyD")) {
+      if (ctx.input.held(MoveRight)) {
         moveDir = 1;
       }
 
@@ -292,9 +293,7 @@ export function createPlatformerPhysicsDemo(inputState: InputState) {
 
       // Jump with impulse
       if (
-        (inputState.wasPressed("Space") ||
-          inputState.wasPressed("ArrowUp") ||
-          inputState.wasPressed("KeyW")) &&
+        ctx.input.pressed(Jump) &&
         controller.canJump
       ) {
         const jumpImpulse = new Vector3(0, -controller.jumpForce, 0);

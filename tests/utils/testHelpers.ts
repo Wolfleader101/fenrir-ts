@@ -12,6 +12,7 @@ import { SceneManager } from "@/core/SceneManager";
 import { NullLogger } from "@/core/NullLogger";
 import { Resources } from "@/core/Resource";
 import { GameStates } from "@/core/State";
+import { InputImpl } from "@/core/Input/Input";
 
 /**
  * A `vi.fn()` with a function name, so it can be registered as a system:
@@ -43,6 +44,7 @@ export function createMockSystemCtx(
     stop: vi.fn(),
     resources: new Resources(),
     states: new GameStates(),
+    input: new InputImpl(new Resources()),
     ...overrides,
   };
 }
