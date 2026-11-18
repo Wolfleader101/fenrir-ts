@@ -54,7 +54,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
@@ -260,6 +260,31 @@ game
 await game.run();
 ```
 
+**Testing a game.** `createTestGame({ seed, now?, plugins?, logger? })` in `src/core/TestGame.ts` builds a `TestGame` on the same `GameImpl` as `createGame`, with no canvas and no `requestAnimationFrame`. `await game.start()` runs the startup stages with `run()`'s rollback, `game.step(dt = 1 / 60, frames = 1)` runs whole frames through `Engine.frame`, and `await game.stop()` runs `Exit` and cleanups. The clock is a `ManualClock`: each step moves it by `dt`, and `game.clock.advance(ms)` moves `time.now()` without a frame. `seed` is required.
+Fixed ticks accumulate from `dt` exactly (the engine passes `dt` to `Time.update` instead of a clock difference). `dt` above `maxFrameDelta` (0.25 s) throws instead of being clamped; at most 8 ticks run per frame, as in the browser. A `TestGame` has `start()` instead of `run()` and no `pause`, `resume` or `canvas`; reading `game.canvas` in a plugin's `install` throws, so `pixi2d` cannot be installed in one. `Game.step` runs only while paused and runs every system, the renderer included.
+
+```ts
+import { Schedule, createTestGame, defineResource, defineState, inState } from "fenrir-ts";
+import type { SystemCtx } from "fenrir-ts";
+import { expect, it } from "vitest";
+
+const Phase = defineState("myGame.Phase", { values: ["casting", "landed"], initial: "casting" });
+const Line = defineResource("myGame.Line", () => ({ ticks: 0 }));
+
+function reel({ resources, states }: SystemCtx): void {
+  if (++resources.get(Line).ticks >= 60) states.set(Phase, "landed");
+}
+
+it("lands after one second of ticks", async () => {
+  const game = await createTestGame({ seed: 1 });
+  game.addSystem(Schedule.Tick, reel, { runIf: inState(Phase, "casting") });
+  await game.start();
+  game.step(1 / 60, 60);
+  expect(game.states.get(Phase)).toBe("landed");
+  await game.stop();
+});
+```
+
 ## Naming rule
 
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
@@ -286,6 +311,7 @@ New work goes into the 2D path: `src/core/Renderer2D/`, input, ECS, scheduling a
 
 - Tests live in `tests/`, mirroring `src/`: `src/core/ECS/View.ts` is tested in `tests/core/ECS/View.test.ts`. Vitest runs in jsdom with globals on. Shared helpers are in `tests/utils/testHelpers.ts`.
 - Every behaviour change needs a test that fails without it.
+- Test engine behaviour that spans frames with `createTestGame` and `game.step(dt)`, not by stubbing `requestAnimationFrame` and calling the captured callback. Stub the loop only in tests about the browser loop itself (`run()`, `pause()`, `resume()`, the rAF callback).
 - Never assert on how long something took. Tests must pass on a slow or busy machine: stub `performance.now` with `vi.spyOn` or use `vi.useFakeTimers()`, and check the property that keeps code fast (call counts, a cached instance, work per matching entity) instead of elapsed time. Speed goes in a benchmark: `tests/bench/*.bench.ts`, run with `pnpm bench`, which nothing asserts on.
 - `tests/publicApi.test.ts` exercises the core entry point the way a consumer does, and `tests/publicApi.2d.test.ts`, `publicApi.3d.test.ts` and `publicApi.physics.test.ts` do the same for the other entries. Extend the one for the entry whose public API you change.
 - A change to public API updates `README.md` in the same change.
@@ -304,7 +330,6 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- `createTestGame` and a headless `step`
 - `inspect()`, `debug`, viewport scaling (`design`, `safeArea`, `maxResolution` on `pixi2d`), input actions (`game.input`), canvas UI, audio, timers and storage
 
 Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`input`), the `services` object and `GameOptions` in `src/core/Game.ts`, the "Seams" comment in the `Game` interface for methods, and `Pixi2DOptions` in `src/core/Renderer2D/pixi2d.ts` for the viewport.

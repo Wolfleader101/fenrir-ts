@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGame } from "@/core/Game";
+import { createTestGame } from "@/core/TestGame";
 import type { Game, Plugin } from "@/core/Game";
 import { AssetStore } from "@/core/Assets/AssetStore";
 import { EventBus } from "@/core/EventBus";
@@ -276,8 +277,7 @@ describe("Game lifecycle", () => {
   });
 
   it("aborts the signal and runs cleanups in reverse after exit systems on stop", async () => {
-    stubFrames();
-    const game = await createGame({ canvas: canvas(), logger });
+    const game = await createTestGame({ seed: 1, logger });
     const order: string[] = [];
     let signal: AbortSignal | undefined;
     game.addSystem(Schedule.Init, (ctx) => {
@@ -286,7 +286,7 @@ describe("Game lifecycle", () => {
       ctx.onCleanup(() => { order.push("cleanup 2"); });
     }, { name: "init" });
     game.addSystem(Schedule.Exit, () => { order.push("exit"); }, { name: "exit" });
-    await game.run();
+    await game.start();
     expect(signal?.aborted).toBe(false);
     await game.stop();
     expect(signal?.aborted).toBe(true);
@@ -310,23 +310,20 @@ describe("Game lifecycle", () => {
   });
 
   it("evaluates runIf each frame", async () => {
-    const { frame } = stubFrames();
-    const game = await createGame({ canvas: canvas(), logger });
+    const game = await createTestGame({ seed: 1, logger });
     let on = false;
     const update = vi.fn();
     game.addSystem(Schedule.Update, update, { name: "gated", runIf: () => on });
-    await game.run();
-    frame();
+    await game.start();
+    game.step();
     on = true;
-    frame();
-    frame();
+    game.step(1 / 60, 2);
     expect(update).toHaveBeenCalledTimes(2);
     await game.stop();
   });
 
   it("replaces and removes systems while running, from the next frame", async () => {
-    const { frame } = stubFrames();
-    const game = await createGame({ canvas: canvas(), logger });
+    const game = await createTestGame({ seed: 1, logger });
     const ran: string[] = [];
     game.addSystem(Schedule.PreUpdate, function hotReload() {
       if (ran.length === 0) {
@@ -337,23 +334,22 @@ describe("Game lifecycle", () => {
     game.addSystem(Schedule.Update, function applyDamage() { ran.push("applyDamage"); }, { after: "movePlayer" });
     game.addSystem(Schedule.Update, function movePlayer() { ran.push("movePlayer"); });
     game.addSystem(Schedule.PostUpdate, function render() { ran.push("render"); });
-    await game.run();
+    await game.start();
 
-    frame();
+    game.step();
     expect(ran).toEqual(["movePlayer", "applyDamage", "render"]);
-    frame();
+    game.step();
     expect(ran).toEqual(["movePlayer", "applyDamage", "render", "movePlayer", "applyDamage v2"]);
     await game.stop();
   });
 
   it("adds a system from an Init system so it runs from the next startup stage", async () => {
-    stubFrames();
-    const game = await createGame({ canvas: canvas(), logger });
+    const game = await createTestGame({ seed: 1, logger });
     const postInit = vi.fn();
     game.addSystem(Schedule.Init, function addMore() {
       game.addSystem(Schedule.PostInit, postInit, { name: "added" });
     });
-    await game.run();
+    await game.start();
     expect(postInit).toHaveBeenCalledOnce();
     await game.stop();
   });

@@ -34,6 +34,15 @@ export type EngineOptions = {
   services?: GameServices;
   /** Where `ctx.time` reads time. Defaults to the real clock; pass one you control in tests. */
   clock?: Clock;
+  /**
+   * What drives frames once startup finishes. `"animationFrame"`, the default, schedules them
+   * with `requestAnimationFrame`. `"step"` schedules none: the engine stays paused after
+   * startup, frames run only through `step(dt)`, and `resume()` throws. `createTestGame` uses
+   * `"step"`.
+   */
+  loop?: "animationFrame" | "step";
+  /** Called before each frame that `step` runs, with its `dt`. The test game advances its clock here. */
+  beforeStep?: (dt: number) => void;
 };
 
 type Lifecycle = "starting" | "running" | "paused" | "stopping";
@@ -58,8 +67,12 @@ export class Engine {
   private readonly logger: ILogger;
   private readonly services: GameServices;
 
+  private readonly loop: "animationFrame" | "step";
+  private readonly beforeStep?: (dt: number) => void;
+
   private activeRun?: EngineRun;
   private rafId: number | null = null;
+  private stepping = false;
 
   constructor(opts: EngineOptions) {
     this.scheduler = opts.scheduler;
@@ -73,6 +86,8 @@ export class Engine {
       random: new Random(seedFromClock(clock)),
       states: new GameStates(),
     };
+    this.loop = opts.loop ?? "animationFrame";
+    this.beforeStep = opts.beforeStep;
     this.maxFrameDelta = opts.maxFrameDelta ?? 0.25;
     this.maxTicksPerFrame = opts.maxTicksPerFrame ?? 8;
     if (!Number.isFinite(this.maxFrameDelta) || this.maxFrameDelta <= 0) {
@@ -150,8 +165,14 @@ export class Engine {
       }
       if (!run.controller.signal.aborted) {
         this.time.reset();
-        run.state = "running";
-        this.scheduleFrame(run, ctx);
+        if (this.loop === "step") {
+          // Frames come only from step(dt), which runs while paused.
+          run.state = "paused";
+          this.time.pause();
+        } else {
+          run.state = "running";
+          this.scheduleFrame(run, ctx);
+        }
         return;
       }
     } catch (error) {
@@ -172,7 +193,7 @@ export class Engine {
       this.rafId = null;
 
       try {
-        this.frame(run, ctx);
+        this.frame(run, ctx, "running");
       } catch (error) {
         ctx.stop();
         throw error;
@@ -182,25 +203,29 @@ export class Engine {
     });
   }
 
-  private frame(run: EngineRun, ctx: SystemCtx): void {
+  /**
+   * One frame. The browser loop calls it with `live` "running"; `step` calls it with "paused"
+   * and an exact `dt`. A system that stops or pauses the run ends the frame early.
+   */
+  private frame(run: EngineRun, ctx: SystemCtx, live: Lifecycle, dt?: number): void {
     // Systems added, replaced or removed since the last frame take effect now.
     this.scheduler.flush();
-    this.time.update(this.maxFrameDelta);
+    this.time.update(this.maxFrameDelta, dt);
     this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
 
     const step = this.time.fixedDelta;
-    if (run.state !== "running") return;
+    if (run.state !== live) return;
     if (!Number.isFinite(step) || step <= 0) throw new RangeError(`time.fixedDelta must be a positive finite number of seconds, got ${step}`);
 
     for (let ticks = 0; this.time.accumulator >= step && ticks < this.maxTicksPerFrame; ticks++) {
       this.scheduler.runSyncStage(Schedule.Tick, ctx);
       this.time.accumulator -= step;
-      if (run.state !== "running") return;
+      if (run.state !== live) return;
     }
     if (this.time.accumulator >= step) this.time.accumulator %= step;
 
     this.scheduler.runSyncStage(Schedule.Update, ctx);
-    if (run.state !== "running") return;
+    if (run.state !== live) return;
     this.scheduler.runSyncStage(Schedule.PostUpdate, ctx);
     this.events.update();
   }
@@ -265,11 +290,59 @@ export class Engine {
   }
 
   public resume(): void {
+    if (this.loop === "step") throw new Error("A test game has no frame loop to resume. Run frames with step(dt).");
     const run = this.activeRun;
     if (run?.state !== "paused") return;
     run.state = "running";
     this.time.resume();
     this.scheduleFrame(run, run.ctx!);
+  }
+
+  /**
+   * Runs `frames` whole frames now, each `dt` seconds long, through the same frame body as the
+   * browser loop: PreUpdate, as many Tick stages as the accumulator holds (at most
+   * `maxTicksPerFrame`, the rest dropped), Update, PostUpdate, then the event buffers advance.
+   *
+   * Runs only while paused: after `pause()`, or after startup with `loop: "step"`. `dt` is in
+   * seconds, from 0 up to `maxFrameDelta` (0.25 by default); a longer `dt` throws instead of
+   * being clamped, because a clamped step would silently simulate less time than asked for.
+   * If a system stops the run, the remaining frames are skipped. If a system throws, the run
+   * stops, as in the browser loop, and the error propagates.
+   */
+  public step(dt = 1 / 60, frames = 1): void {
+    const max = this.maxFrameDelta;
+    if (!(dt >= 0 && dt <= max)) {
+      throw new RangeError(
+        `step(dt) runs one frame of 0 to ${max} s (the frame-delta clamp), got ${dt}.` +
+        (dt > max ? ` To advance ${dt} s, step more frames: step(1 / 60, ${Math.ceil(dt * 60)}).` : ""),
+      );
+    }
+    if (!Number.isSafeInteger(frames) || frames < 1) {
+      throw new RangeError(`step(dt, frames) needs frames to be a whole number of at least 1, got ${frames}.`);
+    }
+    if (this.stepping) throw new Error("step(dt) was called from inside a frame. Call it from test or tool code, not from a system.");
+
+    const run = this.activeRun;
+    if (run?.state !== "paused") {
+      throw new Error(this.loop === "step"
+        ? "step(dt) needs a started game. Await start() first, and start() again after stop()."
+        : `step(dt) runs only while the game is paused. ${run?.state === "running" ? "Call pause() first" : "Await run(), then pause()"}: requestAnimationFrame drives a running game.`);
+    }
+
+    this.stepping = true;
+    try {
+      for (let i = 0; i < frames && this.activeRun === run && run.state === "paused"; i++) {
+        this.beforeStep?.(dt);
+        try {
+          this.frame(run, run.ctx!, "paused", dt);
+        } catch (error) {
+          run.ctx!.stop();
+          throw error;
+        }
+      }
+    } finally {
+      this.stepping = false;
+    }
   }
 
   public async reset(): Promise<void> {
