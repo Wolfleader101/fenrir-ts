@@ -11,27 +11,36 @@ The version is 0.x: breaking changes are allowed.
 
 ## Commands
 
-The lockfile needs pnpm 10. If your `pnpm` is a different major version, run pnpm 10 through `dlx`:
+Use pnpm 11 or newer. `packageManager` in `package.json` pins the version, and pnpm switches to it on its own.
+pnpm settings live in `pnpm-workspace.yaml`, not in `package.json`: the `vite` to `rolldown-vite` override and `allowBuilds`.
 
 ```sh
-pnpm dlx pnpm@10.32.1 install --frozen-lockfile --ignore-scripts --node-linker hoisted
-pnpm dlx pnpm@10.32.1 run test:run     # vitest run, all tests once
-pnpm dlx pnpm@10.32.1 run type-check   # tsc --noEmit over src and tests
-pnpm dlx pnpm@10.32.1 run build:lib    # library build into dist/
-pnpm dlx pnpm@10.32.1 run dev          # Vite dev server for the demos, http://localhost:5173
+pnpm install --frozen-lockfile
+pnpm test:run     # vitest run, all tests once
+pnpm type-check   # tsc --noEmit over src and tests
+pnpm build:lib    # library build into dist/
+pnpm build:demos  # production build of the demo pages
+pnpm dev          # Vite dev server for the demos, http://localhost:5173
 ```
 
-Run one test file with `pnpm dlx pnpm@10.32.1 exec vitest run tests/core/Scheduler.test.ts`.
+Run one test file with `pnpm exec vitest run tests/core/Scheduler.test.ts`.
 Demo pages are the `*.html` files at the repo root, for example `/pixi2d.html`. Their code is in `src/demos/`.
 
-### Known failures on `main`
+### What CI runs
 
-These fail before you change anything. Do not treat them as your breakage, and do not add to them.
+Every pull request and every push to `main` runs these, in this order. All of them must pass, and all of them pass on `main`, so a failure is yours.
 
-- `type-check` reports 211 errors, all in `tests/`, `src/demos/` and `src/editor/`. Fixed by [#20](https://github.com/Wolfleader101/fenrir-ts/issues/20).
-- `tests/core/Renderer/ThreeRenderer.test.ts` fails to load, so vitest reports 1 failed file. All tests that load pass. Fixed by [#21](https://github.com/Wolfleader101/fenrir-ts/issues/21).
+```sh
+pnpm type-check   # no errors allowed
+pnpm check:docs   # every ts block in README.md and AGENTS.md compiles against src/
+pnpm test:run
+pnpm build:lib
+pnpm check:size   # each entry in dist/ stays within size-budget.json
+```
 
-Compare error and test counts before and after your change. There is no CI yet ([#22](https://github.com/Wolfleader101/fenrir-ts/issues/22)), so run the commands yourself.
+If you change a public API, update the examples that show it; `check:docs` fails until they compile. A README fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`.
+
+If `check:size` fails, find what grew before raising the budget. Raise it with `node scripts/check-size.mjs --update` only when the growth is intended, and say so in the PR.
 
 ## Entry points
 

@@ -32,6 +32,8 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:demos": "vite build",
     "type-check": "tsc --noEmit",
+    "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md",
+    "check:size": "node scripts/check-size.mjs",
     "types:bundle": "dts-bundle-generator -o public/fenrir.d.ts --external-imports=three --no-banner src/core/index.ts",
     "preview": "vite preview",
     "test": "vitest",
@@ -55,6 +57,7 @@
   ],
   "author": "",
   "license": "MIT",
+  "packageManager": "pnpm@12.18.0",
   "repository": {
     "type": "git",
     "url": ""
@@ -80,11 +83,6 @@
     "vite-plugin-dts": "^4.5.4",
     "vite-plugin-vercel": "^9.1.1",
     "vitest": "^4.0.16"
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "npm:rolldown-vite@7.2.5"
-    }
   },
   "dependencies": {
     "@lit-labs/signals": "^0.2.0",

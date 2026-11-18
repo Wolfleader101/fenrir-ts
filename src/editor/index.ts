@@ -3,6 +3,7 @@ export {
   bootstrapEditor,
   type EditorBootstrapOptions,
   type BootstrappedEditor,
+  type MonacoWorkerLoaders,
 } from "./bootstrap";
 
 // Core interfaces
@@ -16,7 +17,7 @@ export type {
 } from "./interfaces";
 
 // Types
-export type { EngineState, UserScript, OperationResult } from "./types";
+export type { EngineState, UserScript, OperationResult, SandboxContext } from "./types";
 
 // Events
 export type { ErrorEvent, ErrorHandler, ErrorBus } from "./events";
