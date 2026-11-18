@@ -97,36 +97,19 @@ export declare class AssetStore implements IAssetStore {
 	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 	clear(): void;
 }
-export type EventType<T> = symbol & {
-	__eventType?: T;
+export declare const Schedule: {
+	readonly PreInit: "preInit";
+	readonly Init: "init";
+	readonly PostInit: "postInit";
+	readonly PreUpdate: "preUpdate";
+	readonly Tick: "tick";
+	readonly Update: "update";
+	readonly PostUpdate: "postUpdate";
+	readonly Exit: "exit";
 };
-/**
- * Defines an event type. As with components, the name is the identity: two
- * calls with the same name return the same type. Prefix names with a namespace
- * for your game or library. Names starting with `fenrir.` are reserved for the engine.
- *
- * @example
- * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
- */
-export declare function defineEvent<T>(name: string): EventType<T>;
-export type EventReader<T> = {
-	read(): readonly T[];
-};
-export declare class EventQueue<T> {
-	private nextSequence;
-	private current;
-	private previous;
-	private combined;
-	private combinedDirty;
-	send(ev: T): void;
-	/** called once per frame, after all stages */
-	update(): void;
-	/** returns stable array until next send/update */
-	read(): readonly T[];
-	/** A reader has its own cursor over the queue's two retained frame buffers. */
-	createReader(): EventReader<T>;
-	clearAll(): void;
-}
+export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
+export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
+export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
 /**
  * Sparse-set component pool (EnTT-style).
  * - sparse[entityId] = denseIndex + 1 (0 means not present)
@@ -291,6 +274,65 @@ export declare class EntityList {
 	private detachFromParent;
 	private destroyChildrenRecursive;
 }
+export type EventType<T> = symbol & {
+	__eventType?: T;
+};
+/**
+ * Defines an event type. As with components, the name is the identity: two
+ * calls with the same name return the same type. Prefix names with a namespace
+ * for your game or library. Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
+ */
+export declare function defineEvent<T>(name: string): EventType<T>;
+export type EventReader<T> = {
+	read(): readonly T[];
+};
+export declare class EventQueue<T> {
+	private nextSequence;
+	private current;
+	private previous;
+	private combined;
+	private combinedDirty;
+	send(ev: T): void;
+	/** called once per frame, after all stages */
+	update(): void;
+	/** returns stable array until next send/update */
+	read(): readonly T[];
+	/** A reader has its own cursor over the queue's two retained frame buffers. */
+	createReader(): EventReader<T>;
+	clearAll(): void;
+}
+/**
+ * An immediate listener: called synchronously inside `send`, with the payload and the context
+ * of the run that is going. It may be async; the promise is not awaited, and a rejection is
+ * logged like a throw.
+ */
+export type EventHandler<T> = (payload: T, ctx: SystemCtx) => void;
+export declare class EventBus {
+	private queues;
+	private listeners;
+	private ctx?;
+	private depth;
+	private getQueue;
+	/**
+	 * Buffers the event for readers, then calls the immediate listeners in registration order.
+	 * Listeners are called only while a run is going; outside one the event is only buffered.
+	 */
+	send<T>(type: EventType<T>, ev: T): void;
+	/**
+	 * Calls `handler` at every `send` of `type` for the rest of the current run, and removes it
+	 * when the run stops. Call it from a system. Returns a function that removes it sooner.
+	 * For a listener that outlives a run, use `game.on`.
+	 */
+	on<T>(type: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
+	private listen;
+	read<T>(type: EventType<T>): readonly T[];
+	createReader<T>(type: EventType<T>): EventReader<T>;
+	update(): void;
+	clear(): void;
+}
 /**
  * A typed handle to a resource: one value of type `T` per game. Made by `defineResource`.
  * The name is the identity: two handles with the same name read and write the same value.
@@ -446,19 +488,6 @@ export declare class Random {
 	pick<T>(items: readonly T[]): T;
 	private nextUint32;
 }
-export declare const Schedule: {
-	readonly PreInit: "preInit";
-	readonly Init: "init";
-	readonly PostInit: "postInit";
-	readonly PreUpdate: "preUpdate";
-	readonly Tick: "tick";
-	readonly Update: "update";
-	readonly PostUpdate: "postUpdate";
-	readonly Exit: "exit";
-};
-export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
-export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
-export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
 /**
  * A state machine's definition: its name, its values and the value each run starts at.
  * Made by `defineState`. `V` is the union of the value strings.
@@ -528,7 +557,14 @@ export declare class Time {
 	get elapsed(): number;
 	/** Wall-clock milliseconds since the Unix epoch. Use instead of `Date.now()`. */
 	now(): number;
-	update(maxDelta?: number): void;
+	/**
+	 * Starts a frame: sets `delta`, clamped to `maxDelta`, and adds it to the accumulator.
+	 * Without `frameSeconds`, the frame lasted since the last update, read from the clock. With
+	 * it, the frame lasted exactly that long, which is how `game.step(dt)` runs frames: the delta
+	 * is `dt` itself, not a clock difference, so fixed ticks add up without rounding. A frame
+	 * stepped while paused counts towards `elapsed`.
+	 */
+	update(maxDelta?: number, frameSeconds?: number): void;
 	pause(): void;
 	resume(): void;
 	reset(): void;
@@ -568,35 +604,6 @@ export interface SystemCtx extends GameServices {
 }
 export type SyncSystemFn = (ctx: SystemCtx) => void;
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
-/**
- * An immediate listener: called synchronously inside `send`, with the payload and the context
- * of the run that is going. It may be async; the promise is not awaited, and a rejection is
- * logged like a throw.
- */
-export type EventHandler<T> = (payload: T, ctx: SystemCtx) => void;
-export declare class EventBus {
-	private queues;
-	private listeners;
-	private ctx?;
-	private depth;
-	private getQueue;
-	/**
-	 * Buffers the event for readers, then calls the immediate listeners in registration order.
-	 * Listeners are called only while a run is going; outside one the event is only buffered.
-	 */
-	send<T>(type: EventType<T>, ev: T): void;
-	/**
-	 * Calls `handler` at every `send` of `type` for the rest of the current run, and removes it
-	 * when the run stops. Call it from a system. Returns a function that removes it sooner.
-	 * For a listener that outlives a run, use `game.on`.
-	 */
-	on<T>(type: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
-	private listen;
-	read<T>(type: EventType<T>): readonly T[];
-	createReader<T>(type: EventType<T>): EventReader<T>;
-	update(): void;
-	clear(): void;
-}
 /** How a system is registered. Every field is optional. */
 export interface SystemOptions {
 	/** The system's name. Defaults to the function's name. Unique within a stage. */
@@ -671,6 +678,86 @@ export declare class Scheduler {
 	/** Replaces a stage's entries. While running, the new order is resolved now so errors throw here. */
 	private change;
 }
+export type EngineOptions = {
+	scheduler: Scheduler;
+	sceneManager: SceneManager;
+	events: EventBus;
+	logger?: ILogger | null;
+	/** Maximum simulation delta in seconds. Defaults to 0.25. */
+	maxFrameDelta?: number;
+	/** Maximum fixed updates per animation frame. Defaults to 8. */
+	maxTicksPerFrame?: number;
+	/**
+	 * Fields added to every SystemCtx. `createGame` passes the game's services here. Without
+	 * them, the engine makes its own, with `random` seeded from the clock.
+	 */
+	services?: GameServices;
+	/** Where `ctx.time` reads time. Defaults to the real clock; pass one you control in tests. */
+	clock?: Clock;
+	/**
+	 * What drives frames once startup finishes. `"animationFrame"`, the default, schedules them
+	 * with `requestAnimationFrame`. `"step"` schedules none: the engine stays paused after
+	 * startup, frames run only through `step(dt)`, and `resume()` throws. `createTestGame` uses
+	 * `"step"`.
+	 */
+	loop?: "animationFrame" | "step";
+	/** Called before each frame that `step` runs, with its `dt`. The test game advances its clock here. */
+	beforeStep?: (dt: number) => void;
+};
+export declare class Engine {
+	private readonly time;
+	private readonly scheduler;
+	private readonly maxFrameDelta;
+	private readonly maxTicksPerFrame;
+	private readonly events;
+	private readonly sceneManager;
+	private readonly logger;
+	private readonly services;
+	private readonly loop;
+	private readonly beforeStep?;
+	private activeRun?;
+	private rafId;
+	private stepping;
+	constructor(opts: EngineOptions);
+	private createSystemCtx;
+	run(): Promise<void>;
+	private start;
+	private scheduleFrame;
+	/**
+	 * One frame. The browser loop calls it with `live` "running"; `step` calls it with "paused"
+	 * and an exact `dt`. A system that stops or pauses the run ends the frame early.
+	 */
+	private frame;
+	private cancelFrame;
+	private shutdown;
+	stop(): Promise<void>;
+	pause(): void;
+	resume(): void;
+	/**
+	 * Runs `frames` whole frames now, each `dt` seconds long, through the same frame body as the
+	 * browser loop: PreUpdate, as many Tick stages as the accumulator holds (at most
+	 * `maxTicksPerFrame`, the rest dropped), Update, PostUpdate, then the event buffers advance.
+	 *
+	 * Runs only while paused: after `pause()`, or after startup with `loop: "step"`. `dt` is in
+	 * seconds, from 0 up to `maxFrameDelta` (0.25 by default); a longer `dt` throws instead of
+	 * being clamped, because a clamped step would silently simulate less time than asked for.
+	 * If a system stops the run, the remaining frames are skipped. If a system throws, the run
+	 * stops, as in the browser loop, and the error propagates.
+	 */
+	step(dt?: number, frames?: number): void;
+	reset(): Promise<void>;
+	getTime(): Time;
+	isRunning(): boolean;
+	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
+	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;
+	addSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
+	addSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
+	/** Swaps the function of the system called `name`, keeping its position and options. */
+	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
+	/** Removes the system called `name`. While running, it stops from the next frame. */
+	removeSystem(name: string): this;
+	getScheduler(): Scheduler;
+}
 /**
  * Something that attaches to a game: a renderer, and later physics, audio or UI.
  *
@@ -678,6 +765,10 @@ export declare class Scheduler {
  * may read `game.canvas`, `game.logger`, `game.assets` and `game.events`. It should not acquire
  * resources such as GPU contexts or listeners: do that in an `Init` system, and release them
  * with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back.
+ *
+ * `createTestGame` installs plugins too, but a test game has no canvas: reading `game.canvas`
+ * there throws, so a renderer plugin such as `pixi2d` fails to install and says so. A plugin
+ * that only adds systems, resources or listeners installs in both.
  */
 interface Plugin$1 {
 	/** Namespaced, for example `fenrir.pixi2d` or `myGame.audio`. One plugin per name per game. */
@@ -699,15 +790,10 @@ export interface GameOptions {
 	seed?: number;
 }
 /**
- * A running game. Built by `createGame`.
- *
- * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `input` (#36): fields of GameServices
- *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
+ * What a `Game` and a `TestGame` share: registration, services, `stop` and `step`. Systems,
+ * hooks and listeners written against it run unchanged in both.
  */
-export interface Game extends GameServices {
-	readonly canvas: HTMLCanvasElement;
+export interface GameBase extends GameServices {
 	readonly logger: ILogger;
 	readonly assets: AssetStore;
 	readonly events: EventBus;
@@ -717,12 +803,21 @@ export interface Game extends GameServices {
 	removeSystem(name: string): this;
 	/** Swaps the function of every system called `name`, keeping its position and options. */
 	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
-	/** Runs PreInit, Init and PostInit, then resolves when the first frame is scheduled. */
-	run(): Promise<void>;
 	/** Runs Exit systems, then cleanups in reverse order. */
 	stop(): Promise<void>;
-	pause(): void;
-	resume(): void;
+	/**
+	 * Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the
+	 * same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at
+	 * most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then
+	 * the event buffers advance. Fixed ticks accumulate from `dt` exactly.
+	 *
+	 * `dt` is at most 0.25 s, the frame-delta clamp; a longer `dt` throws rather than silently
+	 * simulating less: write `step(1 / 60, 60)` for a second. On a `Game`, `step` runs only while
+	 * paused (`pause()` first) and advances by `dt` whatever the real time; the game's systems
+	 * all run, so a renderer draws each stepped frame. On a `TestGame`, it runs after `start()`.
+	 * A system that throws stops the game and the error propagates from `step`.
+	 */
+	step(dt?: number, frames?: number): void;
 	/**
 	 * Runs `system` each time `state` changes to `value`, after the exit hooks of the old value.
 	 * Each run starts every state at its initial value and runs its enter hooks before the first PreInit system.
@@ -739,6 +834,22 @@ export interface Game extends GameServices {
 	on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
 }
 /**
+ * A running game. Built by `createGame`.
+ *
+ * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
+ * - `input` (#36): fields of GameServices
+ *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
+ * - `inspect` (#37): a method added below, under "Seams".
+ */
+export interface Game extends GameBase {
+	readonly canvas: HTMLCanvasElement;
+	/** Runs PreInit, Init and PostInit, then resolves when the first frame is scheduled. */
+	run(): Promise<void>;
+	/** Stops scheduling frames. `step(dt)` runs frames while paused. */
+	pause(): void;
+	resume(): void;
+}
+/**
  * Builds a game: scheduler, scene manager, event bus, logger and asset store, then installs
  * each plugin in order, awaiting async installs. Rejects with the plugin's error if an install
  * throws; nothing has run yet, so there is nothing to roll back.
@@ -750,58 +861,54 @@ export interface Game extends GameServices {
  * ```
  */
 export declare function createGame(options: GameOptions): Promise<Game>;
-export type EngineOptions = {
-	scheduler: Scheduler;
-	sceneManager: SceneManager;
-	events: EventBus;
-	logger?: ILogger | null;
-	/** Maximum simulation delta in seconds. Defaults to 0.25. */
-	maxFrameDelta?: number;
-	/** Maximum fixed updates per animation frame. Defaults to 8. */
-	maxTicksPerFrame?: number;
+export interface TestGameOptions {
+	/** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
+	seed: number;
+	/** Wall-clock epoch milliseconds that `time.now()` starts at. Defaults to 0. */
+	now?: number;
 	/**
-	 * Fields added to every SystemCtx. `createGame` passes the game's services here. Without
-	 * them, the engine makes its own, with `random` seeded from the clock.
+	 * Installed in order, as in `createGame`. A test game has no canvas, so a plugin that reads
+	 * `game.canvas`, such as `pixi2d`, throws when it installs.
 	 */
-	services?: GameServices;
-	/** Where `ctx.time` reads time. Defaults to the real clock; pass one you control in tests. */
-	clock?: Clock;
-};
-export declare class Engine {
-	private readonly time;
-	private readonly scheduler;
-	private readonly maxFrameDelta;
-	private readonly maxTicksPerFrame;
-	private readonly events;
-	private readonly sceneManager;
-	private readonly logger;
-	private readonly services;
-	private activeRun?;
-	private rafId;
-	constructor(opts: EngineOptions);
-	private createSystemCtx;
-	run(): Promise<void>;
-	private start;
-	private scheduleFrame;
-	private frame;
-	private cancelFrame;
-	private shutdown;
-	stop(): Promise<void>;
-	pause(): void;
-	resume(): void;
-	reset(): Promise<void>;
-	getTime(): Time;
-	isRunning(): boolean;
-	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
-	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;
-	addSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
-	addSystems<S extends AsyncStage>(stage: S, systems: readonly AsyncSystemFn[]): this;
-	/** Swaps the function of the system called `name`, keeping its position and options. */
-	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
-	/** Removes the system called `name`. While running, it stops from the next frame. */
-	removeSystem(name: string): this;
-	getScheduler(): Scheduler;
+	plugins?: readonly Plugin$1[];
+	/** Defaults to a ConsoleLogger, as in `createGame`. */
+	logger?: ILogger;
 }
+/** The test game's clock. It moves only when told to. */
+export interface TestClock {
+	/** Moves `time.now()` forward by `ms` milliseconds without running a frame. */
+	advance(ms: number): void;
+}
+/**
+ * A game with no renderer, no canvas and no frame loop, built by `createTestGame`. Frames run
+ * only when `step(dt)` is called, on a clock that moves only with `step` and `clock.advance`.
+ *
+ * It has `start()` where a `Game` has `run()`, because `run()` hands frames to
+ * `requestAnimationFrame` and a test game has none. It has no `pause` or `resume`: it is never
+ * running between steps, so there is nothing to pause.
+ */
+export interface TestGame extends GameBase {
+	readonly clock: TestClock;
+	/**
+	 * Runs PreInit, Init and PostInit, as `run()` does on a `Game`, with the same rollback when a
+	 * startup system throws. Schedules no frame: call `step(dt)`.
+	 */
+	start(): Promise<void>;
+}
+/**
+ * Builds a game for tests and tools: the same scheduler, services, states, events and plugins
+ * as `createGame`, with no canvas and no `requestAnimationFrame`. Nothing reads
+ * `performance.now()` or `Date.now()`: time moves only with `step` and `clock.advance`.
+ *
+ * ```ts
+ * const game = await createTestGame({ seed: 1, now: 1_700_000_000_000 });
+ * game.addSystem(Schedule.Update, movePlayer);
+ * await game.start();
+ * game.step(1 / 60, 60); // one second
+ * await game.stop();
+ * ```
+ */
+export declare function createTestGame(options: TestGameOptions): Promise<TestGame>;
 export declare class ConsoleLogger implements ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;

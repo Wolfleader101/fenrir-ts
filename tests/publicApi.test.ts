@@ -121,6 +121,37 @@ describe("fenrir-ts core public API", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("runs a test game headless: start, step, clock.advance and stop, with exact types", async () => {
+    const { Schedule, createTestGame, defineState, inState, NullLogger } = core;
+    type TestGame = import("@/index").TestGame;
+    type Game = import("@/index").Game;
+    const Phase = defineState("publicApi.testGame.Phase", { values: ["waiting", "casting"], initial: "waiting" });
+
+    const game = await createTestGame({ seed: 1, now: 1_700_000_000_000, logger: new NullLogger() });
+    expectTypeOf(game).toEqualTypeOf<TestGame>();
+    expectTypeOf(game.step).toEqualTypeOf<(dt?: number, frames?: number) => void>();
+    expectTypeOf(game.clock.advance).toEqualTypeOf<(ms: number) => void>();
+    expectTypeOf<TestGame>().not.toHaveProperty("canvas");
+    expectTypeOf<TestGame>().not.toHaveProperty("run");
+    expectTypeOf<TestGame>().not.toHaveProperty("pause");
+    expectTypeOf<Game["step"]>().toEqualTypeOf<TestGame["step"]>();
+
+    let ticks = 0;
+    let now = 0;
+    game
+      .addSystem(Schedule.Tick, function meter() { ticks++; }, { runIf: inState(Phase, "casting") })
+      .addSystem(Schedule.Update, function read({ time }) { now = time.now(); });
+    expect(game.addSystem(Schedule.Update, function chained() {})).toBe(game);
+    await game.start();
+    game.states.set(Phase, "casting");
+    game.step(1 / 60);
+    game.step(1 / 60, 29);
+    game.clock.advance(5_000);
+    expect(ticks).toBe(30);
+    expect(now).toBeCloseTo(1_700_000_000_500, 6);
+    await game.stop();
+  });
+
   it("delivers events to game.on and ctx.events.on listeners, each with its own lifetime", async () => {
     const { Schedule, createGame, defineEvent, NullLogger } = core;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));

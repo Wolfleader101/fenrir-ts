@@ -44,9 +44,21 @@ export class Time {
     return this.clock.now();
   }
 
-  public update(maxDelta = Infinity) {
+  /**
+   * Starts a frame: sets `delta`, clamped to `maxDelta`, and adds it to the accumulator.
+   * Without `frameSeconds`, the frame lasted since the last update, read from the clock. With
+   * it, the frame lasted exactly that long, which is how `game.step(dt)` runs frames: the delta
+   * is `dt` itself, not a clock difference, so fixed ticks add up without rounding. A frame
+   * stepped while paused counts towards `elapsed`.
+   */
+  public update(maxDelta = Infinity, frameSeconds?: number) {
     const currentTime = this.clock.monotonic();
-    this.frameDelta = Math.min(maxDelta, (currentTime - this.prevTime) * 0.001); // ms to seconds
+    if (frameSeconds === undefined) {
+      this.frameDelta = Math.min(maxDelta, (currentTime - this.prevTime) * 0.001); // ms to seconds
+    } else {
+      this.frameDelta = Math.min(maxDelta, frameSeconds);
+      if (this.paused) this.totalPausedTime -= this.frameDelta * 1000;
+    }
     this.prevTime = currentTime;
 
     this.accumulator += this.frameDelta;
