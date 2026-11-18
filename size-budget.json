@@ -1,7 +1,9 @@
 {
   "entries": {
-    "core.js": 240000,
-    "editor.js": 733000,
-    "index.js": 822000
+    "index.js": 34000,
+    "2d.js": 27000,
+    "3d.js": 202000,
+    "physics.js": 24000,
+    "editor.js": 732000
   }
 }

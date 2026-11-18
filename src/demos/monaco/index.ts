@@ -1,11 +1,6 @@
-import "@/core/builderExtensions.ts";
-
-import { Engine } from "@/core/Engine.ts";
-import { Scheduler, Schedule } from "@/core/Scheduler.ts";
-import { SceneManager } from "@/core/SceneManager.ts";
-import { EventBus } from "@/core/EventBus.ts";
-import { ConsoleLogger } from "@/core/ConsoleLogger.ts";
-import { bootstrapEngine } from "@/core/Bootstrap.ts";
+import { ConsoleLogger, Engine, EventBus, SceneManager, Schedule, Scheduler } from "@/index";
+import { bootstrapEngine } from "@/3d";
+import { createPhysicsSystem } from "@/physics";
 import { spinSystemUpdate } from "../shared/spinComponent.ts";
 import { initDemoNav } from "@/shared/demoNav.ts";
 import { bootstrapEditor } from "@/editor";
@@ -38,7 +33,7 @@ const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 // Bootstrap core engine systems (but don't start yet)
 const { assets } = bootstrapEngine(engine, logger, {
   canvas,
-  enablePhysics: true,
+  physics: createPhysicsSystem(),
   enableAnimations: true,
   enableStats: false,
   rendererType: "webgpu",

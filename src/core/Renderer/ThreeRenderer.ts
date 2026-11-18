@@ -5,7 +5,7 @@ import type * as THREE_WEBGPU from "three/webgpu";
 
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import type { Entity, EntityList } from "../ECS";
-import { Transform } from "../ECS/DefaultComponents";
+import { Transform } from "../Transform3D";
 import type { ILogger } from "../ILogger";
 import type { Scene } from "../Scene";
 import {
@@ -15,6 +15,8 @@ import {
   Renderable,
 } from "./renderComponents";
 import type { IAssetStore } from "../Assets/AssetStore";
+// Adds the model and texture methods and loaders to the asset store.
+import "../Assets/Assets3D";
 import type { CameraInstance } from "../Camera/CameraComponents";
 import type { SkyboxInstance } from "../Skybox/SkyboxComponents";
 

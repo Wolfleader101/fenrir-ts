@@ -1,24 +1,17 @@
-import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
 import { Vector3, Quaternion } from "three";
-import { Transform } from "@/core/ECS/DefaultComponents";
-import { Renderable2D } from "@/core/Renderer2D";
+import { EntityBuilder, Transform, defineComponent } from "@/index";
+import type { AsyncSystemFn, InputState, SyncSystemFn } from "@/index";
+import { Renderable2D } from "@/2d";
 import {
   PhysicsBody,
   createPhysicsBody,
   MotionType,
   SyncMode,
-} from "@/core/Physics/components/PhysicsBody";
-import {
   PhysicsShape,
   ShapeType,
-} from "@/core/Physics/components/PhysicsShape";
-import {
   PhysicsMaterial,
   createPhysicsMaterial,
-} from "@/core/Physics/components/PhysicsMaterial";
-import { defineComponent } from "@/core/ECS/Component";
-import type { InputState } from "@/core/InputSystem/InputState";
+} from "@/physics";
 
 /**
  * 2D Platformer Demo with Physics Engine

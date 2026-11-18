@@ -37,3 +37,5 @@ jobs:
         run: pnpm build:lib
       - name: Check bundle size budget
         run: pnpm check:size
+      - name: Check entries load only their own peers (core loads none)
+        run: pnpm check:imports

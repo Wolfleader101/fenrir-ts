@@ -5,7 +5,7 @@ import type { Entity } from "../ECS";
 import { PhysicsBody, MotionType } from "./components/PhysicsBody";
 import { PhysicsShape, ShapeType } from "./components/PhysicsShape";
 import { PhysicsMaterial } from "./components/PhysicsMaterial";
-import { Transform } from "../ECS/DefaultComponents";
+import { Transform } from "../Transform3D";
 import {
   JoltUtils,
   type JoltModule,

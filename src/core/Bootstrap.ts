@@ -1,28 +1,37 @@
 import type { Engine } from "./Engine.ts";
 import { AssetStore } from "./Assets/AssetStore.ts";
+import "./Assets/Assets3D.ts";
 import { createObjLoader } from "./Assets/loaders/objLoader.ts";
 import { createHdrTextureLoader } from "./Assets/loaders/hdrTextureLoader.ts";
 import type { DomInputOptions } from "./InputSystem/DOMInputSystem.ts";
-import type { PixiRendererOptions } from "./Renderer2D/PixiRenderer.ts";
 import { createDomInputSystems } from "./InputSystem/DOMInputSystem.ts";
 import { createInputStateSystem } from "./InputSystem/InputStateSystem.ts";
 import { createThreeRendererSystem } from "./Renderer/ThreeRendererSystem.ts";
-import { createPixiRendererSystem } from "./Renderer2D/PixiRendererSystem.ts";
 import { createAnimationSystem } from "./Animation/index.ts";
 import { createCameraSystem } from "./Camera/CameraSystem.ts";
 import { createSkyboxSystem } from "./Skybox/SkyboxSystem.ts";
-import { createPhysicsSystem } from "./Physics/PhysicsSystem.ts";
 import { createStatsSystem } from "./Util/Stats.ts";
 import { Schedule } from "./Scheduler.ts";
 import type { ILogger } from "./ILogger.ts";
+import type { AsyncSystemFn, SyncSystemFn } from "./SystemCtx.ts";
+
+/**
+ * The systems bootstrapEngine registers for physics. `createPhysicsSystem()` from
+ * `fenrir-ts/physics` returns one. Typed here by shape so the 3D entry does not
+ * import Jolt.
+ */
+export type BootstrapPhysicsSystem = {
+  init: AsyncSystemFn;
+  tick: SyncSystemFn;
+  exit: AsyncSystemFn;
+};
 
 export type BootstrapConfig = {
   canvas: HTMLCanvasElement;
-  enablePhysics?: boolean;
+  /** Physics to register, for example `createPhysicsSystem()` from `fenrir-ts/physics`. */
+  physics?: BootstrapPhysicsSystem;
   enableAnimations?: boolean;
   enableStats?: boolean;
-  enable2D?: boolean;
-  pixi?: Pick<PixiRendererOptions, "application" | "applicationOptions">;
   domInput?: DomInputOptions | false;
   statsParent?: HTMLElement;
   rendererType?: "webgl" | "webgpu";
@@ -33,25 +42,26 @@ export type BootstrapResult = {
   assets: AssetStore;
   systems: {
     input: ReturnType<typeof createInputStateSystem>;
-    renderer?: ReturnType<typeof createThreeRendererSystem>;
-    renderer2D?: ReturnType<typeof createPixiRendererSystem>;
+    renderer: ReturnType<typeof createThreeRendererSystem>;
     camera: ReturnType<typeof createCameraSystem>;
     skybox: ReturnType<typeof createSkyboxSystem>;
     animations?: ReturnType<typeof createAnimationSystem>;
-    physics?: ReturnType<typeof createPhysicsSystem>;
+    physics?: BootstrapPhysicsSystem;
     stats?: ReturnType<typeof createStatsSystem>;
   };
 };
 
 /**
- * Bootstrap core engine systems with sensible defaults
+ * Bootstrap the 3D engine systems with sensible defaults
  *
- * This creates and configures the essential systems needed for most games:
+ * This creates and configures the systems a 3D game needs:
  * - Input handling
- * - Rendering (WebGL/WebGPU 3D or PixiJS 2D)
+ * - Rendering (WebGL/WebGPU through Three.js)
  * - Camera management
  * - Skybox rendering
  * - Optional: Physics, Animations, Performance stats
+ *
+ * A 2D game does not use this: it registers the systems from `fenrir-ts/2d` itself.
  */
 export function bootstrapEngine(
   engine: Engine,
@@ -60,10 +70,9 @@ export function bootstrapEngine(
 ): BootstrapResult {
   const {
     canvas,
-    enablePhysics = false,
+    physics,
     enableAnimations = false,
     enableStats = false,
-    enable2D = false,
     rendererType = "webgpu",
     clearColor = 0x101010,
     statsParent = document.body,
@@ -95,35 +104,20 @@ export function bootstrapEngine(
   const camera = createCameraSystem();
   const skybox = createSkyboxSystem({ assets });
 
-  // Choose renderer based on config
-  let renderer: ReturnType<typeof createThreeRendererSystem> | undefined;
-  let renderer2D: ReturnType<typeof createPixiRendererSystem> | undefined;
-
-  if (enable2D) {
-    // Use 2D renderer (PixiJS)
-    renderer2D = createPixiRendererSystem({
-      ...config.pixi,
-      logger,
-      canvas,
-      clearColor,
-      assets,
-    });
-  } else {
-    // Use 3D renderer (Three.js) - default
-    renderer = createThreeRendererSystem({
-      logger,
-      canvas,
-      clearColor,
-      assets,
-      cameraSystem: camera,
-      skyboxSystem: skybox,
-      rendererType,
-    });
-  }
+  // 3D renderer (Three.js)
+  const renderer = createThreeRendererSystem({
+    logger,
+    canvas,
+    clearColor,
+    assets,
+    cameraSystem: camera,
+    skyboxSystem: skybox,
+    rendererType,
+  });
 
   // Optional: Animation System (only for 3D)
   const animations =
-    enableAnimations && renderer
+    enableAnimations
       ? createAnimationSystem({
           assets,
           logger,
@@ -131,17 +125,13 @@ export function bootstrapEngine(
         })
       : undefined;
 
-  // Optional: Physics System
-  const physics = enablePhysics ? createPhysicsSystem() : undefined;
-
   // Optional: Stats System
   const stats = enableStats ? createStatsSystem(statsParent) : undefined;
 
   // Register systems with engine in correct order
   const initSystems = [
     ...(domInput ? [domInput.init] : []),
-    ...(renderer ? [renderer.init] : []),
-    ...(renderer2D ? [renderer2D.init] : []),
+    renderer.init,
     ...(animations ? [animations.init] : []),
     ...(physics ? [physics.init] : []),
     camera.init,
@@ -159,20 +149,17 @@ export function bootstrapEngine(
 
   const updateSystems = [
     camera.update,
-    ...(renderer ? [renderer.update] : []),
-    ...(renderer2D ? [renderer2D.update] : []),
+    renderer.update,
   ];
 
   const postUpdateSystems = [
-    ...(renderer ? [renderer.postUpdate] : []),
-    ...(renderer2D ? [renderer2D.postUpdate] : []),
+    renderer.postUpdate,
     ...(stats ? [stats.postUpdate] : []),
   ];
 
   const exitSystems = [
     ...(domInput ? [domInput.exit] : []),
-    ...(renderer ? [renderer.exit] : []),
-    ...(renderer2D ? [renderer2D.exit] : []),
+    renderer.exit,
     ...(animations ? [animations.exit] : []),
     ...(physics ? [physics.exit] : []),
     camera.exit,
@@ -194,7 +181,6 @@ export function bootstrapEngine(
     systems: {
       input,
       renderer,
-      renderer2D,
       camera,
       skybox,
       animations,

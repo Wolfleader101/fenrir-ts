@@ -1,174 +1,117 @@
-import * as THREE from "three";
-import type { Texture as PixiTexture } from "pixi.js";
 import type { AssetLoader } from "./AssetLoader";
-import { createGltfLoader } from "./loaders/gltfLoader";
-import { createPixiTextureLoader } from "./loaders/pixiTextureLoader";
-import { createTextureLoader } from "./loaders/textureLoader";
 
 export type AssetKey = string & { __assetKey?: true };
 export const assetKey = (k: string) => k as AssetKey;
 
-export type LoadedModel = {
-  geometry: THREE.Object3D;
-  animations: THREE.AnimationClip[];
-  materials: THREE.Material[];
-};
-
-export type Texture2DState =
-  | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly texture: PixiTexture }
-  | { readonly status: "failed"; readonly error: unknown };
-
-export interface Texture2DHandle {
-  readonly state: Texture2DState;
-  readonly ready: Promise<PixiTexture>;
-  /** Observes the transition out of loading. Read state for the current value. */
-  subscribe(listener: (state: Texture2DState) => void): () => void;
-}
-
-type LoadedAsset = LoadedModel | THREE.Texture | PixiTexture;
-type AssetKind = "model" | "texture3d" | "texture2d";
-
-type LoaderConfig<T> = {
+/** A loader and the file extensions it handles. */
+export type LoaderConfig<T> = {
   loader: AssetLoader<T>;
   extensions: string[];
 };
 
-// Loader configuration for model loaders
-export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
+/**
+ * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
+ * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
+ */
+export interface AssetStoreConfig {}
 
-// Loader configuration for texture loaders
-export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
-export type PixiTextureLoaderConfig = LoaderConfig<PixiTexture>;
-
-// Configuration options for AssetStore constructor
-export interface AssetStoreConfig {
-  modelLoaders?: { [name: string]: ModelLoaderConfig };
-  textureLoaders?: { [name: string]: TextureLoaderConfig };
-  texture2DLoaders?: { [name: string]: PixiTextureLoaderConfig };
-}
-
+/**
+ * The asset store as systems see it. Core has the cache only. The 2D and 3D
+ * entries add their typed loading and getter methods to this interface.
+ */
 export interface IAssetStore {
-  // Intuitive loading methods
-  loadModel(key: AssetKey, url: string): Promise<void>;
-  loadTexture(key: AssetKey, url: string): Promise<void>;
-  loadTexture2D(key: AssetKey, url: string): Promise<void>;
-
-  // Typed getters for different asset parts
-  getGeometry(key: AssetKey): Promise<THREE.Object3D>;
-  getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
-  getMaterials(key: AssetKey): Promise<THREE.Material[]>;
-  getTexture(key: AssetKey): Promise<THREE.Texture>;
-  getTexture2D(key: AssetKey): Promise<PixiTexture>;
-
   // Generic getter (for advanced use)
-  get(key: AssetKey): Promise<LoadedAsset>;
-
-  // Loader management
-  registerModelLoader(name: string, config: ModelLoaderConfig): void;
-  registerTextureLoader(name: string, config: TextureLoaderConfig): void;
-  registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void;
-  getSupportedModelExtensions(): string[];
-  getSupportedTextureExtensions(): string[];
-  getSupportedTexture2DExtensions(): string[];
+  get(key: AssetKey): Promise<unknown>;
 
   clear(): void;
 }
 
+/** Registers an entry's default loaders and reads its options from the config. */
+type AssetStoreInstaller = (store: AssetStore, config: AssetStoreConfig) => void;
+
+const installers: AssetStoreInstaller[] = [];
+
+/**
+ * Caches loaded assets by key and picks a loader by file extension.
+ *
+ * Core knows nothing about textures or models. Each asset kind ("model",
+ * "texture3d", "texture2d") is added by the entry point that renders it, which
+ * registers its default loaders and typed methods when it loads.
+ */
 export class AssetStore implements IAssetStore {
-  private cache = new Map<string, Promise<LoadedAsset>>();
-  private textureRequests = new Map<AssetKey, { url: string; handle: Texture2DHandle }>();
-  private assetKinds = new Map<string, AssetKind>();
-  private modelLoaders = new Map<string, ModelLoaderConfig>();
-  private textureLoaders = new Map<string, TextureLoaderConfig>();
-  private texture2DLoaders = new Map<string, PixiTextureLoaderConfig>();
+  private cache = new Map<string, Promise<unknown>>();
+  private assetKinds = new Map<string, string>();
+  private loaders = new Map<string, Map<string, LoaderConfig<unknown>>>();
+
+  /**
+   * Adds default loaders to every store constructed from now on. The 2D and 3D
+   * entries call this when they load.
+   */
+  static addInstaller(installer: AssetStoreInstaller): void {
+    installers.push(installer);
+  }
 
   constructor(config: AssetStoreConfig = {}) {
-    // Register default loaders
-    this.registerDefaultLoaders();
-
-    // Add any additional loaders provided
-    if (config.modelLoaders) {
-      Object.entries(config.modelLoaders).forEach(([name, loaderConfig]) => {
-        this.registerModelLoader(name, loaderConfig);
-      });
-    }
-
-    if (config.textureLoaders) {
-      Object.entries(config.textureLoaders).forEach(([name, loaderConfig]) => {
-        this.registerTextureLoader(name, loaderConfig);
-      });
-    }
-
-    if (config.texture2DLoaders) {
-      Object.entries(config.texture2DLoaders).forEach(
-        ([name, loaderConfig]) => {
-          this.registerTexture2DLoader(name, loaderConfig);
-        },
-      );
-    }
+    for (const install of installers) install(this, config);
   }
 
-  private registerDefaultLoaders(): void {
-    this.registerModelLoader("gltf", {
-      loader: createGltfLoader(),
-      extensions: ["glb", "gltf"],
-    });
-
-    this.registerTextureLoader("texture", {
-      loader: createTextureLoader(),
-      extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
-    });
-
-    this.registerTexture2DLoader("pixi-texture", {
-      loader: createPixiTextureLoader(),
-      extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
-    });
-  }
-
-  registerModelLoader(name: string, config: ModelLoaderConfig): void {
-    if (this.modelLoaders.has(name)) {
-      console.warn(`Model loader '${name}' is being overridden`);
+  /**
+   * Registers a loader for one asset kind. `label` names the kind in messages,
+   * for example "2D texture".
+   */
+  registerLoader<T>(
+    kind: string,
+    name: string,
+    config: LoaderConfig<T>,
+    label: string = kind,
+  ): void {
+    let byName = this.loaders.get(kind);
+    if (!byName) {
+      byName = new Map();
+      this.loaders.set(kind, byName);
     }
-    this.modelLoaders.set(name, config);
-  }
-
-  registerTextureLoader(name: string, config: TextureLoaderConfig): void {
-    if (this.textureLoaders.has(name)) {
-      console.warn(`Texture loader '${name}' is being overridden`);
+    if (byName.has(name)) {
+      const title = label.charAt(0).toUpperCase() + label.slice(1);
+      console.warn(`${title} loader '${name}' is being overridden`);
     }
-    this.textureLoaders.set(name, config);
+    byName.set(name, config as LoaderConfig<unknown>);
   }
 
-  registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void {
-    if (this.texture2DLoaders.has(name)) {
-      console.warn(`2D texture loader '${name}' is being overridden`);
-    }
-    this.texture2DLoaders.set(name, config);
-  }
-
-  getSupportedModelExtensions(): string[] {
+  /** Sorted extensions that loaders of this kind handle. */
+  getSupportedExtensions(kind: string): string[] {
     const extensions = new Set<string>();
-    this.modelLoaders.forEach((config) => {
+    this.loaders.get(kind)?.forEach((config) => {
       config.extensions.forEach((ext) => extensions.add(ext));
     });
     return Array.from(extensions).sort();
   }
 
-  getSupportedTextureExtensions(): string[] {
-    const extensions = new Set<string>();
-    this.textureLoaders.forEach((config) => {
-      config.extensions.forEach((ext) => extensions.add(ext));
-    });
-    return Array.from(extensions).sort();
+  /** The loader of this kind for the URL's extension. Throws if none handles it. */
+  resolveLoader<T>(kind: string, url: string, label: string = kind): AssetLoader<T> {
+    const ext = this.getFileExtension(url);
+    for (const config of this.loaders.get(kind)?.values() ?? []) {
+      if (config.extensions.includes(ext)) return config.loader as AssetLoader<T>;
+    }
+    const supported = this.getSupportedExtensions(kind);
+    throw new Error(
+      `Unsupported ${label} format: .${ext}. Supported extensions: ${supported.join(", ")}`,
+    );
   }
 
-  getSupportedTexture2DExtensions(): string[] {
-    const extensions = new Set<string>();
-    this.texture2DLoaders.forEach((config) => {
-      config.extensions.forEach((ext) => extensions.add(ext));
-    });
-    return Array.from(extensions).sort();
+  /** Stores a pending or loaded asset under `key`, replacing whatever was there. */
+  setAsset(key: AssetKey, kind: string, asset: Promise<unknown>): void {
+    this.cache.set(key, asset);
+    this.assetKinds.set(key, kind);
+  }
+
+  /** The kind of asset stored under `key`, if any. */
+  kindOf(key: AssetKey): string | undefined {
+    return this.assetKinds.get(key);
+  }
+
+  /** The promise stored under `key`, without awaiting it. */
+  peek(key: AssetKey): Promise<unknown> | undefined {
+    return this.cache.get(key);
   }
 
   private getFileExtension(url: string): string {
@@ -197,176 +140,7 @@ export class AssetStore implements IAssetStore {
     return clean.slice(lastDot + 1).toLowerCase();
   }
 
-  private findModelLoaderByExtension(
-    extension: string,
-  ): ModelLoaderConfig | null {
-    for (const config of this.modelLoaders.values()) {
-      if (config.extensions.includes(extension)) {
-        return config;
-      }
-    }
-    return null;
-  }
-
-  private findTextureLoaderByExtension(
-    extension: string,
-  ): TextureLoaderConfig | null {
-    for (const config of this.textureLoaders.values()) {
-      if (config.extensions.includes(extension)) {
-        return config;
-      }
-    }
-    return null;
-  }
-
-  private findTexture2DLoaderByExtension(
-    extension: string,
-  ): PixiTextureLoaderConfig | null {
-    for (const config of this.texture2DLoaders.values()) {
-      if (config.extensions.includes(extension)) {
-        return config;
-      }
-    }
-    return null;
-  }
-
-  async loadModel(key: AssetKey, url: string): Promise<void> {
-    const ext = this.getFileExtension(url);
-    const loaderConfig = this.findModelLoaderByExtension(ext);
-
-    if (!loaderConfig) {
-      const supportedExts = this.getSupportedModelExtensions();
-      throw new Error(
-        `Unsupported model format: .${ext}. Supported extensions: ${supportedExts.join(
-          ", ",
-        )}`,
-      );
-    }
-
-    const promise = loaderConfig.loader({ url });
-    this.textureRequests.delete(key);
-    this.cache.set(key, promise);
-    this.assetKinds.set(key, "model");
-    await promise;
-  }
-
-  async loadTexture(key: AssetKey, url: string): Promise<void> {
-    const ext = this.getFileExtension(url);
-    const loaderConfig = this.findTextureLoaderByExtension(ext);
-
-    if (!loaderConfig) {
-      const supportedExts = this.getSupportedTextureExtensions();
-      throw new Error(
-        `Unsupported texture format: .${ext}. Supported extensions: ${supportedExts.join(
-          ", ",
-        )}`,
-      );
-    }
-
-    const promise = loaderConfig.loader({ url });
-    this.textureRequests.delete(key);
-    this.cache.set(key, promise);
-    this.assetKinds.set(key, "texture3d");
-    await promise;
-  }
-
-  async loadTexture2D(key: AssetKey, url: string): Promise<void> {
-    await this.requestTexture2D(key, url).ready;
-  }
-
-  /** Reuses an active or ready request for the same key and URL. Request again to retry a failure. */
-  requestTexture2D(key: AssetKey, url: string): Texture2DHandle {
-    const existing = this.textureRequests.get(key);
-    if (existing?.url === url && existing.handle.state.status !== "failed") return existing.handle;
-
-    const ext = this.getFileExtension(url);
-    const loader = this.findTexture2DLoaderByExtension(ext)?.loader;
-    if (!loader) {
-      const supported = this.getSupportedTexture2DExtensions();
-      throw new Error(
-        `Unsupported 2D texture format: .${ext}. Supported extensions: ${supported.join(", ")}`,
-      );
-    }
-
-    let state: Texture2DState = { status: "loading" };
-    const listeners = new Set<(state: Texture2DState) => void>();
-    const settle = (next: Texture2DState) => {
-      state = next;
-      const pending = [...listeners];
-      listeners.clear();
-      for (const listener of pending) {
-        try { listener(next); } catch (error) { console.error("Texture readiness listener failed", error); }
-      }
-    };
-
-    const ready = Promise.resolve().then(() => loader({ url })).then(
-      (texture) => {
-        settle({ status: "ready", texture });
-        return texture;
-      },
-      (error: unknown) => {
-        settle({ status: "failed", error });
-        throw error;
-      },
-    );
-    // Consumers can use state and subscribe without awaiting the load.
-    void ready.catch(() => {});
-
-    const handle: Texture2DHandle = {
-      get state() { return state; },
-      ready,
-      subscribe(listener) {
-        if (state.status === "loading") listeners.add(listener);
-        return () => { listeners.delete(listener); };
-      },
-    };
-    this.textureRequests.set(key, { url, handle });
-    this.cache.set(key, ready);
-    this.assetKinds.set(key, "texture2d");
-    return handle;
-  }
-
-  async getGeometry(key: AssetKey): Promise<THREE.Object3D> {
-    const asset = await this.get(key);
-    if (this.isModel(asset)) {
-      return asset.geometry;
-    }
-    throw new Error(`Asset "${key}" is not a model`);
-  }
-
-  async getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]> {
-    const asset = await this.get(key);
-    if (this.isModel(asset)) {
-      return [...asset.animations]; // Return copy of array
-    }
-    throw new Error(`Asset "${key}" is not a model`);
-  }
-
-  async getMaterials(key: AssetKey): Promise<THREE.Material[]> {
-    const asset = await this.get(key);
-    if (this.isModel(asset)) {
-      return [...asset.materials]; // Return copy of array
-    }
-    throw new Error(`Asset "${key}" is not a model`);
-  }
-
-  async getTexture(key: AssetKey): Promise<THREE.Texture> {
-    const asset = await this.get(key);
-    if (this.assetKinds.get(key) === "texture3d") {
-      return asset as THREE.Texture;
-    }
-    throw new Error(`Asset "${key}" is not a texture`);
-  }
-
-  async getTexture2D(key: AssetKey): Promise<PixiTexture> {
-    const asset = await this.get(key);
-    if (this.assetKinds.get(key) === "texture2d") {
-      return asset as PixiTexture;
-    }
-    throw new Error(`Asset "${key}" is not a 2D texture`);
-  }
-
-  async get(key: AssetKey): Promise<LoadedAsset> {
+  async get(key: AssetKey): Promise<unknown> {
     const promise = this.cache.get(key);
     if (!promise) {
       throw new Error(`Asset not loaded: ${key}`);
@@ -374,18 +148,7 @@ export class AssetStore implements IAssetStore {
     return await promise;
   }
 
-  private isModel(asset: LoadedAsset): asset is LoadedModel {
-    return (
-      typeof asset === "object" &&
-      asset !== null &&
-      "geometry" in asset &&
-      "animations" in asset &&
-      "materials" in asset
-    );
-  }
-
   clear(): void {
-    this.textureRequests.clear();
     this.cache.clear();
     this.assetKinds.clear();
   }

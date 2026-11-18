@@ -1,10 +1,6 @@
-import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import { Vector3, Quaternion } from "three";
-import { Transform } from "@/core/ECS/DefaultComponents";
-import { Renderable2D } from "@/core/Renderer2D";
-import { defineComponent } from "@/core/ECS/Component";
-import type { InputState } from "@/core/InputSystem/InputState";
+import { EntityBuilder, Transform, defineComponent } from "@/index";
+import type { AsyncSystemFn, InputState, SyncSystemFn } from "@/index";
+import { Renderable2D } from "@/2d";
 
 /**
  * Simple 2D Platformer Demo
@@ -53,9 +49,9 @@ export function createPlatformerDemo(inputState: InputState) {
     EntityBuilder.create()
       .name("Background")
       .with(Transform, {
-        position: new Vector3(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -78,9 +74,9 @@ export function createPlatformerDemo(inputState: InputState) {
     EntityBuilder.create()
       .name("Title")
       .with(Transform, {
-        position: new Vector3(CANVAS_WIDTH / 2, 30, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: CANVAS_WIDTH / 2, y: 30, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -102,9 +98,9 @@ export function createPlatformerDemo(inputState: InputState) {
     EntityBuilder.create()
       .name("Controls")
       .with(Transform, {
-        position: new Vector3(20, 70, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: 20, y: 70, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -129,9 +125,9 @@ export function createPlatformerDemo(inputState: InputState) {
     EntityBuilder.create()
       .name("Player")
       .with(Transform, {
-        position: new Vector3(playerX, playerY, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: playerX, y: playerY, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -170,9 +166,9 @@ export function createPlatformerDemo(inputState: InputState) {
       EntityBuilder.create()
         .name(`Platform ${i}`)
         .with(Transform, {
-          position: new Vector3(p.x, p.y, 0),
-          rotation: new Quaternion(),
-          scale: new Vector3(1, 1, 1),
+          position: { x: p.x, y: p.y, z: 0 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+          scale: { x: 1, y: 1, z: 1 },
         })
         .with(Renderable2D, {
           id: 0,

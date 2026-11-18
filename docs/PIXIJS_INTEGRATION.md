@@ -1,5 +1,7 @@
 # PixiJS Integration Guide
 
+> **Historical design note.** The code below predates the entry-point split (#23). `bootstrapEngine` no longer has `enable2D` or `enablePhysics`, and there is no `fenrir-ts/core`. For current 2D setup see the README and `src/demos/shared/setup2D.ts`.
+
 ## Overview
 
 This document outlines the integration of PixiJS into the Fenrir-TS game engine as a separate 2D renderer system. While the engine supports only one active renderer at a time, the system-agnostic architecture allows for a clean 2D renderer implementation that follows the same patterns as the existing Three.js 3D renderer.

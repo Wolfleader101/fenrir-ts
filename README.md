@@ -18,45 +18,50 @@ yarn add fenrir-ts
 
 ### Peer Dependencies
 
-Fenrir TS requires the following peer dependencies:
+Each entry point needs its own peer dependency. Install the ones for the entries you import:
 
-```bash
-npm install three jolt-physics monaco-editor
-```
+| Entry | Install |
+| --- | --- |
+| `fenrir-ts/2d` | `pixi.js` |
+| `fenrir-ts/3d` | `three` |
+| `fenrir-ts/physics` | `jolt-physics` and `three` |
+| `fenrir-ts/editor` | `monaco-editor` |
 
-Note: `monaco-editor` is only required if you're using the editor module (`fenrir-ts/editor`).
+The core entry, `fenrir-ts`, needs none of them.
 
 ---
 
 ## Usage
 
-You can import the entire package or use specific modules:
+The package has one entry point per area. Core never loads a renderer, so a 2D game ships no Three.js code.
 
-```ts
-// Import everything
-import * as Fenrir from 'fenrir-ts';
+| Import | Contents |
+| --- | --- |
+| `fenrir-ts` | Core: engine, scheduler, scenes, ECS, events, time, logging, input, `EntityBuilder`, `AssetStore` |
+| `fenrir-ts/2d` | PixiJS renderer, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
+| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine` |
+| `fenrir-ts/physics` | Jolt physics system, components and builder methods |
+| `fenrir-ts/editor` | Monaco live code editor |
 
-// Import only the core engine
-import { Engine, EntityList, Schedule } from 'fenrir-ts/core';
+Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder` and `AssetStore`, so `renderSprite` and `requestTexture2D` exist once you import `fenrir-ts/2d`.
 
-// Import only the editor
-import { bootstrapEditor } from 'fenrir-ts/editor';
-```
-
-### Basic Example
+### Basic Example (2D)
 
 ```ts
 import {
+  AssetStore,
   ConsoleLogger,
   Engine,
   EventBus,
   SceneManager,
   Schedule,
   Scheduler,
-  bootstrapEngine,
-} from "fenrir-ts/core";
+  createDomInputSystems,
+  createInputStateSystem,
+} from "fenrir-ts";
+import { createPixiRendererSystem } from "fenrir-ts/2d";
 
-// IMPORTANT: Ensure the canvas element exists in the DOM before bootstrapping
+// IMPORTANT: Ensure the canvas element exists in the DOM before creating the renderer
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
 if (!canvas) {
   throw new Error("Canvas element not found");
@@ -70,11 +75,50 @@ const engine = new Engine({
   logger,
 });
 
-// Registers input, rendering, camera and skybox systems on the engine.
-// Pass `enable2D: true` for the PixiJS renderer instead of Three.js.
-bootstrapEngine(engine, logger, { canvas });
+const assets = new AssetStore();
+const domInput = createDomInputSystems();
+const input = createInputStateSystem();
+const renderer = createPixiRendererSystem({ canvas, assets, logger });
 
-// Add your systems, then start the loop
+// The 2D texture methods come from fenrir-ts/2d.
+const hero = assets.requestTexture2D("hero", "/sprites/hero.png");
+hero.subscribe((state) => logger.info(`hero texture: ${state.status}`));
+
+engine
+  .addSystems(Schedule.Init, [domInput.init, renderer.init])
+  .addSystems(Schedule.PreUpdate, [input.preUpdate])
+  .addSystems(Schedule.Update, [renderer.update, yourGameSystem])
+  .addSystems(Schedule.PostUpdate, [renderer.postUpdate])
+  .addSystems(Schedule.Exit, [domInput.exit, renderer.exit]);
+await engine.run();
+```
+
+### Basic Example (3D)
+
+`bootstrapEngine` from `fenrir-ts/3d` registers input, the Three.js renderer, camera and skybox systems in one call.
+
+```ts
+import { ConsoleLogger, Engine, EventBus, SceneManager, Schedule, Scheduler } from "fenrir-ts";
+import { bootstrapEngine } from "fenrir-ts/3d";
+import { createPhysicsSystem } from "fenrir-ts/physics";
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
+if (!canvas) {
+  throw new Error("Canvas element not found");
+}
+
+const logger = new ConsoleLogger();
+const engine = new Engine({
+  scheduler: new Scheduler(),
+  sceneManager: new SceneManager(logger),
+  events: new EventBus(),
+  logger,
+});
+
+// Physics is optional; leave out `physics` and the fenrir-ts/physics import if you do not need it.
+const { assets } = bootstrapEngine(engine, logger, { canvas, physics: createPhysicsSystem() });
+await assets.loadModel("ship", "/models/ship.glb");
+
 engine.addSystems(Schedule.Update, [yourGameSystem]);
 await engine.run();
 ```
@@ -84,7 +128,7 @@ await engine.run();
 Define components with `defineComponent`, store them on entities, and query them from systems. Every system receives a `SystemCtx`. Its `signal` aborts when the engine stops, and `onCleanup` registers teardown for the current run.
 
 ```ts
-import { Schedule, defineComponent, type SystemCtx } from "fenrir-ts/core";
+import { Schedule, defineComponent, type SystemCtx } from "fenrir-ts";
 
 type Health = { current: number; max: number };
 const Health = defineComponent<Health>("myGame.Health");
@@ -106,7 +150,7 @@ function regenerate({ entities, time }: SystemCtx): void {
 engine.addSystem(Schedule.Init, spawnPlayer).addSystem(Schedule.Update, regenerate);
 ```
 
-**Important:** The canvas element must exist in the DOM before calling `bootstrapEngine()`. If you're calling it in a script, either:
+**Important:** The canvas element must exist in the DOM before you create the renderer or call `bootstrapEngine()`. If you're calling it in a script, either:
 
 - Place the script at the end of the body
 - Use `DOMContentLoaded` event listener
@@ -127,14 +171,9 @@ npm install monaco-editor
 **Step 2: Import Workers and Bootstrap Editor (Vite example)**
 
 ```ts
-import {
-  Engine,
-  Scheduler,
-  SceneManager,
-  EventBus,
-  ConsoleLogger,
-  bootstrapEngine,
-} from "fenrir-ts/core";
+import { Engine, Scheduler, SceneManager, EventBus, ConsoleLogger } from "fenrir-ts";
+import { bootstrapEngine } from "fenrir-ts/3d";
+import { createPhysicsSystem } from "fenrir-ts/physics";
 import { bootstrapEditor, type MonacoWorkerLoaders } from "fenrir-ts/editor";
 
 // Import Monaco workers (Vite-specific - adjust for your bundler)
@@ -162,7 +201,7 @@ const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 // Bootstrap core engine systems
 const { assets } = bootstrapEngine(engine, logger, {
   canvas,
-  enablePhysics: true,
+  physics: createPhysicsSystem(),
   enableAnimations: true,
 });
 

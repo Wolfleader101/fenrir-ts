@@ -1,8 +1,8 @@
 import { Vector3 } from "three";
-import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
-import { SkyboxUtils } from "@/core/Skybox";
+import type { AsyncSystemFn, SyncSystemFn } from "@/index";
+import { EntityBuilder } from "@/index";
+import type { IAssetStore } from "@/index";
+import { SkyboxUtils } from "@/3d";
 
 /**
  * Stacking Blocks Demo

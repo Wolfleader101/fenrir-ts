@@ -36,23 +36,40 @@ pnpm check:docs   # every ts block in README.md and AGENTS.md compiles against s
 pnpm test:run
 pnpm build:lib
 pnpm check:size   # each entry in dist/ stays within size-budget.json
+pnpm check:imports  # core loads no renderer, physics or editor package; other entries only their own peers
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. A README fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`.
+
+If `check:imports` fails, it names the entry, the chunk and the package or file it reached. Move the import into the entry that owns that package; do not add an exception.
 
 If `check:size` fails, find what grew before raising the budget. Raise it with `node scripts/check-size.mjs --update` only when the growth is intended, and say so in the PR.
 
 ## Entry points
 
-| Import | Source | Contents |
-| --- | --- | --- |
-| `fenrir-ts` | `src/index.ts` | Everything in `core` and `editor` |
-| `fenrir-ts/core` | `src/core/index.ts` | Engine, scheduler, ECS, events, assets, input, 2D and 3D rendering, physics components |
-| `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor |
+| Import | Source | Contents | Peer |
+| --- | --- | --- | --- |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: engine, scheduler, scenes, ECS, events, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
+| `fenrir-ts/2d` | `src/2d.ts` | Pixi renderer and its system, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
+| `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three | `three` |
+| `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
+| `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
 
-Consumers import only from these three paths. Never import from `fenrir-ts/dist/...` or a source file path.
-Anything not exported from one of the index files is internal and can change without notice.
-`fenrir-ts/core` currently imports every subsystem, including Three.js; splitting that up is planned work (see below).
+Consumers import only from these five paths. Never import from `fenrir-ts/dist/...` or a source file path.
+Anything not exported from one of the entry files is internal and can change without notice.
+There is no `fenrir-ts/core`: core is the root entry.
+
+The core entry imports no Pixi, Three, Jolt, Monaco or Lit code. `pnpm check:imports` checks the built output, and `tests/publicApi.test.ts` fails if core loads any of them.
+New core code must keep it that way: put anything that needs a renderer in the entry for that renderer.
+
+Each renderer entry adds to core types when it is imported, and to core classes when it loads:
+
+- `fenrir-ts/2d` adds `renderSprite` and the other 2D methods to `EntityBuilder`, and `requestTexture2D`, `loadTexture2D`, `getTexture2D` and the Pixi loader to `AssetStore`.
+- `fenrir-ts/3d` adds the 3D builder methods and `loadModel`, `loadTexture`, `getTexture` and the glTF loader to `AssetStore`, and makes every default `Transform` out of Three `Vector3` and `Quaternion`.
+- `fenrir-ts/physics` adds the physics builder methods and `physics?: PhysicsHelpers` to `SystemCtx`, and also makes default transforms out of Three objects.
+
+So a method from an entry is typed and present only when that entry is imported.
+Core's `Transform` is a plain `{ x, y, z }` / `{ x, y, z, w }` shape. `Transform` from `fenrir-ts/3d` is the same component typed with Three classes; import that one in 3D code.
 
 Inside the repo, `@/` is an alias for `src/`.
 
@@ -73,8 +90,8 @@ Query with `entities.each(QUERY, (entity, ...components) => {})`. Views are cach
 `events.createReader(Type)` returns a reader whose `read()` returns only events it has not returned before. Create one reader per consumer, once, not inside a system. `events.read(Type)` returns everything retained, so it can return the same event in two frames.
 
 ```ts
-import { Engine, EventBus, NullLogger, SceneManager, Schedule, Scheduler, defineComponent, defineEvent } from "fenrir-ts/core";
-import type { SystemCtx } from "fenrir-ts/core";
+import { Engine, EventBus, NullLogger, SceneManager, Schedule, Scheduler, defineComponent, defineEvent } from "fenrir-ts";
+import type { SystemCtx } from "fenrir-ts";
 
 type Health = { current: number; max: number };
 const Health = defineComponent<Health>("myGame.Health");
@@ -125,7 +142,8 @@ await engine.run();
 ```
 
 This example runs in `tests/agentsExample.test.ts`. Change both together.
-To get renderer, input and camera systems, `bootstrapEngine(engine, logger, { canvas })` registers them; pass `enable2D: true` for PixiJS. See `src/core/Bootstrap.ts`.
+A 2D game registers input and the Pixi renderer itself: `createDomInputSystems` and `createInputStateSystem` from `fenrir-ts`, and `createPixiRendererSystem` from `fenrir-ts/2d`. `src/demos/shared/setup2D.ts` shows the order.
+A 3D game can call `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers input, the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
 ## Naming rule
 
@@ -141,6 +159,7 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Skybox: `src/core/Skybox/`
 - Animation: `src/core/Animation/`
 - Physics (Jolt): `src/core/Physics/`
+- 3D setup and stats: `src/core/Bootstrap.ts`, `src/core/Util/Stats.ts`
 - Editor (Monaco): `src/editor/`
 
 New work goes into the 2D path: `src/core/Renderer2D/`, input, ECS, scheduling and events.
@@ -149,7 +168,7 @@ New work goes into the 2D path: `src/core/Renderer2D/`, input, ECS, scheduling a
 
 - Tests live in `tests/`, mirroring `src/`: `src/core/ECS/View.ts` is tested in `tests/core/ECS/View.test.ts`. Vitest runs in jsdom with globals on. Shared helpers are in `tests/utils/testHelpers.ts`.
 - Every behaviour change needs a test that fails without it.
-- `tests/publicApi.test.ts` exercises the core entry point the way a consumer does. Extend it when you change public API.
+- `tests/publicApi.test.ts` exercises the core entry point the way a consumer does, and `tests/publicApi.2d.test.ts`, `publicApi.3d.test.ts` and `publicApi.physics.test.ts` do the same for the other entries. Extend the one for the entry whose public API you change.
 - A change to public API updates `README.md` in the same change.
 - Breaking changes are allowed at 0.x, but call each one out in the PR description.
 - No engine behaviour changes in a docs-only PR.
@@ -165,7 +184,7 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
-- Entry points `fenrir-ts/2d`, `fenrir-ts/ui`, `fenrir-ts/3d` and `fenrir-ts/physics`
+- The `fenrir-ts/ui` entry point
 - `createGame`, `createTestGame` and a headless `step`
 - Resources (`defineResource`), states (`defineState`, `inState`, `onEnter`), named systems and run conditions
 - `inspect()`, viewport scaling, input actions, canvas UI, audio, timers and storage

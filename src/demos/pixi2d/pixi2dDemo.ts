@@ -1,8 +1,14 @@
-import type { AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import { Vector3, Quaternion } from "three";
-import { Transform, Name } from "@/core/ECS/DefaultComponents";
-import { Renderable2D } from "@/core/Renderer2D";
+import { EntityBuilder, Name, Transform } from "@/index";
+import type { AsyncSystemFn, QuatLike, SyncSystemFn } from "@/index";
+import { Renderable2D } from "@/2d";
+
+/** Sets a rotation of `angle` radians around the Z axis, the only rotation 2D uses. */
+function setZRotation(q: QuatLike, angle: number): void {
+  q.x = 0;
+  q.y = 0;
+  q.z = Math.sin(angle / 2);
+  q.w = Math.cos(angle / 2);
+}
 
 /**
  * Simple 2D Demo with PixiJS
@@ -24,9 +30,9 @@ export function create2DDemo() {
     EntityBuilder.create()
       .name("Background")
       .with(Transform, {
-        position: new Vector3(400, 300, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: 400, y: 300, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -44,9 +50,9 @@ export function create2DDemo() {
     EntityBuilder.create()
       .name("Title")
       .with(Transform, {
-        position: new Vector3(400, 50, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: 400, y: 50, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -68,9 +74,9 @@ export function create2DDemo() {
     EntityBuilder.create()
       .name("Subtitle")
       .with(Transform, {
-        position: new Vector3(400, 100, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: 400, y: 100, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -109,9 +115,9 @@ export function create2DDemo() {
       EntityBuilder.create()
         .name(`Circle ${i + 1}`)
         .with(Transform, {
-          position: new Vector3(x, y, 0),
-          rotation: new Quaternion(),
-          scale: new Vector3(1, 1, 1),
+          position: { x: x, y: y, z: 0 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+          scale: { x: 1, y: 1, z: 1 },
         })
         .with(Renderable2D, {
           id: 0,
@@ -132,9 +138,9 @@ export function create2DDemo() {
     EntityBuilder.create()
       .name("Center Square")
       .with(Transform, {
-        position: new Vector3(400, 350, 0),
-        rotation: new Quaternion(),
-        scale: new Vector3(1, 1, 1),
+        position: { x: 400, y: 350, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
       })
       .with(Renderable2D, {
         id: 0,
@@ -162,9 +168,9 @@ export function create2DDemo() {
       EntityBuilder.create()
         .name(`Info ${i}`)
         .with(Transform, {
-          position: new Vector3(50, 200 + i * 40, 0),
-          rotation: new Quaternion(),
-          scale: new Vector3(1, 1, 1),
+          position: { x: 50, y: 200 + i * 40, z: 0 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+          scale: { x: 1, y: 1, z: 1 },
         })
         .with(Renderable2D, {
           id: 0,
@@ -205,17 +211,18 @@ export function create2DDemo() {
 
           // Individual rotation
           const rotAngle = time * 2;
-          transform.rotation.setFromAxisAngle(new Vector3(0, 0, 1), rotAngle);
+          setZRotation(transform.rotation, rotAngle);
         }
       }
 
       // Wobble the center square
       if (nameComp.name === "Center Square") {
         const wobble = Math.sin(time * 3) * 0.2;
-        transform.rotation.setFromAxisAngle(new Vector3(0, 0, 1), wobble);
+        setZRotation(transform.rotation, wobble);
 
         const pulse = 1 + Math.sin(time * 2) * 0.1;
-        transform.scale.set(pulse, pulse, 1);
+        transform.scale.x = pulse;
+        transform.scale.y = pulse;
       }
     });
   };
