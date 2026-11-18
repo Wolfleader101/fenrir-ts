@@ -81,7 +81,7 @@ describe("createGame with pixi2d, through the public entry points", () => {
   it("types plugins and system options", () => {
     const plugin: import("@/index").Plugin = { name: "myGame.audio", install: () => {} };
     expectTypeOf(plugin.install).parameter(0).toEqualTypeOf<import("@/index").Game>();
-    const options: import("@/index").SystemOptions = { name: "x", before: ["a"], after: "b", runIf: (ctx) => ctx.time.deltaTime > 0 };
+    const options: import("@/index").SystemOptions = { name: "x", before: ["a"], after: "b", runIf: (ctx) => ctx.time.delta > 0 };
     expect(options.name).toBe("x");
   });
 });

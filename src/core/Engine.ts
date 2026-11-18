@@ -7,6 +7,9 @@ import type {
 } from "./Scheduler";
 import { Schedule } from "./Scheduler";
 import { Time } from "./Time";
+import type { Clock } from "./Clock";
+import { realClock } from "./Clock";
+import { Random, seedFromClock } from "./Random";
 import type { AsyncSystemFn, GameServices, SyncSystemFn, SystemCtx } from "./SystemCtx";
 import type { EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
@@ -22,8 +25,13 @@ export type EngineOptions = {
   maxFrameDelta?: number;
   /** Maximum fixed updates per animation frame. Defaults to 8. */
   maxTicksPerFrame?: number;
-  /** Fields added to every SystemCtx. `createGame` passes the game's services here. */
+  /**
+   * Fields added to every SystemCtx. `createGame` passes the game's services here. Without
+   * them, the engine makes its own, with `random` seeded from the clock.
+   */
   services?: GameServices;
+  /** Where `ctx.time` reads time. Defaults to the real clock; pass one you control in tests. */
+  clock?: Clock;
 };
 
 type Lifecycle = "starting" | "running" | "paused" | "stopping";
@@ -38,7 +46,7 @@ type EngineRun = {
 };
 
 export class Engine {
-  private readonly time = new Time();
+  private readonly time: Time;
   private readonly scheduler: Scheduler;
   private readonly maxFrameDelta: number;
   private readonly maxTicksPerFrame: number;
@@ -56,7 +64,9 @@ export class Engine {
     this.sceneManager = opts.sceneManager;
     this.events = opts.events;
     this.logger = opts.logger ?? new NullLogger();
-    this.services = opts.services ?? {};
+    const clock = opts.clock ?? realClock;
+    this.time = new Time(clock);
+    this.services = opts.services ?? { random: new Random(seedFromClock(clock)) };
     this.maxFrameDelta = opts.maxFrameDelta ?? 0.25;
     this.maxTicksPerFrame = opts.maxTicksPerFrame ?? 8;
     if (!Number.isFinite(this.maxFrameDelta) || this.maxFrameDelta <= 0) {
@@ -69,6 +79,7 @@ export class Engine {
 
   private createSystemCtx(run: EngineRun): SystemCtx {
     const ctx: SystemCtx = {
+      ...this.services,
       time: this.time,
       events: this.events,
       logger: this.logger,
@@ -91,7 +102,7 @@ export class Engine {
         void this.stop().catch((error: unknown) => this.logger.error("Engine shutdown failed", { error }));
       },
     };
-    return Object.assign(ctx, this.services);
+    return ctx;
   }
 
   public run(): Promise<void> {
@@ -173,9 +184,9 @@ export class Engine {
     this.time.update(this.maxFrameDelta);
     this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
 
-    const step = this.time.fixedDeltaTime;
+    const step = this.time.fixedDelta;
     if (run.state !== "running") return;
-    if (!Number.isFinite(step) || step <= 0) throw new RangeError("tickRate must be positive and finite");
+    if (!Number.isFinite(step) || step <= 0) throw new RangeError(`time.fixedDelta must be a positive finite number of seconds, got ${step}`);
 
     for (let ticks = 0; this.time.accumulator >= step && ticks < this.maxTicksPerFrame; ticks++) {
       this.scheduler.runSyncStage(Schedule.Tick, ctx);

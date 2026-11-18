@@ -144,7 +144,7 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
   };
 
   const update: SyncSystemFn = (ctx) => {
-    spawnTimer += ctx.time.deltaTime;
+    spawnTimer += ctx.time.delta;
 
     // Occasionally spawn a random block from above
     if (spawnTimer > 3.0) {

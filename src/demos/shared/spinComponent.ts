@@ -16,7 +16,7 @@ const AXIS_Y = new Vector3(0, 1, 0);
 const DELTA = new Quaternion();
 
 export const spinSystemUpdate: SyncSystemFn = (ctx) => {
-  const dt = ctx.time.deltaTime;
+  const dt = ctx.time.delta;
 
   ctx.entities.each(QUERY, (_e, transform, spin) => {
     DELTA.setFromAxisAngle(AXIS_Y, spin.speed * dt);

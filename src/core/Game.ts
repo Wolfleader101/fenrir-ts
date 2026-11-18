@@ -1,8 +1,11 @@
 import { AssetStore } from "./Assets/AssetStore";
+import { realClock } from "./Clock";
+import type { Clock } from "./Clock";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { Engine } from "./Engine";
 import { EventBus } from "./EventBus";
 import type { ILogger } from "./ILogger";
+import { Random, seedFromClock } from "./Random";
 import { SceneManager } from "./SceneManager";
 import { Scheduler } from "./Scheduler";
 import type { AsyncStage, ScheduleStage, SyncStage, SystemOptions } from "./Scheduler";
@@ -29,7 +32,12 @@ export interface GameOptions {
   plugins?: readonly Plugin[];
   /** Defaults to a ConsoleLogger. */
   logger?: ILogger;
-  // Seam for #33 (clock and random): seed?: number;
+  /**
+   * Seeds `game.random` and `ctx.random`: a safe integer. Without one, the seed comes from the
+   * clock, and `game.random.seed` reports it. Stopping and running the game again continues
+   * the sequence; it does not restart it.
+   */
+  seed?: number;
   // Seam for #37 (inspect): debug?: boolean;
 }
 
@@ -37,7 +45,7 @@ export interface GameOptions {
  * A running game. Built by `createGame`.
  *
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `resources` (#29), `states` (#30), `random` (#33), `input` (#36): fields of GameServices
+ * - `resources` (#29), `states` (#30), `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
  * - `onEnter` / `onExit` (#30) and `on` (#32): methods added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
@@ -77,9 +85,10 @@ class GameImpl implements Game {
   public readonly logger: ILogger;
   public readonly assets: AssetStore;
   public readonly events: EventBus;
+  declare public readonly random: Random;
   private readonly engine: Engine;
 
-  constructor(options: GameOptions, services: GameServices) {
+  constructor(options: GameOptions, services: GameServices, clock: Clock) {
     this.canvas = options.canvas;
     this.logger = options.logger ?? new ConsoleLogger();
     this.assets = new AssetStore();
@@ -91,6 +100,7 @@ class GameImpl implements Game {
       events: this.events,
       logger: this.logger,
       services,
+      clock,
     });
   }
 
@@ -144,17 +154,18 @@ export async function createGame(options: GameOptions): Promise<Game> {
     throw new TypeError("createGame needs { canvas }: the HTMLCanvasElement the game draws to.");
   }
 
+  const clock = realClock;
   const services: GameServices = {
     // Seam for #29: resources: new Resources(),
 
     // Seam for #30: states: new States(),
 
-    // Seam for #33: random: new Random(options.seed),
+    random: new Random(options.seed ?? seedFromClock(clock)),
 
     // Seam for #36: input: new Input(),
   };
 
-  const game = new GameImpl(options, services);
+  const game = new GameImpl(options, services, clock);
 
   const installed = new Set<string>();
   for (const plugin of options.plugins ?? []) {

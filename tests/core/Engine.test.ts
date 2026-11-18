@@ -4,6 +4,7 @@ import { Scheduler, Schedule } from "@/core/Scheduler";
 import { EventBus } from "@/core/EventBus";
 import { SceneManager } from "@/core/SceneManager";
 import { Time } from "@/core/Time";
+import { Random } from "@/core/Random";
 import type { SystemCtx, AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
 import type { ILogger } from "@/core/ILogger";
 import { namedSpy } from "../utils/testHelpers";
@@ -82,7 +83,7 @@ describe("Engine", () => {
     it("should provide access to time system", () => {
       const time = engine.getTime();
       expect(time).toBeInstanceOf(Time);
-      expect(time.deltaTime).toBe(0);
+      expect(time.delta).toBe(0);
     });
   });
 
@@ -195,6 +196,7 @@ describe("Engine", () => {
 
       expect(testSystem).toHaveBeenCalledWith({
         time: engine.getTime(),
+        random: expect.any(Random),
         events: eventBus,
         logger: mockLogger,
         scenes: sceneManager,
@@ -285,14 +287,14 @@ describe("Engine", () => {
       await engine.run();
 
       // Simulate large time delta that should trigger multiple ticks
-      time.accumulator = time.tickRate * 2.5; // Should cause 2 tick calls
+      time.accumulator = time.fixedDelta * 2.5; // Should cause 2 tick calls
 
       if (loopCallback) {
         (loopCallback as Function)();
       }
 
       expect(tickSystem).toHaveBeenCalledTimes(2);
-      expect(time.accumulator).toBeLessThan(time.tickRate);
+      expect(time.accumulator).toBeLessThan(time.fixedDelta);
     });
 
     it("should update event bus at frame boundary", async () => {
@@ -393,6 +395,7 @@ describe("Engine", () => {
 
       expect(exitSystem).toHaveBeenCalledWith({
         time: engine.getTime(),
+        random: expect.any(Random),
         events: eventBus,
         logger: mockLogger,
         scenes: sceneManager,
@@ -588,19 +591,19 @@ describe("Engine", () => {
       expect(tickCount).toBe(0);
 
       // Simulate exactly one tick worth of time
-      time.accumulator = time.tickRate;
+      time.accumulator = time.fixedDelta;
       if (loopCallback) {
         (loopCallback as Function)();
       }
       expect(tickCount).toBe(1);
 
       // Simulate more than one tick but less than two
-      time.accumulator = time.tickRate * 1.5;
+      time.accumulator = time.fixedDelta * 1.5;
       if (loopCallback) {
         (loopCallback as Function)();
       }
       expect(tickCount).toBe(2); // Should be 1 more tick
-      expect(time.accumulator).toBeLessThan(time.tickRate);
+      expect(time.accumulator).toBeLessThan(time.fixedDelta);
     });
   });
 
@@ -685,7 +688,7 @@ describe("Engine", () => {
 
     it("should handle zero tick rates safely", () => {
       const time = engine.getTime();
-      const originalTickRate = time.tickRate;
+      const originalTickRate = time.fixedDelta;
 
       const tickSystem = namedSpy("tickSystem");
       engine.addSystem(Schedule.Tick, tickSystem);
@@ -699,14 +702,14 @@ describe("Engine", () => {
       engine.run();
 
       // Test with normal tick rate first
-      time.accumulator = time.tickRate * 0.5; // Less than one tick
+      time.accumulator = time.fixedDelta * 0.5; // Less than one tick
       if (loopCallback) {
         (loopCallback as Function)();
       }
       expect(tickSystem).not.toHaveBeenCalled();
 
       // Reset for cleanup
-      time.tickRate = originalTickRate;
+      time.fixedDelta = originalTickRate;
     });
   });
 });

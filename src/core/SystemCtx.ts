@@ -3,6 +3,7 @@ import type { EventBus } from "./EventBus";
 import type { ILogger } from "./ILogger";
 import type { Scene } from "./Scene";
 import type { SceneManager } from "./SceneManager";
+import type { Random } from "./Random";
 import type { Time } from "./Time";
 
 /**
@@ -18,7 +19,8 @@ export interface GameServices {
 
   // #30 states: readonly states: States;
 
-  // #33 clock and random: readonly random: Random;
+  /** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
+  readonly random: Random;
 
   // #36 input actions: readonly input: Input;
 }

@@ -121,3 +121,39 @@ describe("fenrir-ts core public API", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("fenrir-ts time and random", () => {
+  it("seeds ctx.random from createGame and reads time through an injectable clock", async () => {
+    const { createGame, Engine, EventBus, NullLogger, Random, SceneManager, Schedule, Scheduler } = core;
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger(), seed: 3 });
+    expectTypeOf(game.random).toEqualTypeOf<import("@/index").Random>();
+    const reference = new Random(3);
+    const seen: { roll: number; pick: "a" | "b"; now: number; fixedDelta: number }[] = [];
+    game.addSystem(Schedule.Init, ({ random, time }) => {
+      const roll = random.int(1, 6);
+      const pick = random.pick(["a", "b"] as const);
+      expectTypeOf(pick).toEqualTypeOf<"a" | "b">();
+      expectTypeOf(time.now()).toEqualTypeOf<number>();
+      seen.push({ roll, pick, now: time.now(), fixedDelta: time.fixedDelta });
+    }, { name: "test.draw" });
+    await game.run();
+    await game.stop();
+    expect(seen[0]?.roll).toBe(reference.int(1, 6));
+    expect(seen[0]?.pick).toBe(reference.pick(["a", "b"]));
+    expect(seen[0]?.fixedDelta).toBe(1 / 60);
+
+    // A Clock is two readings; an object literal is enough to control both.
+    let ms = 0;
+    const clock: import("@/index").Clock = { monotonic: () => ms, now: () => 1_000 + ms };
+    const engine = new Engine({ scheduler: new Scheduler(), sceneManager: new SceneManager(), events: new EventBus(), clock });
+    const time = engine.getTime();
+    ms = 40;
+    time.update();
+    expect(time.delta).toBe(0.04);
+    expect(time.now()).toBe(1_040);
+    expect(core).not.toHaveProperty("ManualClock");
+  });
+});

@@ -91,18 +91,18 @@ describe("frame timing", () => {
     let now = 0;
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const { engine, frame } = setup({ maxFrameDelta: 0.125, maxTicksPerFrame: 2 });
-    engine.getTime().tickRate = 0.02;
+    engine.getTime().fixedDelta = 0.02;
     const fixedSteps: number[] = [];
     engine.addSystem(Schedule.PostInit, async () => { now = 3_000; }, { name: "test.slowStartup" });
-    engine.addSystem(Schedule.Tick, ({ time }) => { fixedSteps.push(time.fixedDeltaTime); }, { name: "test.recordStep" });
+    engine.addSystem(Schedule.Tick, ({ time }) => { fixedSteps.push(time.fixedDelta); }, { name: "test.recordStep" });
 
     await engine.run();
     frame();
-    expect(engine.getTime().deltaTime).toBe(0);
+    expect(engine.getTime().delta).toBe(0);
     expect(fixedSteps).toEqual([]);
     now += 3_000;
     frame();
-    expect(engine.getTime().deltaTime).toBe(0.125);
+    expect(engine.getTime().delta).toBe(0.125);
     expect(fixedSteps).toEqual([0.02, 0.02]);
     expect(engine.getTime().accumulator).toBeCloseTo(0.005);
     await engine.stop();
