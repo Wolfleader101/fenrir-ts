@@ -9,7 +9,11 @@
 
 // Game: the way to start a game
 export { createGame } from "./Game";
-export type { Game, GameOptions, Plugin } from "./Game";
+export type { Game, GameBase, GameOptions, Plugin } from "./Game";
+
+// Test game: frames on demand, no canvas and no real clock
+export { createTestGame } from "./TestGame";
+export type { TestClock, TestGame, TestGameOptions } from "./TestGame";
 
 // States: state machines with enter and exit hooks, and the inState run condition
 export { defineState, inState } from "./State";

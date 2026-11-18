@@ -66,7 +66,7 @@ game.addSystem(Schedule.Init, spawnBall);
 await game.run();
 ```
 
-`game.run()` resolves once `PreInit`, `Init` and `PostInit` have run and the first frame is scheduled. If any of them throws, the run rolls back: `Exit` systems and cleanups run, and `run()` rejects with the error. `game.stop()`, `game.pause()` and `game.resume()` control the loop.
+`game.run()` resolves once `PreInit`, `Init` and `PostInit` have run and the first frame is scheduled. If any of them throws, the run rolls back: `Exit` systems and cleanups run, and `run()` rejects with the error. `game.stop()`, `game.pause()` and `game.resume()` control the loop, and `game.step(dt)` runs frames while paused. Tests use `createTestGame` instead: see [Testing a game](#testing-a-game).
 
 `game.assets` is the asset store. The 2D texture methods come from `fenrir-ts/2d`:
 
@@ -383,6 +383,50 @@ off(); // removes the game.on listener early
 - A listener may send events; they are delivered at once, depth first. A listener removed during delivery is not called after that; one added during delivery receives only later events. Events nested 32 deep stop being delivered, with an error logged.
 - A listener that throws, or an async one that rejects, is logged through the game's logger with the event name; the other listeners and the sender carry on. Async listeners are not awaited.
 - Readers are unchanged: the bus keeps two frames of events, and `createReader(Event).read()` returns each one once.
+
+### Testing a game
+
+`createTestGame({ seed, now?, plugins?, logger? })` builds a game for tests: the same scheduler, services, states, events and plugins as `createGame`, with no canvas, no renderer and no `requestAnimationFrame`. Frames run when you call `game.step(dt)`, and time moves only with `step` and `game.clock.advance`, so the systems you register in the browser game run unchanged and deterministically in Vitest.
+
+```ts
+import { Schedule, createTestGame, defineResource, defineState, inState } from "fenrir-ts";
+import type { SystemCtx } from "fenrir-ts";
+import { expect, it } from "vitest";
+
+const Phase = defineState("myGame.Phase", { values: ["waiting", "casting", "landed"], initial: "waiting" });
+const Line = defineResource("myGame.Line", () => ({ ticks: 0 }));
+
+// The same system the browser game registers: one second of fixed ticks lands the fish.
+function reel({ resources, states }: SystemCtx): void {
+  if (++resources.get(Line).ticks >= 60) states.set(Phase, "landed");
+}
+
+it("lands the fish after one second of casting", async () => {
+  const game = await createTestGame({ seed: 1, now: 1_700_000_000_000 });
+  game.addSystem(Schedule.Tick, reel, { runIf: inState(Phase, "casting") });
+  await game.start(); // runs PreInit, Init and PostInit; schedules no frame
+
+  game.states.set(Phase, "casting");
+  game.step(1 / 60, 59); // fifty-nine frames, one tick each
+  expect(game.states.get(Phase)).toBe("casting");
+  game.step(1 / 60); // one more frame
+  expect(game.states.get(Phase)).toBe("landed");
+
+  game.clock.advance(5_000); // moves time.now() without running a frame
+  await game.stop(); // runs Exit systems and cleanups
+});
+```
+
+- `await game.start()` runs the startup stages with the same rollback as `run()`: if a startup system throws, `Exit` systems and cleanups run and `start()` rejects. `await game.stop()` runs `Exit` systems and cleanups. A stopped test game can `start()` again.
+- `game.step(dt = 1 / 60, frames = 1)` runs whole frames through the same frame body as the browser loop: `PreUpdate`, the `Tick` stages the accumulator holds, `Update`, `PostUpdate`, then the event buffers advance. Fixed ticks accumulate from `dt` exactly, so `step(1 / 60, 600)` runs 600 ticks and `step(1 / 120, 2)` runs one.
+- `dt` is at most 0.25 s, the engine's frame-delta clamp. A longer `dt` throws rather than silently simulating less than you asked: to advance a second, write `step(1 / 60, 60)`. A frame still runs at most 8 ticks, as in the browser, so `step(0.25)` runs 8 ticks of 1/60 and drops the rest, as a long browser frame does.
+- Each stepped frame moves `time.now()` by `dt`, starting from `now` (default 0). `time.elapsed` and `states.timeIn` count stepped time only; `clock.advance(ms)` moves `time.now()` alone.
+- `seed` is required. Nothing in a test game reads `performance.now()`, `Date.now()` or `requestAnimationFrame`.
+- A test game has no canvas, so a plugin that reads `game.canvas`, such as `pixi2d`, throws when it installs, saying so. Plugins that only add systems, resources or listeners install as usual. A system that draws with Pixi needs the renderer and is tested in the browser; keep drawing out of gameplay systems so they run in both.
+- A test game has `start()` where a `Game` has `run()`, and no `pause` or `resume`: between steps it is never running, so there is nothing to pause.
+- A system that throws stops the game, and the error propagates from `step`. A system that calls `ctx.stop()` ends the remaining frames of the `step` call.
+
+`game.step` also exists on a `Game` made by `createGame`, for frame-by-frame debugging: call `game.pause()` first. Each step advances the game by `dt` whatever the real time, and runs every system, so the `pixi2d` renderer draws each stepped frame. Calling `step` before `run()` or while running throws and says to pause first.
 
 ### Live Code Editor Example
 

@@ -1,8 +1,8 @@
 import { AssetStore } from "./Assets/AssetStore";
 import { realClock } from "./Clock";
-import type { Clock } from "./Clock";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { Engine } from "./Engine";
+import type { EngineOptions } from "./Engine";
 import { EventBus, listenAcrossRuns, type EventHandler } from "./EventBus";
 import type { EventType } from "./EventQueue";
 import { Resources } from "./Resource";
@@ -22,6 +22,10 @@ import type { AsyncSystemFn, GameServices, SyncSystemFn } from "./SystemCtx";
  * may read `game.canvas`, `game.logger`, `game.assets` and `game.events`. It should not acquire
  * resources such as GPU contexts or listeners: do that in an `Init` system, and release them
  * with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back.
+ *
+ * `createTestGame` installs plugins too, but a test game has no canvas: reading `game.canvas`
+ * there throws, so a renderer plugin such as `pixi2d` fails to install and says so. A plugin
+ * that only adds systems, resources or listeners installs in both.
  */
 export interface Plugin {
   /** Namespaced, for example `fenrir.pixi2d` or `myGame.audio`. One plugin per name per game. */
@@ -46,15 +50,10 @@ export interface GameOptions {
 }
 
 /**
- * A running game. Built by `createGame`.
- *
- * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `input` (#36): fields of GameServices
- *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
+ * What a `Game` and a `TestGame` share: registration, services, `stop` and `step`. Systems,
+ * hooks and listeners written against it run unchanged in both.
  */
-export interface Game extends GameServices {
-  readonly canvas: HTMLCanvasElement;
+export interface GameBase extends GameServices {
   readonly logger: ILogger;
   readonly assets: AssetStore;
   readonly events: EventBus;
@@ -66,12 +65,22 @@ export interface Game extends GameServices {
   /** Swaps the function of every system called `name`, keeping its position and options. */
   replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
 
-  /** Runs PreInit, Init and PostInit, then resolves when the first frame is scheduled. */
-  run(): Promise<void>;
   /** Runs Exit systems, then cleanups in reverse order. */
   stop(): Promise<void>;
-  pause(): void;
-  resume(): void;
+
+  /**
+   * Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the
+   * same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at
+   * most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then
+   * the event buffers advance. Fixed ticks accumulate from `dt` exactly.
+   *
+   * `dt` is at most 0.25 s, the frame-delta clamp; a longer `dt` throws rather than silently
+   * simulating less: write `step(1 / 60, 60)` for a second. On a `Game`, `step` runs only while
+   * paused (`pause()` first) and advances by `dt` whatever the real time; the game's systems
+   * all run, so a renderer draws each stepped frame. On a `TestGame`, it runs after `start()`.
+   * A system that throws stops the game and the error propagates from `step`.
+   */
+  step(dt?: number, frames?: number): void;
 
   /**
    * Runs `system` each time `state` changes to `value`, after the exit hooks of the old value.
@@ -88,26 +97,47 @@ export interface Game extends GameServices {
    * `ctx.events.on` from a system.
    */
   on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
+}
+
+/**
+ * A running game. Built by `createGame`.
+ *
+ * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
+ * - `input` (#36): fields of GameServices
+ *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
+ * - `inspect` (#37): a method added below, under "Seams".
+ */
+export interface Game extends GameBase {
+  readonly canvas: HTMLCanvasElement;
+
+  /** Runs PreInit, Init and PostInit, then resolves when the first frame is scheduled. */
+  run(): Promise<void>;
+  /** Stops scheduling frames. `step(dt)` runs frames while paused. */
+  pause(): void;
+  resume(): void;
 
   // Seams:
-
-  // #34 headless step: step(dt?: number, frames?: number): void
 
   // #37 inspect: inspect(): GameSnapshot
 }
 
-class GameImpl implements Game {
+/** Internal. `createGame` and `createTestGame` both build one, so the two cannot drift. */
+export class GameImpl implements Game {
   declare public readonly resources: Resources;
-  public readonly canvas: HTMLCanvasElement;
   public readonly logger: ILogger;
   public readonly assets: AssetStore;
   public readonly events: EventBus;
   declare public readonly random: Random;
   declare public readonly states: States;
-  private readonly engine: Engine;
+  protected readonly engine: Engine;
+  private readonly target?: HTMLCanvasElement;
 
-  constructor(options: GameOptions, services: GameServices, clock: Clock) {
-    this.canvas = options.canvas;
+  constructor(
+    options: Omit<GameOptions, "canvas"> & { canvas?: HTMLCanvasElement },
+    services: GameServices,
+    engineOptions: Pick<EngineOptions, "clock" | "loop" | "beforeStep">,
+  ) {
+    this.target = options.canvas;
     this.logger = options.logger ?? new ConsoleLogger();
     this.assets = new AssetStore();
     this.events = new EventBus();
@@ -118,8 +148,15 @@ class GameImpl implements Game {
       events: this.events,
       logger: this.logger,
       services,
-      clock,
+      ...engineOptions,
     });
+  }
+
+  public get canvas(): HTMLCanvasElement {
+    if (!this.target) {
+      throw new Error("A test game has no canvas, so a plugin that draws, such as pixi2d, cannot install in createTestGame. Leave it out of the test game's plugins: the systems that do not draw run without it.");
+    }
+    return this.target;
   }
 
   public addSystem(stage: SyncStage, system: SyncSystemFn, options?: SystemOptions): this;
@@ -161,6 +198,10 @@ class GameImpl implements Game {
     return this.engine.stop();
   }
 
+  public step(dt?: number, frames?: number): void {
+    this.engine.step(dt, frames);
+  }
+
   public pause(): void {
     this.engine.pause();
   }
@@ -190,22 +231,32 @@ export async function createGame(options: GameOptions): Promise<Game> {
   }
 
   const clock = realClock;
-  const services: GameServices = {
+  const services = createServices(options.seed ?? seedFromClock(clock));
+
+  const game = new GameImpl(options, services, { clock });
+  await installPlugins(game, options.plugins, "createGame");
+  return game;
+}
+
+/** Internal. The services of a game or a test game, built in one place so the two match. */
+export function createServices(seed: number): GameServices {
+  return {
     resources: new Resources(),
 
     states: new GameStates(),
 
-    random: new Random(options.seed ?? seedFromClock(clock)),
+    random: new Random(seed),
 
     // Seam for #36: input: new Input(),
   };
+}
 
-  const game = new GameImpl(options, services, clock);
-
+/** Internal. Installs `plugins` in order, awaiting async installs. */
+export async function installPlugins(game: GameImpl, plugins: readonly Plugin[] = [], from: string): Promise<void> {
   const installed = new Set<string>();
-  for (const plugin of options.plugins ?? []) {
+  for (const plugin of plugins) {
     if (installed.has(plugin.name)) {
-      throw new Error(`Plugin "${plugin.name}" is listed twice in createGame's plugins. Remove one.`);
+      throw new Error(`Plugin "${plugin.name}" is listed twice in ${from}'s plugins. Remove one.`);
     }
     installed.add(plugin.name);
     try {
@@ -215,6 +266,4 @@ export async function createGame(options: GameOptions): Promise<Game> {
       throw error;
     }
   }
-
-  return game;
 }
