@@ -8,8 +8,6 @@ type Core = typeof import("@/core/index");
 let core: Core;
 
 beforeAll(async () => {
-  // three/webgpu reads this WebGPU global while loading. jsdom does not provide it.
-  vi.stubGlobal("GPUShaderStage", { VERTEX: 1, FRAGMENT: 2, COMPUTE: 4 });
   core = await import("@/core/index");
 });
 
@@ -18,6 +16,14 @@ afterAll(() => {
 });
 
 describe("fenrir-ts/core public API", () => {
+  it("loads without a WebGPU global", async () => {
+    // Regression for #21: three/webgpu read GPUShaderStage while loading, so
+    // importing the core entry threw wherever WebGPU was missing (jsdom too).
+    expect("GPUShaderStage" in globalThis).toBe(false);
+    vi.resetModules();
+    await expect(import("@/core/index")).resolves.toHaveProperty("bootstrapEngine");
+  });
+
   it("defines and queries a custom component", () => {
     const { EntityList, defineComponent } = core;
     type Health = { current: number; max: number };

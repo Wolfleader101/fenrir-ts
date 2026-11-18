@@ -1,5 +1,7 @@
 import * as THREE from "three";
-import * as THREE_WEBGPU from "three/webgpu";
+// Type-only: the WebGPU build reads WebGPU globals while it loads, so it is
+// imported lazily in init() and only when WebGPU is available.
+import type * as THREE_WEBGPU from "three/webgpu";
 
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import type { Entity, EntityList } from "../ECS";
@@ -65,11 +67,22 @@ export interface ThreeRendererOptions {
   rendererType?: RendererType;
 }
 
+type AnyRenderer = THREE.WebGLRenderer | THREE_WEBGPU.WebGPURenderer;
+
+/** True when the WebGPU globals that `three/webgpu` reads at load time exist. */
+export function isWebGPUAvailable(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    "gpu" in navigator &&
+    !!(navigator as Navigator & { gpu?: unknown }).gpu &&
+    typeof (globalThis as { GPUShaderStage?: unknown }).GPUShaderStage !==
+      "undefined"
+  );
+}
+
 export class ThreeRenderer {
   public readonly scene = new THREE.Scene();
-  public readonly renderer: THREE.WebGLRenderer | THREE_WEBGPU.WebGPURenderer;
   public readonly camera: THREE.PerspectiveCamera; // Kept for backward compatibility
-  public readonly rendererType: RendererType;
 
   private readonly objects = new Map<ObjKey, THREE.Object3D>();
 
@@ -77,8 +90,19 @@ export class ThreeRenderer {
   private readonly matCache = new Map<string, THREE.Material>();
 
   private readonly assets: IAssetStore;
+  private readonly logger: ILogger;
+  private readonly canvas: HTMLCanvasElement | undefined;
+  private readonly clearColor: number | undefined;
+  private width: number;
+  private height: number;
   private currentSkybox: SkyboxInstance | null = null;
   private isInitialized = false;
+  private initPromise: Promise<void> | null = null;
+
+  /** Requested renderer type. See `rendererType` for the one in use. */
+  public readonly requestedRendererType: RendererType;
+  private activeRendererType: RendererType;
+  private threeRenderer: AnyRenderer | null = null;
 
   // optional: ref counts if you want to dispose caches safely later
   // private readonly geomRef = new Map<string, number>();
@@ -92,7 +116,9 @@ export class ThreeRenderer {
     } = opts;
 
     this.assets = opts.assets;
-    this.rendererType = opts.rendererType || "webgl";
+    this.logger = opts.logger;
+    this.requestedRendererType = opts.rendererType || "webgl";
+    this.activeRendererType = this.requestedRendererType;
 
     // Validate canvas if provided
     if (canvas && !(canvas instanceof HTMLCanvasElement)) {
@@ -102,26 +128,14 @@ export class ThreeRenderer {
       );
     }
 
-    // Create renderer based on type
-    if (this.rendererType === "webgpu") {
-      this.renderer = new THREE_WEBGPU.WebGPURenderer({
-        canvas,
-        antialias: true,
-      });
-    } else {
-      this.renderer = new THREE.WebGLRenderer({
-        canvas,
-        antialias: true,
-      });
-    }
+    this.canvas = canvas;
+    this.clearColor = opts.clearColor;
+    this.width = width;
+    this.height = height;
 
-    this.renderer.shadowMap.enabled = true;
-
-    this.renderer.setSize(width, height, false);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-    if (opts.clearColor !== undefined) {
-      this.renderer.setClearColor(opts.clearColor);
+    // WebGL is created now. WebGPU needs a dynamic import, so it is created in init().
+    if (this.requestedRendererType === "webgl") {
+      this.threeRenderer = this.configure(this.createWebGLRenderer());
     }
 
     this.camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
@@ -139,18 +153,80 @@ export class ThreeRenderer {
   }
 
   /**
-   * Initialize the renderer (required for WebGPU, no-op for WebGL)
+   * The underlying three.js renderer. For `"webgpu"` it exists only after `init()` resolves.
    */
-  public async init(): Promise<void> {
-    if (this.isInitialized) return;
-
-    if (this.rendererType === "webgpu") {
-      // WebGPU requires async initialization
-      await (this.renderer as THREE_WEBGPU.WebGPURenderer).init();
+  public get renderer(): AnyRenderer {
+    if (!this.threeRenderer) {
+      throw new Error(
+        "ThreeRenderer: the WebGPU renderer is created in init(). Await init() before using it.",
+      );
     }
-    // WebGL renderer is ready immediately, no initialization needed
+    return this.threeRenderer;
+  }
 
+  /**
+   * Renderer type in use. Starts as the requested type and becomes `"webgl"`
+   * after init() if WebGPU was requested but is unavailable.
+   */
+  public get rendererType(): RendererType {
+    return this.activeRendererType;
+  }
+
+  /**
+   * Initialize the renderer. For `"webgpu"` this loads `three/webgpu` and creates
+   * the renderer; without WebGPU it logs a warning and uses WebGL instead.
+   */
+  public init(): Promise<void> {
+    if (this.isInitialized) return Promise.resolve();
+    this.initPromise ??= this.doInit();
+    return this.initPromise;
+  }
+
+  private async doInit(): Promise<void> {
+    if (this.requestedRendererType === "webgpu" && !this.threeRenderer) {
+      this.threeRenderer = this.configure(await this.createWebGPUOrFallback());
+    }
     this.isInitialized = true;
+  }
+
+  private async createWebGPUOrFallback(): Promise<AnyRenderer> {
+    if (!isWebGPUAvailable()) {
+      this.logger.warn(
+        "WebGPU is not available in this environment; falling back to the WebGL renderer.",
+      );
+      this.activeRendererType = "webgl";
+      return this.createWebGLRenderer();
+    }
+
+    let gpu: THREE_WEBGPU.WebGPURenderer | null = null;
+    try {
+      const { WebGPURenderer } = await import("three/webgpu");
+      gpu = new WebGPURenderer({ canvas: this.canvas, antialias: true });
+      await gpu.init();
+      return gpu;
+    } catch (err) {
+      gpu?.dispose();
+      this.logger.warn(
+        "WebGPU renderer failed to initialize; falling back to the WebGL renderer.",
+        { error: err instanceof Error ? err.message : String(err) },
+      );
+      this.activeRendererType = "webgl";
+      return this.createWebGLRenderer();
+    }
+  }
+
+  private createWebGLRenderer(): THREE.WebGLRenderer {
+    return new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+  }
+
+  private configure<R extends AnyRenderer>(renderer: R): R {
+    renderer.shadowMap.enabled = true;
+    renderer.setSize(this.width, this.height, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    if (this.clearColor !== undefined) {
+      renderer.setClearColor(this.clearColor);
+    }
+    return renderer;
   }
 
   /**
@@ -161,7 +237,9 @@ export class ThreeRenderer {
   }
 
   public resize(width: number, height: number) {
-    this.renderer.setSize(width, height, false);
+    this.width = width;
+    this.height = height;
+    this.threeRenderer?.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
@@ -365,7 +443,7 @@ export class ThreeRenderer {
     for (const m of this.matCache.values()) m.dispose();
     this.matCache.clear();
 
-    this.renderer.dispose();
+    this.threeRenderer?.dispose();
   }
 
   // ---------- internals ----------

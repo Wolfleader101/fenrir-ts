@@ -3,16 +3,36 @@ import {
   it,
   expect,
   beforeEach,
+  afterEach,
   vi,
-  type MockedFunction,
 } from "vitest";
 import { ThreeRenderer } from "@/core/Renderer/ThreeRenderer";
 import { Renderable } from "@/core/Renderer/renderComponents";
-import { WorldTransform } from "@/core/ECS/DefaultComponents";
+import { Transform } from "@/core/ECS/DefaultComponents";
 import { NullLogger } from "@/core/NullLogger";
 import { EntityList } from "@/core/ECS";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
 import * as THREE from "three";
+
+// three/webgpu is only loaded by init() when WebGPU is available. The mock
+// lets the WebGPU path run under jsdom; `webgpuInit` controls its init().
+const webgpuInit = vi.hoisted(() => ({ fail: false }));
+vi.mock("three/webgpu", () => {
+  const WebGPURenderer = vi.fn(function () {
+    return {
+      shadowMap: { enabled: false },
+      setSize: vi.fn(),
+      setPixelRatio: vi.fn(),
+      setClearColor: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn(),
+      init: vi.fn(async () => {
+        if (webgpuInit.fail) throw new Error("no adapter");
+      }),
+    };
+  });
+  return { WebGPURenderer };
+});
 
 // Mock Three.js with proper constructor functions
 vi.mock("three", () => {
@@ -57,6 +77,11 @@ vi.mock("three", () => {
   });
 
   const createMockRenderer = () => ({
+    shadowMap: { enabled: false },
+    domElement: { width: 1024, height: 768 },
+    setViewport: vi.fn(),
+    setScissor: vi.fn(),
+    setScissorTest: vi.fn(),
     setSize: vi.fn(),
     setPixelRatio: vi.fn(),
     setClearColor: vi.fn(),
@@ -146,7 +171,7 @@ vi.mock("three", () => {
   });
 
   // Mock additional THREE.js classes and constants
-  const MockColor = vi.fn().mockImplementation((color) => ({
+  const MockColor = vi.fn().mockImplementation(() => ({
     r: 1,
     g: 1,
     b: 1,
@@ -621,7 +646,7 @@ describe("ThreeRenderer", () => {
 
     it("should apply world transform if available", async () => {
       const entity = entities.createEntity();
-      entities.set(entity, WorldTransform, {
+      entities.set(entity, Transform, {
         position: new THREE.Vector3(1, 2, 3),
         rotation: new THREE.Quaternion(0, 0, 0, 1),
         scale: new THREE.Vector3(2, 2, 2),
@@ -776,10 +801,10 @@ describe("ThreeRenderer", () => {
       renderer = new ThreeRenderer({ logger, assets: mockAssets });
     });
 
-    it("should sync transforms for entities with WorldTransform and Renderable", async () => {
+    it("should sync transforms for entities with Transform and Renderable", async () => {
       const entity = entities.createEntity();
 
-      entities.set(entity, WorldTransform, {
+      entities.set(entity, Transform, {
         position: new THREE.Vector3(5, 10, 15),
         rotation: new THREE.Quaternion(0, 0, 0, 1),
         scale: new THREE.Vector3(1.5, 1.5, 1.5),
@@ -810,7 +835,7 @@ describe("ThreeRenderer", () => {
 
     it("should handle entities without renderables gracefully", () => {
       const entity = entities.createEntity();
-      entities.set(entity, WorldTransform, {
+      entities.set(entity, Transform, {
         position: new THREE.Vector3(0, 0, 0),
         rotation: new THREE.Quaternion(0, 0, 0, 1),
         scale: new THREE.Vector3(1, 1, 1),
@@ -843,7 +868,7 @@ describe("ThreeRenderer", () => {
     });
 
     it("should render the scene", () => {
-      renderer.render();
+      renderer.render(null);
 
       expect(renderer.renderer.render).toHaveBeenCalledWith(
         renderer.scene,
@@ -1078,6 +1103,86 @@ describe("ThreeRenderer", () => {
       await expect(
         renderer.upsertRenderable(entities, entity, renderable)
       ).rejects.toThrow("Unknown material kind:");
+    });
+  });
+  describe("webgpu renderer type", () => {
+    let warn: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warn = vi.spyOn(logger, "warn");
+      webgpuInit.fail = false;
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const stubWebGPU = () => {
+      vi.stubGlobal("GPUShaderStage", { VERTEX: 1, FRAGMENT: 2, COMPUTE: 4 });
+      vi.stubGlobal("navigator", { ...navigator, gpu: {} });
+    };
+
+    it("does not create a renderer until init()", () => {
+      renderer = new ThreeRenderer({ logger, assets: mockAssets, rendererType: "webgpu" });
+
+      expect(THREE.WebGLRenderer).not.toHaveBeenCalled();
+      expect(renderer.initialized).toBe(false);
+      expect(() => renderer.renderer).toThrow(/init\(\)/);
+    });
+
+    it("falls back to WebGL with a warning when WebGPU is missing", async () => {
+      renderer = new ThreeRenderer({
+        logger,
+        assets: mockAssets,
+        rendererType: "webgpu",
+        clearColor: 0x123456,
+      });
+
+      await renderer.init();
+
+      expect(renderer.rendererType).toBe("webgl");
+      expect(renderer.requestedRendererType).toBe("webgpu");
+      expect(THREE.WebGLRenderer).toHaveBeenCalledTimes(1);
+      expect(renderer.renderer.shadowMap.enabled).toBe(true);
+      expect(renderer.renderer.setClearColor).toHaveBeenCalledWith(0x123456);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("WebGPU is not available"));
+    });
+
+    it("uses the WebGPU renderer when WebGPU is available", async () => {
+      stubWebGPU();
+      const { WebGPURenderer } = await import("three/webgpu");
+      renderer = new ThreeRenderer({ logger, assets: mockAssets, rendererType: "webgpu" });
+
+      await renderer.init();
+
+      expect(renderer.rendererType).toBe("webgpu");
+      expect(WebGPURenderer).toHaveBeenCalledTimes(1);
+      expect(THREE.WebGLRenderer).not.toHaveBeenCalled();
+      expect(renderer.renderer.setSize).toHaveBeenCalledWith(1024, 768, false);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("falls back to WebGL when WebGPU init fails", async () => {
+      stubWebGPU();
+      webgpuInit.fail = true;
+      renderer = new ThreeRenderer({ logger, assets: mockAssets, rendererType: "webgpu" });
+
+      await renderer.init();
+
+      expect(renderer.rendererType).toBe("webgl");
+      expect(THREE.WebGLRenderer).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("failed to initialize"),
+        { error: "no adapter" },
+      );
+    });
+
+    it("creates the renderer once when init() is called concurrently", async () => {
+      renderer = new ThreeRenderer({ logger, assets: mockAssets, rendererType: "webgpu" });
+
+      await Promise.all([renderer.init(), renderer.init()]);
+
+      expect(THREE.WebGLRenderer).toHaveBeenCalledTimes(1);
     });
   });
 });
