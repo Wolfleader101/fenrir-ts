@@ -58,4 +58,43 @@ describe("fenrir-ts/2d public API", () => {
     const entities = new EntityList();
     expect(entities.get(entities.createEntity(), Transform).position).toEqual({ x: 0, y: 0, z: 0 });
   });
+
+  it("lays a design frame out and exposes it as the Viewport resource and ViewportResized event", async () => {
+    const { Schedule, createGame, NullLogger } = core;
+    const { pixi2d, Viewport, ViewportResized, screenToLogical, logicalToScreen } = twoD;
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("innerHeight", 900);
+    vi.stubGlobal("devicePixelRatio", 3);
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    try {
+      const canvas = document.createElement("canvas");
+      const { Application } = await import("pixi.js");
+      const application = new Application();
+      const screen = { width: 0, height: 0 };
+      Object.assign(application, { renderer: { canvas, screen, resolution: 1, render() {}, resize: (w: number, h: number) => Object.assign(screen, { width: w, height: h }) } });
+
+      const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, safeArea: false, application });
+      const game = await createGame({ canvas, logger: new NullLogger(), plugins: [pixi] });
+      const sizes: number[] = [];
+      game.on(ViewportResized, (viewport) => sizes.push(viewport.height));
+      let seen: import("@/2d").Viewport | undefined;
+      game.addSystem(Schedule.PostInit, function readViewport({ resources }) {
+        seen = resources.get(Viewport);
+      });
+      await game.run();
+
+      expectTypeOf(seen!.scale).toEqualTypeOf<number>();
+      expect(seen).toMatchObject({ width: 390, height: 520, scale: 900 / 520, resolution: 2, screen: { width: 1440, height: 900 } });
+      expect(sizes).toEqual([520]);
+      expect(pixi.renderer.root.scale.x).toBeCloseTo(900 / 520, 9);
+      expect(application.stage.children).toEqual([pixi.renderer.backdrop, pixi.renderer.root]);
+      const logical = screenToLogical(seen!, { x: 720, y: 450 })!;
+      expect(logical.x).toBeCloseTo(195, 9);
+      expect(logicalToScreen(seen!, logical).x).toBeCloseTo(720, 9);
+      await game.stop();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

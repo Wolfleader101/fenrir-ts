@@ -8,6 +8,7 @@ import {
   type SyncSystemFn,
 } from "@/index";
 import { pixi2d } from "@/2d";
+import type { Pixi2DOptions } from "@/2d";
 
 /** Physics systems to run alongside the 2D renderer, from `createPhysicsSystem()`. */
 type PhysicsSystems = { init: AsyncSystemFn; tick: SyncSystemFn; exit: AsyncSystemFn };
@@ -21,10 +22,10 @@ type PhysicsSystems = { init: AsyncSystemFn; tick: SyncSystemFn; exit: AsyncSyst
  */
 export async function createDemoGame2D(
   canvas: HTMLCanvasElement,
-  opts: { logger?: ILogger; background?: number; physics?: PhysicsSystems } = {},
+  opts: { logger?: ILogger; background?: number; design?: Pixi2DOptions["design"]; physics?: PhysicsSystems } = {},
 ) {
-  const { background = 0x101010, physics, logger } = opts;
-  const pixi = pixi2d({ background });
+  const { background = 0x101010, design, physics, logger } = opts;
+  const pixi = pixi2d({ background, design });
   const game = await createGame({ canvas, logger, plugins: [pixi] });
 
   const domInput = createDomInputSystems();

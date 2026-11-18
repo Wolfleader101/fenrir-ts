@@ -15,3 +15,6 @@ export type { PixiRendererSystemOptions } from "./PixiRendererSystem";
 
 export { pixi2d } from "./pixi2d";
 export type { Pixi2DOptions, Pixi2DPlugin } from "./pixi2d";
+
+export { Viewport, ViewportResized, screenToLogical, logicalToScreen } from "./Viewport";
+export type { ViewportDesign, ViewportInsets, ViewportPoint } from "./Viewport";

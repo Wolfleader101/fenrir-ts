@@ -33,7 +33,7 @@ describe("Pixi ownership and renderable lifecycle", () => {
   });
 
   it("mounts children created before their parent and reparents when ownership changes", async () => {
-    const { app, opts } = setup();
+    const { opts } = setup();
     const { entities } = createMockSystemCtx();
     const renderer = new PixiRenderer(opts);
     await renderer.init();
@@ -54,7 +54,7 @@ describe("Pixi ownership and renderable lifecycle", () => {
     expect(view.parent).toBe(renderer.getRenderedObject(second, 1));
     renderer.removeRenderable(second, 1);
     expect(view.destroyed).toBe(false);
-    expect(view.parent).toBe(app.stage);
+    expect(view.parent).toBe(renderer.root);
     renderer.dispose();
   });
 
@@ -87,12 +87,14 @@ describe("Pixi ownership and renderable lifecycle", () => {
     loadRemoved(oldTexture);
     await Promise.resolve();
     expect(system.renderer.getRenderedObject(removed, 1)).toBeUndefined();
-    expect(app.stage.children).toEqual([newer]);
+    expect(system.renderer.root.children).toEqual([newer]);
+    expect(app.stage.children).toEqual([system.renderer.backdrop, system.renderer.root]);
 
     system.exit(ctx);
     const upsert = vi.spyOn(system.renderer, "upsertRenderable");
     ctx.entities.set(entity, Renderable2D, def);
     expect(upsert).not.toHaveBeenCalled();
+    expect(system.renderer.root.children).toEqual([]);
     expect(app.stage.children).toEqual([]);
   });
 });

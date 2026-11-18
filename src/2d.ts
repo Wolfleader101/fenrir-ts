@@ -20,6 +20,14 @@ export * from "./core/EntityBuilder/extensions/render2DExtensions";
 
 // Renderer2D (PixiJS)
 export { pixi2d, Renderable2D, PixiRenderer, createPixiRendererSystem } from "./core/Renderer2D";
+
+// Viewport: design resolution, safe area and resize
+export { Viewport, ViewportResized, screenToLogical, logicalToScreen } from "./core/Renderer2D";
+export type {
+  ViewportDesign,
+  ViewportInsets,
+  ViewportPoint,
+} from "./core/Renderer2D";
 export type {
   Pixi2DOptions,
   Pixi2DPlugin,

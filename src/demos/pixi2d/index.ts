@@ -1,26 +1,24 @@
 import "@/style.css";
 import { ConsoleLogger, Schedule } from "@/index";
 import { createDemoGame2D } from "../shared/setup2D.ts";
-import { create2DDemo } from "./pixi2dDemo.ts";
+import { DESIGN, create2DDemo } from "./pixi2dDemo.ts";
 import { initDemoNav, initDemoInfo } from "@/shared/demoNav.ts";
 
 // Initialize navigation
 initDemoNav("pixi2d.html");
 initDemoInfo("2D Demo (PixiJS)", [
-  "2D rendering with PixiJS",
-  "Graphics shapes (circles, rects)",
-  "Text rendering",
-  "Transform animations",
-  "ECS architecture",
+  "Designed on a 390 x 520 portrait grid",
+  "Full-bleed background, frame inside the safe area",
+  "Resize the window: the frame grows taller or centres",
 ]);
 
 const logger = new ConsoleLogger();
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
-// createGame with the pixi2d plugin, plus DOM input and input state
-const { game } = await createDemoGame2D(canvas, { logger });
+// createGame with pixi2d({ design }), plus DOM input and input state
+const { game, pixi } = await createDemoGame2D(canvas, { logger, design: DESIGN });
 
-const demo = create2DDemo();
+const demo = create2DDemo(pixi.renderer);
 
 game
   .addSystem(Schedule.Init, demo.init, { name: "demo.pixi2d.init" })
