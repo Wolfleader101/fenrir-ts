@@ -13,6 +13,9 @@ export default defineConfig({
         "bouncing-ball": resolve(__dirname, "bouncing-ball.html"),
         "stacking-blocks": resolve(__dirname, "stacking-blocks.html"),
         "monaco-editor": resolve(__dirname, "monaco-editor.html"),
+        pixi2d: resolve(__dirname, "pixi2d.html"),
+        platformer: resolve(__dirname, "platformer.html"),
+        "platformer-physics": resolve(__dirname, "platformer-physics.html"),
       },
     },
   },
@@ -43,7 +46,7 @@ export default defineConfig({
         destination: "/platformer-physics.html",
       },
       {
-        source: "platformer",
+        source: "/platformer",
         destination: "/platformer.html",
       },
     ],

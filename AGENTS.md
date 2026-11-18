@@ -33,6 +33,7 @@ Every pull request and every push to `main` runs these, in this order. All of th
 ```sh
 pnpm type-check   # no errors allowed
 pnpm check:docs   # every ts block in README.md and AGENTS.md compiles against src/
+pnpm check:editor-types  # src/editor/resources/fenrir.d.ts matches `pnpm types:bundle`
 pnpm test:run
 pnpm build:lib
 pnpm check:size   # each entry in dist/ stays within size-budget.json
@@ -40,6 +41,8 @@ pnpm check:imports  # core loads no renderer, physics or editor package; other e
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. A README fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`.
+
+If `check:editor-types` fails, run `pnpm types:bundle` and commit `src/editor/resources/fenrir.d.ts`. It is the API the Monaco sandbox shows, bundled from `src/editor/resources/fenrir-api.ts`.
 
 If `check:imports` fails, it names the entry, the chunk and the package or file it reached. Move the import into the entry that owns that package; do not add an exception.
 

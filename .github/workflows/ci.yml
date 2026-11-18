@@ -31,6 +31,8 @@ jobs:
         run: pnpm type-check
       - name: Check documented examples compile
         run: pnpm check:docs
+      - name: Check the editor sandbox typings are regenerated
+        run: pnpm check:editor-types
       - name: Test
         run: pnpm test:run
       - name: Build the library

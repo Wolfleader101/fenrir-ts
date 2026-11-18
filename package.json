@@ -43,7 +43,7 @@
     "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md",
     "check:size": "node scripts/check-size.mjs",
     "check:imports": "node scripts/check-entry-imports.mjs",
-    "types:bundle": "dts-bundle-generator -o public/fenrir.d.ts --external-imports=three --no-banner src/core/index.ts",
+    "types:bundle": "dts-bundle-generator -o src/editor/resources/fenrir.d.ts --external-imports=three --external-imports=jolt-physics --no-banner src/editor/resources/fenrir-api.ts",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
@@ -51,7 +51,8 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
     "test:ci": "vitest run --reporter=verbose --coverage",
-    "prepublishOnly": "npm run test:run && npm run build:lib"
+    "prepublishOnly": "npm run test:run && npm run build:lib",
+    "check:editor-types": "pnpm types:bundle && git diff --exit-code -- src/editor/resources/fenrir.d.ts"
   },
   "keywords": [
     "game-engine",
