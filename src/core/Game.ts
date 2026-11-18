@@ -11,6 +11,7 @@ import { Random, seedFromClock } from "./Random";
 import { SceneManager } from "./SceneManager";
 import { Scheduler } from "./Scheduler";
 import { GameStates } from "./State";
+import { exposeDebugGlobal, inspectGame, type GameSnapshot } from "./Inspect";
 import type { StateType, States } from "./State";
 import type { AsyncStage, ScheduleStage, SyncStage, SystemOptions } from "./Scheduler";
 import type { AsyncSystemFn, GameServices, SyncSystemFn } from "./SystemCtx";
@@ -46,11 +47,15 @@ export interface GameOptions {
    * the sequence; it does not restart it.
    */
   seed?: number;
-  // Seam for #37 (inspect): debug?: boolean;
+  /**
+   * Puts `inspect` on `window.__FENRIR__` for browser tests and agents. Off by default. With two
+   * debug games on one page, the last one created owns it. It stays after the game stops.
+   */
+  debug?: boolean;
 }
 
 /**
- * What a `Game` and a `TestGame` share: registration, services, `stop` and `step`. Systems,
+ * What a `Game` and a `TestGame` share: registration, services, `stop`, `step` and `inspect`. Systems,
  * hooks and listeners written against it run unchanged in both.
  */
 export interface GameBase extends GameServices {
@@ -97,6 +102,13 @@ export interface GameBase extends GameServices {
    * `ctx.events.on` from a system.
    */
   on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
+
+  /**
+   * What the game is doing, as plain JSON: frame, time, schedule, states, resources and the active
+   * scene's entities. Works before the game runs, while paused and after `stop()`; never throws.
+   * The serialisation rules are in README.md under "Inspecting a game".
+   */
+  inspect(): GameSnapshot;
 }
 
 /**
@@ -105,7 +117,6 @@ export interface GameBase extends GameServices {
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
  * - `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
- * - `inspect` (#37): a method added below, under "Seams".
  */
 export interface Game extends GameBase {
   readonly canvas: HTMLCanvasElement;
@@ -115,10 +126,6 @@ export interface Game extends GameBase {
   /** Stops scheduling frames. `step(dt)` runs frames while paused. */
   pause(): void;
   resume(): void;
-
-  // Seams:
-
-  // #37 inspect: inspect(): GameSnapshot
 }
 
 /** Internal. `createGame` and `createTestGame` both build one, so the two cannot drift. */
@@ -209,6 +216,10 @@ export class GameImpl implements Game {
   public resume(): void {
     this.engine.resume();
   }
+
+  public inspect(): GameSnapshot {
+    return inspectGame(this.engine, gameStates(this), this.resources);
+  }
 }
 
 /** The game's own `States`, which `createGame` always builds as a GameStates. */
@@ -234,6 +245,7 @@ export async function createGame(options: GameOptions): Promise<Game> {
   const services = createServices(options.seed ?? seedFromClock(clock));
 
   const game = new GameImpl(options, services, { clock });
+  if (options.debug) exposeDebugGlobal(() => game.inspect(), (message) => game.logger.warn(message));
   await installPlugins(game, options.plugins, "createGame");
   return game;
 }

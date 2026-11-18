@@ -54,7 +54,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input, `inspect()`, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Viewport`, `ViewportResized`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
@@ -285,6 +285,40 @@ it("lands after one second of ticks", async () => {
 });
 ```
 
+**Inspecting a game.** `game.inspect()` (`src/core/Inspect.ts`, values encoded by `toJson` in `src/core/Json.ts`) returns a `GameSnapshot` of plain JSON: `frame`, `time` (`elapsed`, `delta`), `schedule` (system names per stage in run order), `states` (value and `timeIn` of each state the game has used), `resources` (each one that has a value) and `entities` of the active scene (`id`, `name`, `parent`, `components`). It never throws and works before `run()`, while paused and after `stop()`.
+A `TestGame` has it too, and stepped frames count. `frame` counts frames since the current run started (0 during startup, kept after `stop()`, reset by `run()` or `start()`); `time` is as of the start of the latest frame, so two calls with no frame between them are deeply equal. Keys are the names given to `defineState`, `defineResource` and `defineComponent`, sorted; entities are by id. `id` and `parent` are entity handles; `fenrir.Name` and `fenrir.Relationship` are folded into `name` and `parent`, and `fenrir.Transform` stays in `components`.
+`createGame({ debug: true })` also sets `window.__FENRIR__ = { inspect }`. The last debug game created owns it, it stays after `stop()`, and without a `window` nothing happens. `debug` is off by default.
+
+```ts
+import { Schedule, createGame, defineResource, type SystemCtx } from "fenrir-ts";
+
+const Scores = defineResource("myGame.Scores", () => new Map<string, number>());
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, debug: true });
+
+game.addSystem(Schedule.Init, function score({ resources }: SystemCtx) {
+  resources.get(Scores).set("ana", 10);
+});
+await game.run();
+
+const { resources, schedule } = game.inspect();
+console.log(resources["myGame.Scores"]); // { $type: "Map", entries: [["ana", 10]] }
+console.log(schedule.init); // ["score"]
+```
+
+| Value | In the snapshot |
+| --- | --- |
+| string, boolean, null, finite number | itself (`-0` as `0`) |
+| `NaN`, infinities, `undefined`, bigint, symbol, function | `{ $type: "number", value: "NaN" }`, `{ $type: "undefined" }`, `{ $type: "bigint", value }`, `{ $type: "symbol", value }`, `{ $type: "function", name }` |
+| `Map`, `Set`, `Date`, typed array | `{ $type: "Map", entries: [[k, v]] }`, `{ $type: "Set", values }`, `{ $type: "Date", value: iso }`, `{ $type: "Float32Array", values }` |
+| plain object, array | itself; a plain-data key starting with `$` gets one more `$` |
+| object with `toJSON` | what `toJSON` returns, encoded |
+| class instance with only primitive own fields | `{ $type: "Vector3", x, y, z }` |
+| any other class instance or DOM node | `{ $type: "Container" }` |
+| throwing getter or `toJSON` | `{ $type: "Thrown", message }` |
+| cycle; more than 8 levels; more than 100 items or keys; more than 1000 characters; more than 5000 values in one component or resource | cut and marked with `$truncated`: `"cycle"`, `"depth"`, `"length"` (with `size`) or `"size"` |
+
+To check what a game is doing, assert on `inspect()`, not on pixels: `game.inspect()` in a unit test, `page.evaluate(() => window.__FENRIR__.inspect())` in a Playwright test of a game made with `debug: true`. Snapshots of the same game state are identical, so compare them whole or snapshot-test them. A value is complete unless it carries `$truncated`.
 ## Viewport
 
 `pixi2d({ design: { width, minHeight }, safeArea, maxResolution })` makes a 2D game draw in design units. The design width fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally. The code is in `src/core/Renderer2D/`: the layout maths and the `Viewport` resource in `Viewport.ts` (no Pixi imports, so core's input can use it), the listeners in `ViewportSystem.ts`.
@@ -366,7 +400,7 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- `inspect()`, `debug`, input actions (`game.input`), canvas UI, audio, timers and storage
+- Input actions (`game.input`), canvas UI, audio, timers and storage
 
 Each has a marked seam: `GameServices` in `src/core/SystemCtx.ts` for fields on both `game` and `ctx` (`input`), the `services` object and `GameOptions` in `src/core/Game.ts`, and the "Seams" comment in the `Game` interface for methods.
 

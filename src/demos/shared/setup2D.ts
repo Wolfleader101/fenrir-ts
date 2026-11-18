@@ -22,11 +22,11 @@ type PhysicsSystems = { init: AsyncSystemFn; tick: SyncSystemFn; exit: AsyncSyst
  */
 export async function createDemoGame2D(
   canvas: HTMLCanvasElement,
-  opts: { logger?: ILogger; background?: number; design?: Pixi2DOptions["design"]; physics?: PhysicsSystems } = {},
+  opts: { logger?: ILogger; background?: number; design?: Pixi2DOptions["design"]; physics?: PhysicsSystems; debug?: boolean } = {},
 ) {
-  const { background = 0x101010, design, physics, logger } = opts;
+  const { background = 0x101010, design, physics, logger, debug } = opts;
   const pixi = pixi2d({ background, design });
-  const game = await createGame({ canvas, logger, plugins: [pixi] });
+  const game = await createGame({ canvas, logger, debug, plugins: [pixi] });
 
   const domInput = createDomInputSystems();
   const input = createInputStateSystem();
