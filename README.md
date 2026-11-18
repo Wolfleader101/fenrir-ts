@@ -221,6 +221,25 @@ Order is resolved when `run()` starts. A `before` or `after` that names a system
 
 Engine systems are named `fenrir.<module>.<stage>`, for example `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.input.dom.init` and `fenrir.physics.tick`.
 
+### Resources
+
+A resource is one value that a game owns, such as the score of the current round. Define it once at module level and read it with `ctx.resources.get`. The factory runs once per game, on the first `get`; a resource without a factory throws on `get` until you `set` it. `game.resources` and `ctx.resources` are the same object, so you can seed values before `run()`. Each game has its own values, so two games in one test never share them. Values survive `stop()` and `run()`, and `Engine.reset()` clears them so factories run again. Names are namespaced like component names.
+
+```ts
+import { Schedule, defineResource, type SystemCtx } from "fenrir-ts";
+
+const Round = defineResource("myGame.Round", () => ({ meter: 0.5, score: 0 }));
+const Level = defineResource<number>("myGame.Level"); // no factory: set before use
+
+function scorePoint({ resources }: SystemCtx): void {
+  const round = resources.get(Round); // typed { meter: number; score: number }
+  round.score += resources.get(Level);
+}
+
+game.resources.set(Level, 3);
+game.addSystem(Schedule.Update, scorePoint);
+```
+
 ### States
 
 `defineState(name, { values, initial })` defines a state machine whose value is one of `values`. `ctx.states` (the same object as `game.states`) has `get`, `set` and `timeIn`, the seconds of game time since the current value was entered, not counting pauses. `game.onEnter` and `game.onExit` add hooks: synchronous systems that receive the usual `ctx`. `inState(state, ...values)` is a `runIf` condition.

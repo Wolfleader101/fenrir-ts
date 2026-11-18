@@ -5,6 +5,7 @@ import { SceneManager } from "@/core/SceneManager";
 import { Schedule, Scheduler } from "@/core/Scheduler";
 import { ManualClock } from "@/core/Clock";
 import { Random } from "@/core/Random";
+import { Resources } from "@/core/Resource";
 import { GameStates } from "@/core/State";
 import { NullLogger } from "@/core/NullLogger";
 import type { SystemCtx } from "@/core/SystemCtx";
@@ -23,7 +24,7 @@ function engineOn(clock: ManualClock, seed: number) {
     sceneManager: new SceneManager(new NullLogger()),
     logger: new NullLogger(),
     clock,
-    services: { random: new Random(seed), states: new GameStates() },
+    services: { resources: new Resources(), random: new Random(seed), states: new GameStates() },
   });
 }
 

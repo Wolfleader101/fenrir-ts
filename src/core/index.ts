@@ -29,6 +29,8 @@ export { EventBus } from "./EventBus";
 export { EventQueue, defineEvent } from "./EventQueue";
 
 export type { EventReader, EventType } from "./EventQueue";
+export { defineResource, Resources } from "./Resource";
+export type { ResourceType } from "./Resource";
 
 // Logging
 export type { ILogger } from "./ILogger";

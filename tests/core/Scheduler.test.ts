@@ -7,6 +7,7 @@ import { Random } from "@/core/Random";
 import { Scene } from "@/core/Scene";
 import { SceneManager } from "@/core/SceneManager";
 import { ConsoleLogger } from "@/core/ConsoleLogger";
+import { Resources } from "@/core/Resource";
 import { GameStates } from "@/core/State";
 import { namedSpy } from "../utils/testHelpers";
 
@@ -24,6 +25,7 @@ function createMockSystemCtx(): SystemCtx {
     signal: new AbortController().signal,
     onCleanup: vi.fn(),
     stop: vi.fn(),
+    resources: new Resources(),
     states: new GameStates(),
   };
 }

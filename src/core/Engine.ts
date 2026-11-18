@@ -15,6 +15,7 @@ import type { EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
 import type { ILogger } from "./ILogger";
 import { NullLogger } from "./NullLogger";
+import { Resources, clearResources } from "./Resource";
 import { GameStates, afterSystem, beforeStage } from "./State";
 
 export type EngineOptions = {
@@ -67,7 +68,11 @@ export class Engine {
     this.logger = opts.logger ?? new NullLogger();
     const clock = opts.clock ?? realClock;
     this.time = new Time(clock);
-    this.services = opts.services ?? { random: new Random(seedFromClock(clock)), states: new GameStates() };
+    this.services = opts.services ?? {
+      resources: new Resources(),
+      random: new Random(seedFromClock(clock)),
+      states: new GameStates(),
+    };
     this.maxFrameDelta = opts.maxFrameDelta ?? 0.25;
     this.maxTicksPerFrame = opts.maxTicksPerFrame ?? 8;
     if (!Number.isFinite(this.maxFrameDelta) || this.maxFrameDelta <= 0) {
@@ -268,6 +273,7 @@ export class Engine {
     const wasRunning = this.isRunning();
     await this.stop();
     this.sceneManager.getActiveScene().entityList.clear();
+    clearResources(this.services.resources);
     this.time.reset();
     if (wasRunning) await this.run();
   }

@@ -321,6 +321,43 @@ export declare class EntityList {
 	private detachFromParent;
 	private destroyChildrenRecursive;
 }
+/**
+ * A typed handle to a resource: one value of type `T` per game. Made by `defineResource`.
+ * The name is the identity: two handles with the same name read and write the same value.
+ */
+export interface ResourceType<T> {
+	readonly name: string;
+	/** Carries `T` in the type only. There is no value at runtime. */
+	readonly __resource?: (value: T) => T;
+}
+/**
+ * Defines a resource: a single value of type `T` that one game owns. Read it with
+ * `ctx.resources.get(Resource)` and replace it with `ctx.resources.set(Resource, value)`.
+ *
+ * `factory` runs once per game, on the first `get`, and again after the engine resets.
+ * Without a factory, `get` throws until a value is set.
+ *
+ * As with components, the name is the identity: two calls with the same name share one value
+ * in each game. Prefix names with a namespace for your game or library. Names starting with
+ * `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const Round = defineResource("myGame.Round", () => ({ meter: 0.5, score: 0 }));
+ * export const Seed = defineResource<number>("myGame.seed"); // set before use
+ */
+export declare function defineResource<T>(name: string, factory?: () => T): ResourceType<T>;
+/**
+ * The resources of one game: `game.resources` and `ctx.resources` are the same object.
+ * Values are kept until the engine resets; stopping and running again keeps them.
+ */
+export declare class Resources {
+	private readonly values;
+	private readonly creating;
+	/** Returns the resource's value, running its factory on first use. */
+	get<T>(resource: ResourceType<T>): T;
+	/** Replaces the resource's value. Works before `game.run()` and from any system. */
+	set<T>(resource: ResourceType<T>, value: NoInfer<T>): void;
+}
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
 /**
  * Cube map texture configuration for skybox.
@@ -471,6 +508,8 @@ export declare class Time {
  * to Game or the engine to reach both `game` and `ctx`.
  */
 export interface GameServices {
+	/** Singleton values this game owns. See `defineResource`. */
+	readonly resources: Resources;
 	/** The current value of each state. See `defineState`. */
 	readonly states: States;
 	/** Seeded random numbers. Use instead of `Math.random()`. Seeded by `createGame({ seed })`. */
@@ -643,7 +682,7 @@ export interface GameOptions {
  * A running game. Built by `createGame`.
  *
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `resources` (#29), `input` (#36): fields of GameServices
+ * - `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
  * - `on` (#32): a method added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".

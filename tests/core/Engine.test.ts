@@ -4,6 +4,7 @@ import { Scheduler, Schedule } from "@/core/Scheduler";
 import { EventBus } from "@/core/EventBus";
 import { SceneManager } from "@/core/SceneManager";
 import { Time } from "@/core/Time";
+import { Resources } from "@/core/Resource";
 import { Random } from "@/core/Random";
 import type { SystemCtx, AsyncSystemFn, SyncSystemFn } from "@/core/SystemCtx";
 import type { ILogger } from "@/core/ILogger";
@@ -203,6 +204,7 @@ describe("Engine", () => {
         scene: expect.any(Object),
         entities: expect.any(Object),
         signal: expect.any(AbortSignal),        onCleanup: expect.any(Function),        stop: expect.any(Function),
+        resources: expect.any(Resources),
         states: expect.any(Object),
       });
     });
@@ -403,6 +405,7 @@ describe("Engine", () => {
         scene: expect.any(Object),
         entities: expect.any(Object),
         signal: expect.any(AbortSignal),        onCleanup: expect.any(Function),        stop: expect.any(Function),
+        resources: expect.any(Resources),
         states: expect.any(Object),
       });
 

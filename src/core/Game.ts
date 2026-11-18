@@ -3,6 +3,7 @@ import { realClock } from "./Clock";
 import type { Clock } from "./Clock";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { Engine } from "./Engine";
+import { Resources } from "./Resource";
 import { EventBus } from "./EventBus";
 import type { ILogger } from "./ILogger";
 import { Random, seedFromClock } from "./Random";
@@ -47,7 +48,7 @@ export interface GameOptions {
  * A running game. Built by `createGame`.
  *
  * Seams for M2 waves 2 and 3, left out on purpose until their tickets land:
- * - `resources` (#29), `input` (#36): fields of GameServices
+ * - `input` (#36): fields of GameServices
  *   in src/core/SystemCtx.ts, which Game extends, so they appear on `game` and `ctx` together.
  * - `on` (#32): a method added below, under "Seams".
  * - `step` (#34) and `inspect` (#37): methods added below, under "Seams".
@@ -89,6 +90,7 @@ export interface Game extends GameServices {
 }
 
 class GameImpl implements Game {
+  declare public readonly resources: Resources;
   public readonly canvas: HTMLCanvasElement;
   public readonly logger: ILogger;
   public readonly assets: AssetStore;
@@ -178,7 +180,7 @@ export async function createGame(options: GameOptions): Promise<Game> {
 
   const clock = realClock;
   const services: GameServices = {
-    // Seam for #29: resources: new Resources(),
+    resources: new Resources(),
 
     states: new GameStates(),
 

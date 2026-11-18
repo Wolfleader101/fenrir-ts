@@ -1,5 +1,6 @@
 import type { EntityList } from "./ECS";
 import type { EventBus } from "./EventBus";
+import type { Resources } from "./Resource";
 import type { ILogger } from "./ILogger";
 import type { Scene } from "./Scene";
 import type { SceneManager } from "./SceneManager";
@@ -16,7 +17,8 @@ import type { Time } from "./Time";
  * to Game or the engine to reach both `game` and `ctx`.
  */
 export interface GameServices {
-  // #29 resources: readonly resources: Resources;
+  /** Singleton values this game owns. See `defineResource`. */
+  readonly resources: Resources;
 
   /** The current value of each state. See `defineState`. */
   readonly states: States;
