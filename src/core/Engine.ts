@@ -73,6 +73,8 @@ export class Engine {
   private activeRun?: EngineRun;
   private rafId: number | null = null;
   private stepping = false;
+  /** Frames run this run, and `time.elapsed` at the latest one's start. Read by `inspect`. */
+  private frames = { count: 0, elapsed: 0 };
 
   constructor(opts: EngineOptions) {
     this.scheduler = opts.scheduler;
@@ -156,6 +158,7 @@ export class Engine {
     // Immediate listeners receive this run's ctx, from PreInit until the last cleanup.
     beginEventRun(this.events, ctx);
     this.time.reset();
+    this.frames = { count: 0, elapsed: 0 };
 
     try {
       for (const stage of [Schedule.PreInit, Schedule.Init, Schedule.PostInit]) {
@@ -211,6 +214,7 @@ export class Engine {
     // Systems added, replaced or removed since the last frame take effect now.
     this.scheduler.flush();
     this.time.update(this.maxFrameDelta, dt);
+    this.frames.count++, (this.frames.elapsed = this.time.elapsed);
     this.scheduler.runSyncStage(Schedule.PreUpdate, ctx);
 
     const step = this.time.fixedDelta;

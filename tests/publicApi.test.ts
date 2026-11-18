@@ -243,6 +243,35 @@ describe("fenrir-ts core public API", () => {
     expect(game.states.get(Phase)).toBe("casting");
     await game.stop();
   });
+
+  it("inspects a game as JSON and exposes it on window.__FENRIR__ with debug", async () => {
+    const { createGame, defineComponent, defineResource, NullLogger, Schedule } = core;
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const Score = defineResource("publicApi.inspect.Score", () => new Map([["ana", 3]]));
+    const Speed = defineComponent<{ value: number }>("publicApi.inspect.Speed");
+
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger(), debug: true });
+    game.addSystem(Schedule.Init, function spawn({ entities, resources }) {
+      entities.set(entities.createEntity(), Speed, { value: 2 });
+      resources.get(Score);
+    });
+    await game.run();
+
+    const snapshot = game.inspect();
+    expectTypeOf(snapshot).toEqualTypeOf<import("@/index").GameSnapshot>();
+    expectTypeOf(snapshot.resources).toEqualTypeOf<Readonly<Record<string, import("@/index").JsonValue>>>();
+    expect(snapshot).toMatchObject({
+      frame: 0,
+      schedule: { init: ["spawn"] },
+      resources: { "publicApi.inspect.Score": { $type: "Map", entries: [["ana", 3]] } },
+      entities: [{ id: 0, name: "Entity 0", parent: null, components: { "publicApi.inspect.Speed": { value: 2 } } }],
+    });
+    expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
+    expect((window as { __FENRIR__?: { inspect(): unknown } }).__FENRIR__!.inspect()).toEqual(snapshot);
+    await game.stop();
+    delete (window as { __FENRIR__?: unknown }).__FENRIR__;
+  });
 });
 
 describe("fenrir-ts time and random", () => {

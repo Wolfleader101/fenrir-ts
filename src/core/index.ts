@@ -14,6 +14,8 @@ export type { Game, GameBase, GameOptions, Plugin } from "./Game";
 // Test game: frames on demand, no canvas and no real clock
 export { createTestGame } from "./TestGame";
 export type { TestClock, TestGame, TestGameOptions } from "./TestGame";
+export type { GameSnapshot, EntitySnapshot } from "./Inspect";
+export type { JsonValue } from "./Json";
 
 // States: state machines with enter and exit hooks, and the inState run condition
 export { defineState, inState } from "./State";
