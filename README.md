@@ -38,7 +38,7 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 | Import | Contents |
 | --- | --- |
 | `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, events, time, logging, input, `EntityBuilder`, `AssetStore` |
-| `fenrir-ts/2d` | The `pixi2d` renderer plugin, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
+| `fenrir-ts/2d` | The `pixi2d` renderer plugin, the `Viewport` resource and `ViewportResized` event, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine` |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/editor` | Monaco live code editor |
@@ -77,7 +77,7 @@ const hero = game.assets.requestTexture2D("hero", "/sprites/hero.png");
 hero.subscribe((state) => game.logger.info(`hero texture: ${state.status}`));
 ```
 
-To keep a Pixi application your app already owns, pass it in. It must be initialized on the same canvas with its ticker stopped, and the game does not destroy it at exit. The plugin's `renderer` gives game code that draws with Pixi directly the application:
+To keep a Pixi application your app already owns, pass it in. It must be initialized on the same canvas with its ticker stopped, and the game does not destroy it at exit. Game code that draws with Pixi directly adds to the plugin's `renderer.root`, in logical units (see [Viewport](#viewport)):
 
 ```ts
 import type { Application } from "pixi.js";
@@ -89,7 +89,74 @@ declare const app: Application; // initialized by your app, with app.ticker.stop
 const pixi = pixi2d({ application: app });
 const game = await createGame({ canvas: app.canvas, plugins: [pixi] });
 await game.run();
-pixi.renderer.app.stage.addChild(myOverlay);
+pixi.renderer.root.addChild(myOverlay);
+```
+
+### Viewport
+
+Pass `design` to draw in design units on any screen. The design width always fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally.
+
+```
+ screen (canvas, CSS px) ─────────────────┐
+ │ ░░░░░░░░░ safe-area inset top ░░░░░░░░ │  backdrop: full bleed,
+ │ ┌─ root (design frame) ──────────────┐ │  CSS px, behind root
+ │ │ (0,0)              (390,0)         │ │
+ │ │   design width 390 fills the safe  │ │  root: logical units,
+ │ │   width; height = max(520, safe    │ │  at offset, scaled
+ │ │   height / scale)                  │ │  by scale
+ │ │ (0,height)                         │ │
+ │ └────────────────────────────────────┘ │
+ │ ░░░░░░░░ safe-area inset bottom ░░░░░░ │
+ └────────────────────────────────────────┘
+```
+
+```ts
+import { Schedule, createGame, type SystemCtx } from "fenrir-ts";
+import { Viewport, ViewportResized, pixi2d } from "fenrir-ts/2d";
+import { Graphics } from "pixi.js";
+
+const pixi = pixi2d({
+  design: { width: 390, minHeight: 520 }, // width is fixed; height grows to fill
+  safeArea: true, // lay out inside env(safe-area-inset-*); the default
+  maxResolution: 2, // backing-store pixels per CSS pixel, at most; the default
+  background: 0x092c36,
+});
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [pixi] });
+
+const sky = new Graphics();
+const board = new Graphics();
+
+function layout({ screen, width, height }: Viewport): void {
+  sky.clear().rect(0, 0, screen.width, screen.height).fill(0x0f4250); // whole screen, CSS px
+  board.clear().rect(0, 0, width, height).stroke({ color: 0xffffff, width: 2 }); // design units
+}
+
+function setUp({ resources, events }: SystemCtx): void {
+  pixi.renderer.backdrop.addChild(sky);
+  pixi.renderer.root.addChild(board);
+  layout(resources.get(Viewport));
+  events.on(ViewportResized, layout); // removed when the run stops
+}
+
+game.addSystem(Schedule.Init, setUp);
+await game.run();
+```
+
+- The plugin owns the canvas: it pins it to the window's top-left (`position: fixed`), sizes it to `innerWidth` by `innerHeight`, and listens to window resize, `visualViewport` resize, orientation and device-pixel-ratio changes. The listeners are added in `fenrir.viewport.init` and removed when the run stops. A game adds none.
+- `renderer.root` holds game content in logical units; entities with `Renderable2D` mount there. `renderer.backdrop` sits behind it, in unscaled CSS pixels from the screen's top-left; cover `viewport.screen` with it to fill the area outside the frame and the safe area.
+- `ctx.resources.get(Viewport)` is plain data: logical `width` and `height`, `scale` (CSS pixels per logical unit), the frame's `offset` on the screen, the `insets` in use, the `screen` size and the `resolution`. Each change replaces the object.
+- `ViewportResized` carries the new `Viewport`. It is sent once at startup and then on each change, never twice for the same layout. A resize is applied in the next frame's `PreUpdate` (`fenrir.viewport.preUpdate`), before anything renders. While the game is paused no frame runs, so the plugin applies the layout and renders once on the next animation frame.
+- `pixi.renderer.clientToLogical(clientX, clientY)` converts a DOM event's position into logical units, and `logicalToClient` converts back. `screenToLogical(viewport, point)` and `logicalToScreen` do the same for points relative to the canvas.
+- `safeArea: false` ignores insets. `maxResolution` caps the resolution at `min(devicePixelRatio, maxResolution)`, with or without `design`. An adopted `application` is sized the same way.
+- Without `design`, the canvas keeps the size it was created with and the plugin listens to nothing. `Viewport` then reports the renderer's screen at scale 1, and `ViewportResized` is sent when game code resizes the renderer.
+
+The page needs `viewport-fit=cover`, or the browser reports zero insets and letterboxes the page itself:
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>html, body { margin: 0; overflow: hidden; }</style>
+<canvas id="game"></canvas>
 ```
 
 ### Plugins

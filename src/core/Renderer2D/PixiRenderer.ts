@@ -11,6 +11,8 @@ import type { ILogger } from "../ILogger";
 import type { IAssetStore } from "../Assets/AssetStore";
 // Adds getTexture2D and the Pixi texture loader to the asset store.
 import "../Assets/Assets2D";
+import { identityViewport, logicalToScreen, screenToLogical } from "./Viewport";
+import type { Viewport, ViewportPoint } from "./Viewport";
 
 type ObjKey = string;
 const keyFor = (e: Entity, id: number): string => `${e}:${id}`;
@@ -40,6 +42,18 @@ export class PixiRenderer {
   private readonly objects = new Map<ObjKey, RenderedObject>();
   private readonly pending = new Map<ObjKey, symbol>();
   private isInitialized = false;
+  private viewport: Viewport = identityViewport({ width: 0, height: 0 }, 1);
+
+  /**
+   * Game content, drawn in logical units. `pixi2d` scales and positions it to the design frame;
+   * without `design` it is unscaled at the top-left. Entities with `Renderable2D` mount here.
+   */
+  public readonly root = new PIXI.Container({ label: "fenrir.root" });
+  /**
+   * Full-bleed content behind `root`, in CSS pixels from the screen's top-left corner, unscaled.
+   * Cover `Viewport.screen` to fill the whole screen, outside the frame and the safe area too.
+   */
+  public readonly backdrop = new PIXI.Container({ label: "fenrir.backdrop" });
 
   constructor(options: PixiRendererOptions) {
     this.options = options;
@@ -75,6 +89,7 @@ export class PixiRenderer {
       });
     }
 
+    this.app.stage.addChild(this.backdrop, this.root);
     this.isInitialized = true;
     logger.info("PixiRenderer initialized");
   }
@@ -87,14 +102,39 @@ export class PixiRenderer {
     this.app.renderer.resize(width, height, resolution);
   }
 
-  /** Converts CSS client coordinates into logical coordinates in the Pixi screen. */
-  public clientToLogical(clientX: number, clientY: number): { x: number; y: number } | null {
+  /**
+   * Places `root` for `viewport`: at its offset, at its scale. Called by `pixi2d` when the layout
+   * changes. Internal.
+   */
+  public applyViewport(viewport: Viewport): void {
+    this.viewport = viewport;
+    this.root.position.set(viewport.offset.x, viewport.offset.y);
+    this.root.scale.set(viewport.scale);
+  }
+
+  /**
+   * Converts CSS client coordinates (a DOM event's `clientX`, `clientY`) into logical units:
+   * design units with `pixi2d({ design })`. Returns null while the canvas or frame has no area.
+   */
+  public clientToLogical(clientX: number, clientY: number): ViewportPoint | null {
     const bounds = this.app.canvas.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) return null;
     const { width, height } = this.app.screen;
-    return {
+    return screenToLogical(this.viewport, {
       x: (clientX - bounds.left) * width / bounds.width,
       y: (clientY - bounds.top) * height / bounds.height,
+    });
+  }
+
+  /** Converts logical units into CSS client coordinates. The inverse of `clientToLogical`. */
+  public logicalToClient(x: number, y: number): ViewportPoint | null {
+    const bounds = this.app.canvas.getBoundingClientRect();
+    const { width, height } = this.app.screen;
+    if (bounds.width <= 0 || bounds.height <= 0 || width <= 0 || height <= 0) return null;
+    const screen = logicalToScreen(this.viewport, { x, y });
+    return {
+      x: bounds.left + screen.x * bounds.width / width,
+      y: bounds.top + screen.y * bounds.height / height,
     };
   }
 
@@ -116,7 +156,7 @@ export class PixiRenderer {
         const replacement = this.createDisplayObject(renderable, texture);
         if (view) this.destroyDisplayObject(view);
         view = replacement;
-        this.app.stage.addChild(view);
+        this.root.addChild(view);
       }
 
       this.objects.set(key, { entity, renderable, view });
@@ -142,7 +182,7 @@ export class PixiRenderer {
   private destroyDisplayObject(view: PIXI.Container): void {
     // Children with their own renderables belong to their own ECS entities.
     for (const entry of this.objects.values()) {
-      if (entry.view.parent === view) this.app.stage.addChild(entry.view);
+      if (entry.view.parent === view) this.root.addChild(entry.view);
     }
     view.removeFromParent();
     view.destroy({ children: true });
@@ -160,7 +200,7 @@ export class PixiRenderer {
   }
 
   private syncHierarchy(entities: EntityList): void {
-    const stage = this.app.stage;
+    const stage = this.root;
     const primaryViews = new Map<number, PIXI.Container>();
     const declaredParents = new Map<number, PIXI.Container>();
     for (const { entity, renderable, view } of this.objects.values()) {
@@ -208,6 +248,8 @@ export class PixiRenderer {
 
   public dispose(): void {
     this.clearRenderables();
+    this.backdrop.removeFromParent();
+    this.root.removeFromParent();
     this.isInitialized = false;
     if (!this.options.application && this.app.renderer) {
       this.app.destroy({ removeView: !this.options.canvas });

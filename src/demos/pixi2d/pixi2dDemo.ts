@@ -1,6 +1,11 @@
+import { Graphics, Text } from "pixi.js";
 import { EntityBuilder, Name, Transform } from "@/index";
 import type { AsyncSystemFn, QuatLike, SyncSystemFn } from "@/index";
-import { Renderable2D } from "@/2d";
+import { Renderable2D, Viewport, ViewportResized } from "@/2d";
+import type { PixiRenderer } from "@/2d";
+
+/** The design frame: a 390-unit-wide portrait that grows taller on taller screens. */
+export const DESIGN = { width: 390, minHeight: 520 } as const;
 
 /** Sets a rotation of `angle` radians around the Z axis, the only rotation 2D uses. */
 function setZRotation(q: QuatLike, angle: number): void {
@@ -10,216 +15,100 @@ function setZRotation(q: QuatLike, angle: number): void {
   q.w = Math.cos(angle / 2);
 }
 
+const ORBIT_QUERY = [Transform, Renderable2D, Name] as const;
+
 /**
- * Simple 2D Demo with PixiJS
+ * 2D demo laid out in design units with `pixi2d({ design })`.
  *
- * Demonstrates:
- * - 2D rendering with PixiJS
- * - Graphics shapes (circles, rects)
- * - Text rendering
- * - Sprite-like entities
- * - Simple rotation animation
+ * - A full-bleed striped background in `renderer.backdrop` covers the whole screen.
+ * - The framed content (`renderer.root`) is drawn in 390-wide design units, inside the safe area.
+ * - The frame and its labels redraw on `ViewportResized`, so nothing listens to window resize.
  */
-export function create2DDemo() {
-  const init: AsyncSystemFn = async (ctx) => {
-    const entities = ctx.scene.entityList;
+export function create2DDemo(renderer: PixiRenderer) {
+  const backdrop = new Graphics();
+  const frame = new Graphics();
+  const title = new Text({ text: "Fenrir-TS viewport", style: { fontFamily: "Arial", fontSize: 30, fill: 0xffffff } });
+  const footer = new Text({ text: "", style: { fontFamily: "monospace", fontSize: 13, fill: 0xb8e0d2, align: "center" } });
+  title.anchor.set(0.5, 0);
+  footer.anchor.set(0.5, 1);
+  let centreY = DESIGN.minHeight / 2;
 
-    ctx.logger.info("🎨 Setting up 2D demo");
+  function layout(viewport: Viewport): void {
+    const { screen, insets, width, height } = viewport;
+    // Full bleed: CSS pixels over the whole screen, including the notch and the side bars.
+    backdrop.clear().rect(0, 0, screen.width, screen.height).fill(0x092c36);
+    for (let x = -screen.height; x < screen.width; x += 40) {
+      backdrop.moveTo(x, screen.height).lineTo(x + screen.height, 0);
+    }
+    backdrop.stroke({ color: 0x0f4250, width: 14 });
+    // The safe area, outlined so a notch is easy to see.
+    backdrop
+      .rect(insets.left, insets.top, screen.width - insets.left - insets.right, screen.height - insets.top - insets.bottom)
+      .stroke({ color: 0xff3d7f, width: 2, alpha: 0.8 });
 
-    // Create a colorful background rect
-    EntityBuilder.create()
-      .name("Background")
-      .with(Transform, {
-        position: { x: 400, y: 300, z: 0 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
-        scale: { x: 1, y: 1, z: 1 },
-      })
-      .with(Renderable2D, {
-        id: 0,
-        graphics: {
-          kind: "graphics",
-          shape: "rect",
-          fillColor: 0x1a1a2e,
-          data: { x: -400, y: -300, width: 800, height: 600 },
-        },
-        flags: { zIndex: 0 },
-      })
-      .spawn(entities);
+    // Design units: the frame is always 390 wide and at least 520 tall.
+    frame.clear().roundRect(4, 4, width - 8, height - 8, 18).fill(0x1a1a2e).stroke({ color: 0x4ecdc4, width: 4 });
+    title.position.set(width / 2, 24);
+    footer.position.set(width / 2, height - 16);
+    footer.text = [
+      `logical ${width} x ${height.toFixed(1)}  scale ${viewport.scale.toFixed(3)}`,
+      `screen ${screen.width} x ${screen.height} @${viewport.resolution}x`,
+      `insets ${insets.top}/${insets.right}/${insets.bottom}/${insets.left}`,
+    ].join("\n");
+    centreY = height / 2;
+  }
 
-    // Create title text
-    EntityBuilder.create()
-      .name("Title")
-      .with(Transform, {
-        position: { x: 400, y: 50, z: 0 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
-        scale: { x: 1, y: 1, z: 1 },
-      })
-      .with(Renderable2D, {
-        id: 0,
-        text: {
-          kind: "text",
-          content: "Fenrir-TS + PixiJS Demo",
-          style: {
-            fontFamily: "Arial",
-            fontSize: 48,
-            fill: 0xffffff,
-            align: "center",
-          },
-        },
-        flags: { zIndex: 100 },
-      })
-      .spawn(entities);
+  const init: AsyncSystemFn = (ctx) => {
+    renderer.backdrop.addChild(backdrop);
+    renderer.root.addChild(frame, title, footer);
+    frame.zIndex = -10;
+    title.zIndex = footer.zIndex = 100;
+    layout(ctx.resources.get(Viewport));
+    ctx.events.on(ViewportResized, layout);
 
-    // Create subtitle
-    EntityBuilder.create()
-      .name("Subtitle")
-      .with(Transform, {
-        position: { x: 400, y: 100, z: 0 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
-        scale: { x: 1, y: 1, z: 1 },
-      })
-      .with(Renderable2D, {
-        id: 0,
-        text: {
-          kind: "text",
-          content: "2D Game Engine with ECS Architecture",
-          style: {
-            fontFamily: "Arial",
-            fontSize: 24,
-            fill: 0xaaaaaa,
-            align: "center",
-          },
-        },
-        flags: { zIndex: 100 },
-      })
-      .spawn(entities);
-
-    // Create rotating circles
-    const colors = [
-      0xff6b6b, // red
-      0x4ecdc4, // cyan
-      0x45b7d1, // blue
-      0xf9ca24, // yellow
-      0x6c5ce7, // purple
-      0xe17055, // orange
-      0x00b894, // green
-      0xfd79a8, // pink
-    ];
-
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      const radius = 150;
-      const x = 400 + Math.cos(angle) * radius;
-      const y = 350 + Math.sin(angle) * radius;
-
+    const colors = [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xf9ca24, 0x6c5ce7, 0xe17055, 0x00b894, 0xfd79a8];
+    colors.forEach((color, i) => {
       EntityBuilder.create()
-        .name(`Circle ${i + 1}`)
-        .with(Transform, {
-          position: { x: x, y: y, z: 0 },
-          rotation: { x: 0, y: 0, z: 0, w: 1 },
-          scale: { x: 1, y: 1, z: 1 },
-        })
+        .name(`Circle ${i}`)
+        .transform({ x: DESIGN.width / 2, y: centreY, z: 0 })
         .with(Renderable2D, {
           id: 0,
-          graphics: {
-            kind: "graphics",
-            shape: "circle",
-            fillColor: colors[i],
-            strokeColor: 0xffffff,
-            strokeWidth: 3,
-            data: { x: 0, y: 0, radius: 30 },
-          },
+          graphics: { kind: "graphics", shape: "circle", fillColor: color, strokeColor: 0xffffff, strokeWidth: 3, data: { x: 0, y: 0, radius: 22 } },
           flags: { zIndex: 10 },
         })
-        .spawn(entities);
-    }
-
-    // Create center square
-    EntityBuilder.create()
-      .name("Center Square")
-      .with(Transform, {
-        position: { x: 400, y: 350, z: 0 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
-        scale: { x: 1, y: 1, z: 1 },
-      })
-      .with(Renderable2D, {
-        id: 0,
-        graphics: {
-          kind: "graphics",
-          shape: "rect",
-          fillColor: 0x2ecc71,
-          strokeColor: 0xffffff,
-          strokeWidth: 4,
-          data: { x: -40, y: -40, width: 80, height: 80 },
-        },
-        flags: { zIndex: 20 },
-      })
-      .spawn(entities);
-
-    // Create info boxes
-    const infoItems = [
-      "✨ 2D Rendering with PixiJS",
-      "🎮 ECS Architecture",
-      "🔄 Transform Components",
-      "🎨 Graphics & Text",
-    ];
-
-    infoItems.forEach((text, i) => {
-      EntityBuilder.create()
-        .name(`Info ${i}`)
-        .with(Transform, {
-          position: { x: 50, y: 200 + i * 40, z: 0 },
-          rotation: { x: 0, y: 0, z: 0, w: 1 },
-          scale: { x: 1, y: 1, z: 1 },
-        })
-        .with(Renderable2D, {
-          id: 0,
-          text: {
-            kind: "text",
-            content: text,
-            style: {
-              fontFamily: "Arial",
-              fontSize: 20,
-              fill: 0xecf0f1,
-            },
-          },
-          flags: { zIndex: 50 },
-        })
-        .spawn(entities);
+        .spawn(ctx.entities);
     });
 
-    ctx.logger.info("✅ 2D demo created");
+    EntityBuilder.create()
+      .name("Center Square")
+      .transform({ x: DESIGN.width / 2, y: centreY, z: 0 })
+      .with(Renderable2D, {
+        id: 0,
+        graphics: { kind: "graphics", shape: "rect", fillColor: 0x2ecc71, strokeColor: 0xffffff, strokeWidth: 4, data: { x: -40, y: -40, width: 80, height: 80 } },
+        flags: { zIndex: 20 },
+      })
+      .spawn(ctx.entities);
+
+    ctx.onCleanup(() => {
+      backdrop.removeFromParent();
+      frame.removeFromParent();
+      title.removeFromParent();
+      footer.removeFromParent();
+    });
   };
 
-  // Simple rotation animation for circles
+  // Circles orbit the centre of the frame, which moves down as the frame grows taller.
   const update: SyncSystemFn = (ctx) => {
     const time = ctx.time.elapsed;
-    const Q = [Transform, Renderable2D, Name] as const;
-
-    ctx.entities.each(Q, (_e, transform, _renderable, nameComp) => {
-      // Rotate circles
-      if (nameComp.name.startsWith("Circle")) {
-        const parts = nameComp.name.split(" ");
-        if (parts[1]) {
-          const index = parseInt(parts[1], 10) - 1;
-          const baseAngle = (index / 8) * Math.PI * 2;
-          const orbitAngle = baseAngle + time * 0.5;
-          const radius = 150;
-
-          transform.position.x = 400 + Math.cos(orbitAngle) * radius;
-          transform.position.y = 350 + Math.sin(orbitAngle) * radius;
-
-          // Individual rotation
-          const rotAngle = time * 2;
-          setZRotation(transform.rotation, rotAngle);
-        }
-      }
-
-      // Wobble the center square
-      if (nameComp.name === "Center Square") {
-        const wobble = Math.sin(time * 3) * 0.2;
-        setZRotation(transform.rotation, wobble);
-
+    ctx.entities.each(ORBIT_QUERY, (_e, transform, _renderable, { name }) => {
+      if (name.startsWith("Circle ")) {
+        const angle = (Number(name.slice(7)) / 8) * Math.PI * 2 + time * 0.5;
+        transform.position.x = DESIGN.width / 2 + Math.cos(angle) * 140;
+        transform.position.y = centreY + Math.sin(angle) * 140;
+        setZRotation(transform.rotation, time * 2);
+      } else if (name === "Center Square") {
+        transform.position.y = centreY;
+        setZRotation(transform.rotation, Math.sin(time * 3) * 0.2);
         const pulse = 1 + Math.sin(time * 2) * 0.1;
         transform.scale.x = pulse;
         transform.scale.y = pulse;
