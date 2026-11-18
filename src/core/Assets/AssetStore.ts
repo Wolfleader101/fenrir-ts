@@ -10,6 +10,23 @@ export type LoaderConfig<T> = {
 };
 
 /**
+ * The asset kinds this program can load, mapped to the type a loaded asset of
+ * that kind has. Empty in core: `fenrir-ts/2d` adds `texture2d`, and
+ * `fenrir-ts/3d` adds `model` and `texture3d`. A game adds its own kinds the
+ * same way, with `declare module "fenrir-ts" { interface AssetKinds { ... } }`.
+ */
+export interface AssetKinds {}
+
+/** The name of an asset kind this program knows. */
+export type AssetKind = keyof AssetKinds & string;
+
+/**
+ * Any loaded asset: the union of every kind this program knows. `never` when
+ * no kind is known, because then nothing can be stored.
+ */
+export type Asset = AssetKinds[AssetKind];
+
+/**
  * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
  * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
  */
@@ -20,8 +37,13 @@ export interface AssetStoreConfig {}
  * entries add their typed loading and getter methods to this interface.
  */
 export interface IAssetStore {
-  // Generic getter (for advanced use)
-  get(key: AssetKey): Promise<unknown>;
+  /** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
+  get(key: AssetKey): Promise<Asset>;
+  /**
+   * The asset stored under `key`. Rejects if nothing is stored, or if the asset
+   * is of another kind; `label` names the kind in that message.
+   */
+  get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 
   clear(): void;
 }
@@ -39,9 +61,9 @@ const installers: AssetStoreInstaller[] = [];
  * registers its default loaders and typed methods when it loads.
  */
 export class AssetStore implements IAssetStore {
-  private cache = new Map<string, Promise<unknown>>();
-  private assetKinds = new Map<string, string>();
-  private loaders = new Map<string, Map<string, LoaderConfig<unknown>>>();
+  private cache = new Map<string, Promise<Asset>>();
+  private assetKinds = new Map<string, AssetKind>();
+  private loaders = new Map<string, Map<string, LoaderConfig<Asset>>>();
 
   /**
    * Adds default loaders to every store constructed from now on. The 2D and 3D
@@ -59,10 +81,10 @@ export class AssetStore implements IAssetStore {
    * Registers a loader for one asset kind. `label` names the kind in messages,
    * for example "2D texture".
    */
-  registerLoader<T>(
-    kind: string,
+  registerLoader<K extends AssetKind>(
+    kind: K,
     name: string,
-    config: LoaderConfig<T>,
+    config: LoaderConfig<AssetKinds[K]>,
     label: string = kind,
   ): void {
     let byName = this.loaders.get(kind);
@@ -74,7 +96,7 @@ export class AssetStore implements IAssetStore {
       const title = label.charAt(0).toUpperCase() + label.slice(1);
       console.warn(`${title} loader '${name}' is being overridden`);
     }
-    byName.set(name, config as LoaderConfig<unknown>);
+    byName.set(name, config);
   }
 
   /** Sorted extensions that loaders of this kind handle. */
@@ -87,10 +109,15 @@ export class AssetStore implements IAssetStore {
   }
 
   /** The loader of this kind for the URL's extension. Throws if none handles it. */
-  resolveLoader<T>(kind: string, url: string, label: string = kind): AssetLoader<T> {
+  resolveLoader<K extends AssetKind>(
+    kind: K,
+    url: string,
+    label: string = kind,
+  ): AssetLoader<AssetKinds[K]> {
     const ext = this.getFileExtension(url);
     for (const config of this.loaders.get(kind)?.values() ?? []) {
-      if (config.extensions.includes(ext)) return config.loader as AssetLoader<T>;
+      // registerLoader stores only loaders of AssetKinds[K] under kind K.
+      if (config.extensions.includes(ext)) return config.loader as AssetLoader<AssetKinds[K]>;
     }
     const supported = this.getSupportedExtensions(kind);
     throw new Error(
@@ -99,19 +126,22 @@ export class AssetStore implements IAssetStore {
   }
 
   /** Stores a pending or loaded asset under `key`, replacing whatever was there. */
-  setAsset(key: AssetKey, kind: string, asset: Promise<unknown>): void {
+  setAsset<K extends AssetKind>(key: AssetKey, kind: K, asset: Promise<AssetKinds[K]>): void {
     this.cache.set(key, asset);
     this.assetKinds.set(key, kind);
   }
 
   /** The kind of asset stored under `key`, if any. */
-  kindOf(key: AssetKey): string | undefined {
+  kindOf(key: AssetKey): AssetKind | undefined {
     return this.assetKinds.get(key);
   }
 
-  /** The promise stored under `key`, without awaiting it. */
-  peek(key: AssetKey): Promise<unknown> | undefined {
-    return this.cache.get(key);
+  /** The promise stored under `key` if it is of this kind, without awaiting it. */
+  peek<K extends AssetKind>(key: AssetKey, kind: K): Promise<AssetKinds[K]> | undefined {
+    // setAsset stores only promises of AssetKinds[K] under kind K.
+    return this.assetKinds.get(key) === kind
+      ? (this.cache.get(key) as Promise<AssetKinds[K]>)
+      : undefined;
   }
 
   private getFileExtension(url: string): string {
@@ -140,12 +170,18 @@ export class AssetStore implements IAssetStore {
     return clean.slice(lastDot + 1).toLowerCase();
   }
 
-  async get(key: AssetKey): Promise<unknown> {
+  get(key: AssetKey): Promise<Asset>;
+  get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
+  async get(key: AssetKey, kind?: AssetKind, label: string | undefined = kind): Promise<Asset> {
     const promise = this.cache.get(key);
     if (!promise) {
       throw new Error(`Asset not loaded: ${key}`);
     }
-    return await promise;
+    const asset = await promise;
+    if (kind !== undefined && this.kindOf(key) !== kind) {
+      throw new Error(`Asset "${key}" is not a ${label}`);
+    }
+    return asset;
   }
 
   clear(): void {

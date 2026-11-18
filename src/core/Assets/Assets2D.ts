@@ -3,7 +3,7 @@
 // Loading this module adds the "texture2d" kind to AssetStore: the default Pixi
 // texture loader, the `texture2DLoaders` option and the typed methods below.
 import type { Texture as PixiTexture } from "pixi.js";
-import { AssetStore, type AssetKey, type LoaderConfig } from "./AssetStore";
+import { AssetStore, type AssetKey, type AssetKind, type LoaderConfig } from "./AssetStore";
 import { createPixiTextureLoader } from "./loaders/pixiTextureLoader";
 
 export type Texture2DState =
@@ -21,6 +21,10 @@ export interface Texture2DHandle {
 export type PixiTextureLoaderConfig = LoaderConfig<PixiTexture>;
 
 declare module "./AssetStore" {
+  interface AssetKinds {
+    texture2d: PixiTexture;
+  }
+
   interface AssetStoreConfig {
     texture2DLoaders?: { [name: string]: PixiTextureLoaderConfig };
   }
@@ -42,7 +46,7 @@ declare module "./AssetStore" {
   }
 }
 
-const KIND = "texture2d";
+const KIND = "texture2d" satisfies AssetKind;
 const LABEL = "2D texture";
 
 /** The last request per key. A request is current while the store still holds its promise. */
@@ -85,12 +89,12 @@ const methods: Pick<
     if (
       existing?.url === url &&
       existing.handle.state.status !== "failed" &&
-      this.peek(key) === existing.handle.ready
+      this.peek(key, KIND) === existing.handle.ready
     ) {
       return existing.handle;
     }
 
-    const loader = this.resolveLoader<PixiTexture>(KIND, url, LABEL);
+    const loader = this.resolveLoader(KIND, url, LABEL);
 
     let state: Texture2DState = { status: "loading" };
     const listeners = new Set<(state: Texture2DState) => void>();
@@ -129,12 +133,8 @@ const methods: Pick<
     return handle;
   },
 
-  async getTexture2D(this: AssetStore, key) {
-    const asset = await this.get(key);
-    if (this.kindOf(key) === KIND) {
-      return asset as PixiTexture;
-    }
-    throw new Error(`Asset "${key}" is not a 2D texture`);
+  getTexture2D(this: AssetStore, key) {
+    return this.get(key, KIND, LABEL);
   },
 };
 

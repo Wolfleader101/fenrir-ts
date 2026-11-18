@@ -42,5 +42,7 @@
   "include": ["src", "tests"],
   // Monaco sample script: loaded as ?raw text and type-checked in the editor
   // against the bundled shims in src/editor/resources, not the real engine types.
-  "exclude": ["src/editor/resources/defaultScript.ts"]
+  // Type fixtures: each is compiled as its own program by tests/types/*.test.ts,
+  // because entry augmentations would leak between them in one program.
+  "exclude": ["src/editor/resources/defaultScript.ts", "tests/types/fixtures"]
 }

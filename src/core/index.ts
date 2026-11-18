@@ -40,7 +40,7 @@ export { EntityBuilder } from "./EntityBuilder/EntityBuilder";
 export * from "./EntityBuilder/extensions/coreExtensions";
 
 // Assets
-export type { IAssetStore, AssetKey, AssetStoreConfig, LoaderConfig } from "./Assets/AssetStore";
+export type { IAssetStore, Asset, AssetKey, AssetKind, AssetKinds, AssetStoreConfig, LoaderConfig } from "./Assets/AssetStore";
 export { AssetStore, assetKey } from "./Assets/AssetStore";
 export type { AssetLoader, AssetSource } from "./Assets/AssetLoader";
 

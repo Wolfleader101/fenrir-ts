@@ -47,6 +47,10 @@ describe("fenrir-ts/2d public API", () => {
     expect(handle.state).toEqual({ status: "loading" });
     await expect(handle.ready).resolves.toBe(Texture.EMPTY);
     expect(handle.state).toEqual({ status: "ready", texture: Texture.EMPTY });
+
+    // The 2D entry adds the "texture2d" kind; tests/types/ checks the types per entry.
+    await expect(assets.get(assetKey("hero"), "texture2d")).resolves.toBe(Texture.EMPTY);
+    expect(assets.kindOf(assetKey("hero"))).toBe("texture2d");
   });
 
   it("keeps default transforms plain, without Three", () => {
