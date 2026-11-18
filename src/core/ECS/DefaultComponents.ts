@@ -8,13 +8,13 @@ export type Transform = {
   scale: Vector3;
 };
 
-export const Transform = defineComponent<Transform>("Transform");
+export const Transform = defineComponent<Transform>("fenrir.Transform");
 
 export type Name = {
   name: string;
 };
 
-export const Name = defineComponent<Name>("Name");
+export const Name = defineComponent<Name>("fenrir.Name");
 
 export type Relationship = {
   parent: Entity;
@@ -23,7 +23,7 @@ export type Relationship = {
   prevSibling: Entity;
 };
 
-export const Relationship = defineComponent<Relationship>("Relationship");
+export const Relationship = defineComponent<Relationship>("fenrir.Relationship");
 
 // Helper creator so you never allocate new objects accidentally elsewhere
 export function makeRelationship(nullEntity: Entity): Relationship {

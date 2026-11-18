@@ -57,18 +57,18 @@ export type CanvasPointerEvent = {
 };
 
 export const InputEvent = {
-  KeyDown: defineEvent<KeyEvent>("input.keyDown"),
-  KeyUp: defineEvent<KeyEvent>("input.keyUp"),
+  KeyDown: defineEvent<KeyEvent>("fenrir.input.keyDown"),
+  KeyUp: defineEvent<KeyEvent>("fenrir.input.keyUp"),
 
-  MouseDown: defineEvent<MouseButtonEvent>("input.mouseDown"),
-  MouseUp: defineEvent<MouseButtonEvent>("input.mouseUp"),
-  MouseMove: defineEvent<MouseMoveEvent>("input.mouseMove"),
-  MouseWheel: defineEvent<MouseWheelEvent>("input.mouseWheel"),
+  MouseDown: defineEvent<MouseButtonEvent>("fenrir.input.mouseDown"),
+  MouseUp: defineEvent<MouseButtonEvent>("fenrir.input.mouseUp"),
+  MouseMove: defineEvent<MouseMoveEvent>("fenrir.input.mouseMove"),
+  MouseWheel: defineEvent<MouseWheelEvent>("fenrir.input.mouseWheel"),
 
-  PointerDown: defineEvent<CanvasPointerEvent>("input.pointerDown"),
-  PointerUp: defineEvent<CanvasPointerEvent>("input.pointerUp"),
-  PointerMove: defineEvent<CanvasPointerEvent>("input.pointerMove"),
-  PointerCancel: defineEvent<CanvasPointerEvent>("input.pointerCancel"),
+  PointerDown: defineEvent<CanvasPointerEvent>("fenrir.input.pointerDown"),
+  PointerUp: defineEvent<CanvasPointerEvent>("fenrir.input.pointerUp"),
+  PointerMove: defineEvent<CanvasPointerEvent>("fenrir.input.pointerMove"),
+  PointerCancel: defineEvent<CanvasPointerEvent>("fenrir.input.pointerCancel"),
 
-  Focus: defineEvent<FocusEvent>("input.focus"),
+  Focus: defineEvent<FocusEvent>("fenrir.input.focus"),
 } as const;

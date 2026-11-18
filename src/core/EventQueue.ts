@@ -1,7 +1,14 @@
 export type EventType<T> = symbol & { __eventType?: T };
 
+/**
+ * Defines an event type. As with components, the name is the identity: two
+ * calls with the same name return the same type. Prefix names with a namespace
+ * for your game or library. Names starting with `fenrir.` are reserved for the engine.
+ *
+ * @example
+ * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
+ */
 export function defineEvent<T>(name: string): EventType<T> {
-  // using Symbol.for to allow cross-module event type sharing
   return Symbol.for(`event:${name}`) as EventType<T>;
 }
 

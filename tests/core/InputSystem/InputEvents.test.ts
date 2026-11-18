@@ -6,34 +6,34 @@ describe("InputEvents", () => {
     it("should define KeyDown event", () => {
       expect(InputEvent.KeyDown).toBeDefined();
       expect(typeof InputEvent.KeyDown).toBe("symbol");
-      expect(InputEvent.KeyDown.toString()).toBe("Symbol(event:input.keyDown)");
+      expect(InputEvent.KeyDown.toString()).toBe("Symbol(event:fenrir.input.keyDown)");
     });
 
     it("should define KeyUp event", () => {
       expect(InputEvent.KeyUp).toBeDefined();
       expect(typeof InputEvent.KeyUp).toBe("symbol");
-      expect(InputEvent.KeyUp.toString()).toBe("Symbol(event:input.keyUp)");
+      expect(InputEvent.KeyUp.toString()).toBe("Symbol(event:fenrir.input.keyUp)");
     });
 
     it("should define MouseDown event", () => {
       expect(InputEvent.MouseDown).toBeDefined();
       expect(typeof InputEvent.MouseDown).toBe("symbol");
       expect(InputEvent.MouseDown.toString()).toBe(
-        "Symbol(event:input.mouseDown)"
+        "Symbol(event:fenrir.input.mouseDown)"
       );
     });
 
     it("should define MouseUp event", () => {
       expect(InputEvent.MouseUp).toBeDefined();
       expect(typeof InputEvent.MouseUp).toBe("symbol");
-      expect(InputEvent.MouseUp.toString()).toBe("Symbol(event:input.mouseUp)");
+      expect(InputEvent.MouseUp.toString()).toBe("Symbol(event:fenrir.input.mouseUp)");
     });
 
     it("should define MouseMove event", () => {
       expect(InputEvent.MouseMove).toBeDefined();
       expect(typeof InputEvent.MouseMove).toBe("symbol");
       expect(InputEvent.MouseMove.toString()).toBe(
-        "Symbol(event:input.mouseMove)"
+        "Symbol(event:fenrir.input.mouseMove)"
       );
     });
 
@@ -41,14 +41,14 @@ describe("InputEvents", () => {
       expect(InputEvent.MouseWheel).toBeDefined();
       expect(typeof InputEvent.MouseWheel).toBe("symbol");
       expect(InputEvent.MouseWheel.toString()).toBe(
-        "Symbol(event:input.mouseWheel)"
+        "Symbol(event:fenrir.input.mouseWheel)"
       );
     });
 
     it("should define Focus event", () => {
       expect(InputEvent.Focus).toBeDefined();
       expect(typeof InputEvent.Focus).toBe("symbol");
-      expect(InputEvent.Focus.toString()).toBe("Symbol(event:input.focus)");
+      expect(InputEvent.Focus.toString()).toBe("Symbol(event:fenrir.input.focus)");
     });
   });
 

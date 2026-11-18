@@ -66,4 +66,4 @@ export type Renderable2D = {
   flags?: Render2DFlags;
 };
 
-export const Renderable2D = defineComponent<Renderable2D>("Renderable2D");
+export const Renderable2D = defineComponent<Renderable2D>("fenrir.Renderable2D");

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   Renderable,
-  Camera,
   type GeometryDesc,
   type MaterialDesc,
   type RenderFlags,
@@ -183,83 +182,6 @@ describe("Render Components", () => {
       expect(minimalRenderable.material.kind).toBe("standard");
       expect(minimalRenderable.flags).toBeUndefined();
       expect(minimalRenderable.batchKey).toBeUndefined();
-    });
-  });
-
-  describe("Camera component", () => {
-    it("should be defined as component", () => {
-      expect(Camera).toBeDefined();
-      expect(typeof Camera).toBe("symbol");
-    });
-
-    it("should work with camera configuration", () => {
-      type CameraType = {
-        fov: number;
-        near: number;
-        far: number;
-        active?: boolean;
-      };
-
-      const camera: CameraType = {
-        fov: 60,
-        near: 0.1,
-        far: 1000,
-        active: true,
-      };
-
-      expect(camera.fov).toBe(60);
-      expect(camera.near).toBe(0.1);
-      expect(camera.far).toBe(1000);
-      expect(camera.active).toBe(true);
-    });
-
-    it("should work with minimal camera configuration", () => {
-      type CameraType = {
-        fov: number;
-        near: number;
-        far: number;
-        active?: boolean;
-      };
-
-      const camera: CameraType = {
-        fov: 75,
-        near: 0.01,
-        far: 2000,
-      };
-
-      expect(camera.fov).toBe(75);
-      expect(camera.near).toBe(0.01);
-      expect(camera.far).toBe(2000);
-      expect(camera.active).toBeUndefined();
-    });
-
-    it("should support different camera settings", () => {
-      type CameraType = {
-        fov: number;
-        near: number;
-        far: number;
-        active?: boolean;
-      };
-
-      const wideAngleCamera: CameraType = {
-        fov: 90,
-        near: 0.1,
-        far: 500,
-        active: true,
-      };
-
-      const telephotoCamera: CameraType = {
-        fov: 35,
-        near: 1,
-        far: 5000,
-        active: false,
-      };
-
-      expect(wideAngleCamera.fov).toBe(90);
-      expect(wideAngleCamera.active).toBe(true);
-
-      expect(telephotoCamera.fov).toBe(35);
-      expect(telephotoCamera.active).toBe(false);
     });
   });
 

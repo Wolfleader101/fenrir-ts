@@ -39,7 +39,7 @@ export type Camera = {
   readonly enabled: boolean; // Whether camera should render
 };
 
-export const Camera = defineComponent<Camera>("Camera");
+export const Camera = defineComponent<Camera>("fenrir.Camera");
 
 /**
  * Marks an entity as the active camera for the scene.
@@ -49,7 +49,7 @@ export type ActiveCamera = {
   readonly priority: number; // Priority if multiple active cameras exist
 };
 
-export const ActiveCamera = defineComponent<ActiveCamera>("ActiveCamera");
+export const ActiveCamera = defineComponent<ActiveCamera>("fenrir.ActiveCamera");
 
 /**
  * Optional component for cameras that should look at a specific target.
@@ -60,7 +60,7 @@ export type CameraTarget = {
   readonly up: Vector3; // Up vector for orientation
 };
 
-export const CameraTarget = defineComponent<CameraTarget>("CameraTarget");
+export const CameraTarget = defineComponent<CameraTarget>("fenrir.CameraTarget");
 
 /**
  * Runtime component managed by the camera system.
@@ -71,7 +71,7 @@ export type CameraInstance = {
   readonly lastUpdateFrame: number; // Frame when camera was last updated
 };
 
-export const CameraInstance = defineComponent<CameraInstance>("CameraInstance");
+export const CameraInstance = defineComponent<CameraInstance>("fenrir.CameraInstance");
 
 // Helper functions for creating camera configurations
 export function createPerspectiveCamera(opts: {

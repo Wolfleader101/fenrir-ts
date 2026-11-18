@@ -108,7 +108,7 @@ export type PhysicsShape = {
   readonly userData?: unknown; // Custom user data
 };
 
-export const PhysicsShape = defineComponent<PhysicsShape>("PhysicsShape");
+export const PhysicsShape = defineComponent<PhysicsShape>("fenrir.PhysicsShape");
 
 /**
  * Helper functions to create specific shape types

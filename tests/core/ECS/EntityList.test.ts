@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EntityList, defineComponent } from "@/core/ECS";
-import { Relationship } from "@/core/ECS/DefaultComponents";
+import { Name as DefaultName, Relationship } from "@/core/ECS/DefaultComponents";
 
 // Test component types
 type Position = { x: number; y: number };
@@ -515,11 +515,11 @@ describe("EntityList", () => {
     it("should handle empty queries gracefully", () => {
       let callCount = 0;
 
-      entityList.each([Name] as const, () => {
+      entityList.each([DefaultName] as const, () => {
         callCount++;
       });
 
-      expect(callCount).toBe(3); // All entities have Name component by default
+      expect(callCount).toBe(3); // Every entity gets the engine Name component by default
     });
   });
 

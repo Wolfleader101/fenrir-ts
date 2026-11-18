@@ -87,7 +87,7 @@ Define components with `defineComponent`, store them on entities, and query them
 import { Schedule, defineComponent, type SystemCtx } from "fenrir-ts/core";
 
 type Health = { current: number; max: number };
-const Health = defineComponent<Health>("Health");
+const Health = defineComponent<Health>("myGame.Health");
 
 // Keep the query tuple in a constant so the engine can cache the view.
 const HEALTH_QUERY = [Health] as const;
