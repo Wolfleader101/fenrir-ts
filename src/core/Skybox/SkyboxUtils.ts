@@ -1,4 +1,5 @@
-import "./SceneSkybox";
+// Types only: the Scene skybox members. Setting scene.skybox needs no runtime import of Scene.
+import type {} from "./SceneSkybox";
 import type { AssetKey, IAssetStore } from "../Assets/AssetStore";
 import type { Scene } from "../Scene";
 import {
@@ -65,7 +66,7 @@ export class SkyboxUtils {
       enabled: options.enabled,
     });
 
-    scene.setSkybox(skybox);
+    scene.skybox = skybox;
   }
 
   /**
@@ -90,7 +91,7 @@ export class SkyboxUtils {
       enabled: options.enabled,
     });
 
-    scene.setSkybox(skybox);
+    scene.skybox = skybox;
   }
 
   /**
@@ -137,7 +138,7 @@ export class SkyboxUtils {
       enabled: options.enabled,
     });
 
-    scene.setSkybox(skybox);
+    scene.skybox = skybox;
   }
 
   /**

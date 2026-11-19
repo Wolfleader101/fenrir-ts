@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { SkyboxUtils } from "@/core/Skybox/SkyboxUtils";
 import type { IAssetStore } from "@/core/Assets/AssetStore";
-import type { Scene } from "@/core/Scene";
+import { Scene } from "@/core/Scene";
 
 describe("SkyboxUtils.setupDefaultSkybox", () => {
   it("loads the six embedded faces and sets a cubemap skybox on the scene", async () => {
     const loadTexture = vi.fn(async (_key: string, _url: string) => {});
-    const setSkybox = vi.fn();
     const assets = { loadTexture } as unknown as IAssetStore;
-    const scene = { setSkybox } as unknown as Scene;
+    // A core Scene: SkyboxUtils works on it without the members fenrir-ts/3d adds.
+    const scene = new Scene("test.skybox");
 
     await SkyboxUtils.setupDefaultSkybox(scene, assets, { enabled: false });
 
@@ -19,7 +19,7 @@ describe("SkyboxUtils.setupDefaultSkybox", () => {
     expect(loadTexture.mock.calls.map(([, url]) => url)).toEqual(faces.map((face) => images[face as keyof typeof images]));
     for (const [, url] of loadTexture.mock.calls) expect(url).toMatch(/right|left|top|bottom|front|back|^data:image\/png/);
 
-    expect(setSkybox).toHaveBeenCalledWith({
+    expect(scene.skybox).toEqual({
       type: "cubemap",
       textures: {
         posX: "skybox/right.png",
