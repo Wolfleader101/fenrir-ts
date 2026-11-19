@@ -22,6 +22,25 @@ beforeAll(async () => {
 });
 
 describe("fenrir-ts/2d public API", () => {
+  it("exports layoutViewport, the rule pixi2d lays the design frame out with (#64)", () => {
+    const { layoutViewport, logicalToScreen, screenToLogical } = twoD;
+    const layout = layoutViewport({ width: 390, minHeight: 520 }, { width: 390, height: 844 }, { top: 47, right: 0, bottom: 34, left: 0 }, 3);
+    expect(layout).toEqual({
+      width: 390,
+      height: 763,
+      scale: 1,
+      offset: { x: 0, y: 47 },
+      insets: { top: 47, right: 0, bottom: 34, left: 0 },
+      screen: { width: 390, height: 844 },
+      resolution: 3,
+    });
+    // A design-unit position becomes a click position, and back.
+    const point = logicalToScreen(layout, { x: 195, y: 100 });
+    expect(point).toEqual({ x: 195, y: 147 });
+    expect(screenToLogical(layout, point)).toEqual({ x: 195, y: 100 });
+    expectTypeOf(layoutViewport).returns.toEqualTypeOf<import("@/2d").Viewport>();
+  });
+
   it("exports the Pixi renderer and its system", () => {
     expect(twoD.createPixiRendererSystem).toBeTypeOf("function");
     expect(twoD.PixiRenderer).toBeTypeOf("function");

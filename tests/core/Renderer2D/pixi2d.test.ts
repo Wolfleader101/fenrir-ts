@@ -86,3 +86,33 @@ describe("pixi2d", () => {
     await expect(createGame({ canvas, logger, plugins: [pixi] })).rejects.toThrow("already installed in a game");
   });
 });
+
+describe("pixi2d background with an adopted application (#66)", () => {
+  function withBackground(canvas: HTMLCanvasElement) {
+    const adopted = adoptedApplication(canvas);
+    const background = { color: 0x000000 as unknown };
+    Object.assign(adopted.app.renderer, { background });
+    return { ...adopted, background };
+  }
+
+  it("sets the adopted application's clear colour when Init runs", async () => {
+    stubFrames();
+    const canvas = document.createElement("canvas");
+    const { app, background } = withBackground(canvas);
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app, background: 0x092c36 })] });
+    expect(background.color).toBe(0x000000); // nothing changes at install
+    await game.run();
+    expect(background.color).toBe(0x092c36);
+    await game.stop();
+  });
+
+  it("leaves the adopted application's clear colour alone without background", async () => {
+    stubFrames();
+    const canvas = document.createElement("canvas");
+    const { app, background } = withBackground(canvas);
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app })] });
+    await game.run();
+    expect(background.color).toBe(0x000000);
+    await game.stop();
+  });
+});

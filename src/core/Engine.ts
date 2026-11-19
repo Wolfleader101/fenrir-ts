@@ -382,6 +382,12 @@ export class Engine {
     return this.activeRun?.state === "running";
   }
 
+  /** Whether startup finished and the run has not begun to stop: running or paused. */
+  public isActive(): boolean {
+    const state = this.activeRun?.state;
+    return state === "running" || state === "paused";
+  }
+
   // System registration
   public addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
   public addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;

@@ -1,3 +1,4 @@
+import "./SceneSkybox";
 import { nameEngineSystems } from "../SystemName";
 import * as THREE from "three";
 import type { AsyncSystemFn, SystemCtx } from "../SystemCtx";

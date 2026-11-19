@@ -191,6 +191,28 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
+  it("ships no skybox members on Scene: fenrir-ts/3d adds them (#66)", () => {
+    const scene = new core.Scene("publicApi.scene");
+    expect(["skybox", "setSkybox", "removeSkybox", "hasSkybox"].filter((member) => member in scene)).toEqual([]);
+  });
+
+  it("tells whether a game is running after run(), with isRunning (#65)", async () => {
+    const { Schedule, createGame, NullLogger } = core;
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
+    expectTypeOf(game.isRunning).toEqualTypeOf<() => boolean>();
+    game.addSystem(Schedule.Init, function quit({ stop }) {
+      stop();
+    });
+    await game.run();
+    expect(game.isRunning()).toBe(false);
+    game.removeSystem("quit");
+    await game.run();
+    expect(game.isRunning()).toBe(true);
+    await game.stop();
+  });
+
   it("delivers events to game.on and ctx.events.on listeners, each with its own lifetime", async () => {
     const { Schedule, createGame, defineEvent, NullLogger } = core;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));

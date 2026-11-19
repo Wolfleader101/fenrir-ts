@@ -4,14 +4,16 @@
  *
  * Importing it also, for this program:
  * - makes every default `Transform` out of Three `Vector3` and `Quaternion`
+ * - adds the skybox members to `Scene` (`skybox`, `setSkybox`, `removeSkybox`, `hasSkybox`)
  * - adds the 3D EntityBuilder methods (`model`, `renderBox`, `renderSphere`,
  *   `animate`, the camera methods)
  * - adds the model and texture methods on AssetStore (`loadModel`, `loadTexture`,
  *   `getGeometry`, `getTexture`, ...) and the default glTF and texture loaders
  */
 
-// Side effects: Three default transforms, AssetStore and EntityBuilder patches.
+// Side effects: Three default transforms, the Scene skybox members, AssetStore and EntityBuilder patches.
 import "./core/Transform3D";
+import "./core/Skybox/SceneSkybox";
 import "./core/Assets/Assets3D";
 import "./core/EntityBuilder/extensions/renderExtensions";
 import "./core/EntityBuilder/extensions/animationExtensions";
@@ -50,6 +52,8 @@ export * from "./core/Camera/CameraSystem";
 export * from "./core/Skybox/SkyboxComponents";
 export * from "./core/Skybox/SkyboxSystem";
 export * from "./core/Skybox/SkyboxUtils";
+// Its declarations add the skybox members to Scene, here and in the editor's bundled types.
+export * from "./core/Skybox/SceneSkybox";
 export * from "./core/Animation";
 
 // Window-level keyboard and mouse input for the 3D path, which bootstrapEngine registers.

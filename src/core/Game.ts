@@ -75,6 +75,14 @@ export interface GameBase extends GameServices {
   stop(): Promise<void>;
 
   /**
+   * Whether the game is running: startup finished and `stop()` has not been called since,
+   * paused included. False before `run()` (or `start()` on a test game), during startup, and
+   * from the moment `stop()` is called. `run()` resolves without throwing when the game is
+   * stopped during startup, so check this after `await game.run()` to know gameplay started.
+   */
+  isRunning(): boolean;
+
+  /**
    * Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the
    * same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at
    * most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then
@@ -203,6 +211,10 @@ export class GameImpl implements Game {
 
   public step(dt?: number, frames?: number): void {
     this.engine.step(dt, frames);
+  }
+
+  public isRunning(): boolean {
+    return this.engine.isActive();
   }
 
   public pause(): void {

@@ -21,6 +21,20 @@ describe("fenrir-ts/3d public API", () => {
     await expect(import("@/3d")).resolves.toHaveProperty("bootstrapEngine");
   });
 
+  it("adds the skybox members to core's Scene, typed and working (#66)", async () => {
+    await import("@/3d");
+    const { Scene } = await import("@/index");
+    const scene = new Scene("publicApi.3d.scene");
+    expect(scene.hasSkybox()).toBe(false);
+    scene.setSkybox({ type: "color", textures: { color: 0x87ceeb } });
+    expect([scene.hasSkybox(), scene.skybox?.type]).toEqual([true, "color"]);
+    scene.setSkybox({ ...scene.skybox!, enabled: false });
+    expect(scene.hasSkybox()).toBe(false);
+    scene.removeSkybox();
+    expect(scene.skybox).toBeUndefined();
+    expectTypeOf(scene.setSkybox).parameters.toEqualTypeOf<[import("@/index").SkyboxDescriptor | undefined]>();
+  });
+
   it("exports the Three renderer, camera, skybox, animation and stats", async () => {
     const threeD = await import("@/3d");
     for (const name of [

@@ -12,6 +12,9 @@
 // side-effects-2d.js is also run in Node after bundling: it fails if the bundler
 // dropped a module that fenrir-ts/2d needs for its side effects.
 //
+// The measured fixtures import no 3D entry, so their engine code must not
+// contain the 3D-only members that fenrir-ts/3d adds to core classes.
+//
 // Run `build:lib` first.
 //   --update        rewrite the consumer budgets from this build
 //   --breakdown     list the source modules in each fixture bundle, largest first
@@ -46,6 +49,8 @@ const HEADROOM = 1.03;
 const MEASURED = ["game-2d", "core-only"];
 /** Fixtures run after bundling. */
 const RUN = ["side-effects-2d"];
+/** Members fenrir-ts/3d adds to core classes. A fixture without fenrir-ts/3d must not ship them. */
+const THREE_D_ONLY = /\b(?:setSkybox|removeSkybox|hasSkybox)\b/g;
 
 if (!existsSync(join(root, "dist", "index.js"))) {
   console.error("dist/index.js is missing. Run build:lib first.");
@@ -220,6 +225,7 @@ function measure(outDir) {
   }
   return {
     total,
+    engine,
     minified: Buffer.byteLength(engine),
     gzip: gzipSync(engine, { level: 9 }).length,
     fixture: perModule.get("(fixture)") ?? 0,
@@ -236,6 +242,11 @@ try {
   for (const name of MEASURED) {
     const result = measure(await bundle(name));
     const limit = budget.consumers[name];
+    const leaked = [...new Set(result.engine.match(THREE_D_ONLY) ?? [])];
+    if (leaked.length > 0) {
+      console.error(`${name}: ships ${leaked.join(", ")}, which belong to fenrir-ts/3d. Move them out of core.`);
+      failed = true;
+    }
     const line = `${name}: engine ${kB(result.minified)} minified, ${kB(result.gzip)} gzip`;
     if (update) {
       budget.consumers[name] = {

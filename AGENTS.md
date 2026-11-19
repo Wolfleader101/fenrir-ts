@@ -55,7 +55,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
 | `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), `inspect()`, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
-| `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Viewport`, `ViewportResized`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
+| `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
 | `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
@@ -70,7 +70,7 @@ New core code must keep it that way: put anything that needs a renderer in the e
 Each renderer entry adds to core types when it is imported, and to core classes when it loads:
 
 - `fenrir-ts/2d` adds `renderSprite` and the other 2D methods to `EntityBuilder`, and `requestTexture2D`, `loadTexture2D`, `getTexture2D` and the Pixi loader to `AssetStore`.
-- `fenrir-ts/3d` adds the 3D builder methods and `loadModel`, `loadTexture`, `getTexture` and the glTF loader to `AssetStore`, and makes every default `Transform` out of Three `Vector3` and `Quaternion`.
+- `fenrir-ts/3d` adds the 3D builder methods, `loadModel`, `loadTexture`, `getTexture` and the glTF loader to `AssetStore`, and `skybox`, `setSkybox`, `removeSkybox` and `hasSkybox` to `Scene` (`src/core/Skybox/SceneSkybox.ts`), and makes every default `Transform` out of Three `Vector3` and `Quaternion`. `pnpm check:consumer` fails if a 2D bundle ships the skybox members.
 - `fenrir-ts/physics` adds the physics builder methods and `physics?: PhysicsHelpers` to `SystemCtx`, and also makes default transforms out of Three objects.
 
 So a method from an entry is typed and present only when that entry is imported.
@@ -80,7 +80,7 @@ Inside the repo, `@/` is an alias for `src/`.
 
 ## Core model
 
-**Game.** `createGame({ canvas, plugins, logger })` in `src/core/Game.ts` builds the scheduler, scene manager, event bus, logger and asset store, installs each plugin in order (awaiting an async `install`), and returns a `Game`. `Game` wraps an `Engine`, which keeps the frame loop and lifecycle. `game.run()`, `stop()`, `pause()` and `resume()` delegate to it.
+**Game.** `createGame({ canvas, plugins, logger })` in `src/core/Game.ts` builds the scheduler, scene manager, event bus, logger and asset store, installs each plugin in order (awaiting an async `install`), and returns a `Game`. `Game` wraps an `Engine`, which keeps the frame loop and lifecycle. `game.run()`, `stop()`, `pause()` and `resume()` delegate to it. `game.isRunning()` (`Engine.isActive()`) is true from the end of startup until `stop()` is called, paused included; `Engine.isRunning()` is false while paused. `run()` resolves without throwing when a system stops the game during startup, so read `isRunning()` after it.
 
 **Plugins.** A plugin is `{ name, install(game) }`, as `pixi2d()` from `fenrir-ts/2d` is. `install` reads `game.canvas`, `game.logger`, `game.assets` and `game.events` and adds systems. It registers only: resources are acquired in an `Init` system and released with `ctx.onCleanup` or an `Exit` system, so a failed startup rolls them back. If an install throws, `createGame` rejects and nothing has run. Core never imports a plugin's types.
 
@@ -187,7 +187,7 @@ off(); // removes the game.on listener early
 - Listeners are called synchronously inside `send`, in registration order, after the event is buffered, with the current run's `ctx`. A `send` before the first run or after a stop only buffers the event.
 - A listener may send events; they are delivered at once, depth first. A listener removed during delivery is not called after that; one added during delivery receives only later events. Events nested 32 deep stop being delivered, with an error logged.
 - A listener that throws, or an async one that rejects, is logged through the game's logger with the event name; the other listeners and the sender carry on. Async listeners are not awaited.
-A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns, and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly: into `renderer.root` (logical units) or `renderer.backdrop` (full bleed). See "Viewport" below. Input needs no setup: see "Input" above.
+A 2D game passes `pixi2d()` from `fenrir-ts/2d` in `plugins`. `pixi2d({ application })` adopts a Pixi application the app owns (a `background` passed with it sets the application's clear colour at Init), and `plugin.renderer` is the `PixiRenderer` for code that draws with Pixi directly: into `renderer.root` (logical units) or `renderer.backdrop` (full bleed). See "Viewport" below. Input needs no setup: see "Input" above.
 The 3D renderer has no plugin: a 3D game builds an `Engine` and calls `bootstrapEngine(engine, logger, { canvas })` from `fenrir-ts/3d`, which registers the legacy window-level input (`createDomInputSystems` and `InputState`, from `fenrir-ts/3d`, frozen with the 3D path), the Three renderer, camera and skybox; pass `physics: createPhysicsSystem()` from `fenrir-ts/physics` for physics. See `src/core/Bootstrap.ts`.
 
 **Resources.** `defineResource<T>(name, factory?)` in `src/core/Resource.ts` returns a typed handle for one value per game. `resources.get(Resource)` returns it, running `factory` on the first `get`; `resources.set(Resource, value)` replaces it. `game.resources` is the same object as `ctx.resources`, so setup code and tests can `set` before `run()`. Without a factory, `get` throws until a value is set, and the error names the resource.
@@ -352,7 +352,7 @@ console.log(schedule.init); // ["score"]
 To check what a game is doing, assert on `inspect()`, not on pixels: `game.inspect()` in a unit test, `page.evaluate(() => window.__FENRIR__.inspect())` in a Playwright test of a game made with `debug: true`. Snapshots of the same game state are identical, so compare them whole or snapshot-test them. A value is complete unless it carries `$truncated`.
 ## Viewport
 
-`pixi2d({ design: { width, minHeight }, safeArea, maxResolution })` makes a 2D game draw in design units. The design width fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally. The code is in `src/core/Renderer2D/`: the layout maths and the `Viewport` resource in `Viewport.ts` (no Pixi imports, so core's input uses it), the listeners in `ViewportSystem.ts`.
+`pixi2d({ design: { width, minHeight }, safeArea, maxResolution })` makes a 2D game draw in design units. The design width fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally. The code is in `src/core/Renderer2D/`: the layout maths (`layoutViewport`, exported from `fenrir-ts/2d` for browser tests) and the `Viewport` resource in `Viewport.ts` (no Pixi imports, so core's input uses it), the listeners in `ViewportSystem.ts`.
 
 ```ts
 import { Schedule, createGame, type SystemCtx } from "fenrir-ts";

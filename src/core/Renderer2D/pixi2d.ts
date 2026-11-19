@@ -21,7 +21,10 @@ export interface Pixi2DOptions {
   readonly safeArea?: boolean;
   /** Caps backing-store pixels per CSS pixel: `min(devicePixelRatio, maxResolution)`. Defaults to 2. */
   readonly maxResolution?: number;
-  /** Clear colour of a Pixi application the plugin creates, as 0xRRGGBB. Defaults to 0x101010. */
+  /**
+   * Clear colour, as 0xRRGGBB. A Pixi application the plugin creates defaults to 0x101010. An
+   * adopted `application` keeps its own unless this is given, which sets it when Init runs.
+   */
   readonly background?: number;
   /**
    * A Pixi application the app already owns, initialized on the game's canvas with its ticker

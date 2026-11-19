@@ -354,3 +354,56 @@ describe("Game lifecycle", () => {
     await game.stop();
   });
 });
+
+describe("game.isRunning", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is true from the end of startup until stop, paused included", async () => {
+    stubFrames();
+    const game = await createGame({ canvas: canvas(), logger });
+    const duringStartup: boolean[] = [];
+    game.addSystem(Schedule.Init, function look() {
+      duringStartup.push(game.isRunning());
+    });
+    expect(game.isRunning()).toBe(false);
+    await game.run();
+    expect(game.isRunning()).toBe(true);
+    game.pause();
+    expect(game.isRunning()).toBe(true);
+    game.resume();
+    const stopping = game.stop();
+    expect(game.isRunning()).toBe(false);
+    await stopping;
+    expect([game.isRunning(), duringStartup]).toEqual([false, [false]]);
+  });
+
+  it("is false after a run that was stopped during startup, though run() resolved (#65)", async () => {
+    stubFrames();
+    const game = await createGame({ canvas: canvas(), logger });
+    game.addSystem(Schedule.Init, function quit({ stop }: SystemCtx) {
+      stop();
+    });
+    await expect(game.run()).resolves.toBeUndefined();
+    expect(game.isRunning()).toBe(false);
+  });
+
+  it("is false after a startup that threw", async () => {
+    stubFrames();
+    const game = await createGame({ canvas: canvas(), logger });
+    game.addSystem(Schedule.Init, function fail() {
+      throw new Error("no assets");
+    });
+    await expect(game.run()).rejects.toThrow("no assets");
+    expect(game.isRunning()).toBe(false);
+  });
+
+  it("is true for a test game between start and stop", async () => {
+    const game = await createTestGame({ seed: 1, logger });
+    expect(game.isRunning()).toBe(false);
+    await game.start();
+    game.step();
+    expect(game.isRunning()).toBe(true);
+    await game.stop();
+    expect(game.isRunning()).toBe(false);
+  });
+});

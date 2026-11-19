@@ -1,3 +1,4 @@
+import "./SceneSkybox";
 import type { AssetKey, IAssetStore } from "../Assets/AssetStore";
 import type { Scene } from "../Scene";
 import {
