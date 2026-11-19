@@ -34,7 +34,7 @@ function stubFrames() {
 /** An initialized-looking Pixi application, since jsdom has no GPU. */
 function ownedApplication(canvas: HTMLCanvasElement): Application {
   const app = new Application();
-  Object.assign(app, { renderer: { canvas, screen: { width: 390, height: 520 }, resize: vi.fn(), render: vi.fn() } });
+  Object.assign(app, { renderer: { canvas, screen: { width: 390, height: 520 }, resize: vi.fn(), render: vi.fn(), background: { color: 0 } } });
   return app;
 }
 
@@ -70,6 +70,8 @@ describe("createGame with pixi2d, through the public entry points", () => {
     frame();
     expect(order).toEqual(["movePlayer", "applyDamage"]);
     expect(pixi.renderer.app.stage.children.length).toBeGreaterThan(0);
+    // The background passed with an adopted application is applied to it (#66).
+    expect(pixi.renderer.app.renderer.background.color).toBe(0x101820);
     expect(Renderable2D).toBeDefined();
 
     game.replaceSystem("applyDamage", () => { order.push("applyDamage v2"); });
