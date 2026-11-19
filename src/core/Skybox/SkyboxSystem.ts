@@ -1,3 +1,5 @@
+// Types only: the Scene skybox members. fenrir-ts/3d loads them.
+import type {} from "./SceneSkybox";
 import { nameEngineSystems } from "../SystemName";
 import * as THREE from "three";
 import type { AsyncSystemFn, SystemCtx } from "../SystemCtx";

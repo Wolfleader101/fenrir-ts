@@ -1,5 +1,5 @@
-// Plain skybox data. No Three types here: Scene stores a descriptor, and Scene
-// is part of the core entry, which must not reference Three.
+// Plain skybox data. No Three types here: the core entry exports this type, and
+// fenrir-ts/3d stores a descriptor on Scene (see SceneSkybox.ts).
 import type { AssetKey } from "../Assets/AssetStore";
 
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
@@ -40,8 +40,8 @@ export type SkyboxTextures =
   | SkyboxColorTextures;
 
 /**
- * Scene-level skybox descriptor.
- * This is stored directly on Scene objects, not as ECS components.
+ * Scene-level skybox descriptor, stored on the scene with `scene.setSkybox` from
+ * `fenrir-ts/3d`, not as an ECS component.
  */
 export type SkyboxDescriptor = {
   readonly type: SkyboxType;

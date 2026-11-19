@@ -63,7 +63,13 @@ export const ViewportResized = defineEvent<Viewport>("fenrir.viewport.resized");
  * Lays the design frame out on a screen. The design width fills the safe area's width, and the
  * logical height grows to fill its height; a safe area too short for `minHeight` scales the
  * frame down further, keeps the height at `minHeight` and centres the frame horizontally.
- * Internal: `pixi2d` calls it; tests drive it directly.
+ * `pixi2d({ design })` uses it to set the `Viewport` resource. It is pure, so browser tests can
+ * turn design units into click positions with the same rule: `logicalToScreen(layout, point)`.
+ *
+ * ```ts
+ * const layout = layoutViewport({ width: 390, minHeight: 520 }, { width: 390, height: 844 }, { top: 47, right: 0, bottom: 34, left: 0 }, 3);
+ * logicalToScreen(layout, { x: 195, y: 100 }); // CSS pixels from the canvas corner
+ * ```
  */
 export function layoutViewport(
   design: ViewportDesign,

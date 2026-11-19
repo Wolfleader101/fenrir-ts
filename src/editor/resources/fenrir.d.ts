@@ -378,61 +378,14 @@ export interface ILogger {
 	warn(message: string, meta?: LogMeta): void;
 	error(message: string, meta?: LogMeta): void;
 }
-export type SkyboxType = "cubemap" | "equirectangular" | "color";
 /**
- * Cube map texture configuration for skybox.
- * Uses standard cube map face naming convention.
+ * A named set of entities. `fenrir-ts/3d` adds the skybox members (`skybox`, `setSkybox`,
+ * `removeSkybox`, `hasSkybox`) when it is imported.
  */
-export type SkyboxCubemapTextures = {
-	readonly posX: AssetKey;
-	readonly negX: AssetKey;
-	readonly posY: AssetKey;
-	readonly negY: AssetKey;
-	readonly posZ: AssetKey;
-	readonly negZ: AssetKey;
-};
-/**
- * Equirectangular texture configuration for HDR skyboxes.
- */
-export type SkyboxEquirectangularTextures = {
-	readonly texture: AssetKey;
-};
-/**
- * Color configuration for solid color skyboxes.
- */
-export type SkyboxColorTextures = {
-	readonly color: number;
-};
-/**
- * Union type for different skybox texture configurations.
- */
-export type SkyboxTextures = SkyboxCubemapTextures | SkyboxEquirectangularTextures | SkyboxColorTextures;
-/**
- * Scene-level skybox descriptor.
- * This is stored directly on Scene objects, not as ECS components.
- */
-export type SkyboxDescriptor = {
-	readonly type: SkyboxType;
-	readonly textures: SkyboxTextures;
-	readonly enabled?: boolean;
-};
 export declare class Scene {
 	name: string;
 	readonly entityList: EntityList;
-	skybox?: SkyboxDescriptor;
 	constructor(name: string);
-	/**
-	 * Set the skybox for this scene
-	 */
-	setSkybox(skybox: SkyboxDescriptor | undefined): void;
-	/**
-	 * Remove the skybox from this scene
-	 */
-	removeSkybox(): void;
-	/**
-	 * Check if this scene has a skybox
-	 */
-	hasSkybox(): boolean;
 }
 export declare class SceneManager {
 	private scenes;
@@ -912,6 +865,8 @@ export declare class Engine {
 	private get input();
 	getTime(): Time;
 	isRunning(): boolean;
+	/** Whether startup finished and the run has not begun to stop: running or paused. */
+	isActive(): boolean;
 	addSystem<S extends SyncStage>(stage: S, system: SyncSystemFn, options?: SystemOptions): this;
 	addSystem<S extends AsyncStage>(stage: S, system: AsyncSystemFn, options?: SystemOptions): this;
 	addSystems<S extends SyncStage>(stage: S, systems: readonly SyncSystemFn[]): this;
@@ -1010,6 +965,13 @@ export interface GameBase extends GameServices {
 	replaceSystem(name: string, system: SyncSystemFn | AsyncSystemFn): this;
 	/** Runs Exit systems, then cleanups in reverse order. */
 	stop(): Promise<void>;
+	/**
+	 * Whether the game is running: startup finished and `stop()` has not been called since,
+	 * paused included. False before `run()` (or `start()` on a test game), during startup, and
+	 * from the moment `stop()` is called. `run()` resolves without throwing when the game is
+	 * stopped during startup, so check this after `await game.run()` to know gameplay started.
+	 */
+	isRunning(): boolean;
 	/**
 	 * Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the
 	 * same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at
@@ -1188,6 +1150,44 @@ export interface EntityBuilder {
 	transform(pos?: Vec3Like, rot?: QuatLike, scale?: Vec3Like): EntityBuilder;
 	name(value: string): EntityBuilder;
 }
+export type SkyboxType = "cubemap" | "equirectangular" | "color";
+/**
+ * Cube map texture configuration for skybox.
+ * Uses standard cube map face naming convention.
+ */
+export type SkyboxCubemapTextures = {
+	readonly posX: AssetKey;
+	readonly negX: AssetKey;
+	readonly posY: AssetKey;
+	readonly negY: AssetKey;
+	readonly posZ: AssetKey;
+	readonly negZ: AssetKey;
+};
+/**
+ * Equirectangular texture configuration for HDR skyboxes.
+ */
+export type SkyboxEquirectangularTextures = {
+	readonly texture: AssetKey;
+};
+/**
+ * Color configuration for solid color skyboxes.
+ */
+export type SkyboxColorTextures = {
+	readonly color: number;
+};
+/**
+ * Union type for different skybox texture configurations.
+ */
+export type SkyboxTextures = SkyboxCubemapTextures | SkyboxEquirectangularTextures | SkyboxColorTextures;
+/**
+ * Scene-level skybox descriptor, stored on the scene with `scene.setSkybox` from
+ * `fenrir-ts/3d`, not as an ECS component.
+ */
+export type SkyboxDescriptor = {
+	readonly type: SkyboxType;
+	readonly textures: SkyboxTextures;
+	readonly enabled?: boolean;
+};
 /**
  * The engine's `fenrir.Transform` component, typed with Three's classes.
  *
@@ -1202,6 +1202,16 @@ export type Transform = {
 	scale: Vector3;
 };
 export declare const Transform: ComponentType<Transform>;
+export interface Scene {
+	/** This scene's skybox, read by the skybox system. Set it with `setSkybox`. */
+	skybox?: SkyboxDescriptor;
+	/** Sets the skybox for this scene, or removes it with `undefined`. */
+	setSkybox(skybox: SkyboxDescriptor | undefined): void;
+	/** Removes the skybox from this scene. */
+	removeSkybox(): void;
+	/** Whether this scene has a skybox that is not disabled. */
+	hasSkybox(): boolean;
+}
 export type LoadedModel = {
 	geometry: THREE.Object3D;
 	animations: THREE.AnimationClip[];

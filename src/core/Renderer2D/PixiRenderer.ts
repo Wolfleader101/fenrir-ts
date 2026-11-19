@@ -22,6 +22,7 @@ export interface PixiRendererOptions {
   readonly logger: ILogger;
   readonly width?: number;
   readonly height?: number;
+  /** Clear colour as 0xRRGGBB. An engine-owned application defaults to 0x101010; an adopted one is set to it at init when given. */
   readonly clearColor?: number;
   readonly assets: IAssetStore;
   /** An initialized application owned by the caller, with its automatic ticker stopped. */
@@ -75,6 +76,7 @@ export class PixiRenderer {
       if (application.ticker?.started) {
         throw new Error("Stop the supplied Pixi application's ticker before starting Fenrir");
       }
+      if (this.options.clearColor !== undefined) application.renderer.background.color = this.options.clearColor;
     } else {
       await this.app.init({
         width: this.options.width ?? window.innerWidth,

@@ -22,7 +22,7 @@ export * from "./core/EntityBuilder/extensions/render2DExtensions";
 export { pixi2d, Renderable2D, PixiRenderer, createPixiRendererSystem } from "./core/Renderer2D";
 
 // Viewport: design resolution, safe area and resize
-export { Viewport, ViewportResized, screenToLogical, logicalToScreen } from "./core/Renderer2D";
+export { Viewport, ViewportResized, layoutViewport, screenToLogical, logicalToScreen } from "./core/Renderer2D";
 export type {
   ViewportDesign,
   ViewportInsets,

@@ -64,7 +64,7 @@ export type { IAssetStore, Asset, AssetKey, AssetKind, AssetKinds, AssetStoreCon
 export { AssetStore, assetKey } from "./Assets/AssetStore";
 export type { AssetLoader, AssetSource } from "./Assets/AssetLoader";
 
-// Skybox descriptors are plain data stored on Scene. The skybox system is in fenrir-ts/3d.
+// Skybox descriptors are plain data. fenrir-ts/3d stores them on Scene and runs the skybox system.
 export type { SkyboxDescriptor } from "./Skybox/SkyboxDescriptor";
 
 // Input: actions bound to keys and pointer buttons, on game.input and ctx.input
