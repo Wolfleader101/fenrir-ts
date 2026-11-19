@@ -37,8 +37,8 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 
 | Import | Contents |
 | --- | --- |
-| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore` |
-| `fenrir-ts/2d` | The `pixi2d` renderer plugin, the `Viewport` resource and `ViewportResized` event, `Renderable2D`, 2D builder methods such as `renderSprite`, 2D texture loading |
+| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore` |
+| `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/editor` | Monaco live code editor |
@@ -59,7 +59,7 @@ if (!canvas) throw new Error("Canvas element not found");
 const game = await createGame({ canvas, plugins: [pixi2d({ background: 0x101820 })] });
 
 function spawnBall({ entities }: SystemCtx): void {
-  EntityBuilder.create().transform({ x: 200, y: 150, z: 0 }).renderCircle(16, { fillColor: 0xff6600 }).spawn(entities);
+  EntityBuilder.create().transform2D(200, 150).renderCircle(16, { fillColor: 0xff6600 }).spawn(entities);
 }
 
 game.addSystem(Schedule.Init, spawnBall);
@@ -77,7 +77,7 @@ const hero = game.assets.requestTexture2D("hero", "/sprites/hero.png");
 hero.subscribe((state) => game.logger.info(`hero texture: ${state.status}`));
 ```
 
-To keep a Pixi application your app already owns, pass it in. It must be initialized on the same canvas with its ticker stopped, and the game does not destroy it at exit. It keeps its own clear colour unless you also pass `background`, which sets the application's clear colour when the game's Init stage runs. Game code that draws with Pixi directly adds to the plugin's `renderer.root`, in logical units (see [Viewport](#viewport)):
+To keep a Pixi application your app already owns, pass it in. It must be initialized on the same canvas with its ticker stopped, and the game does not destroy it at exit. It keeps its own clear colour unless you also pass `background`, which sets the application's clear colour when the game's Init stage runs. Game code that draws with Pixi directly adds to the plugin's `renderer.root`, in logical units (see [Viewport](#viewport)), or gives the node to an entity (see [Scene](#scene-transform2d-pixinode-and-layers)):
 
 ```ts
 import type { Application } from "pixi.js";
@@ -144,7 +144,7 @@ await game.run();
 ```
 
 - The plugin owns the canvas: it pins it to the window's top-left (`position: fixed`), sizes it to `innerWidth` by `innerHeight`, and listens to window resize, `visualViewport` resize, orientation and device-pixel-ratio changes. The listeners are added in `fenrir.viewport.init` and removed when the run stops. A game adds none.
-- `renderer.root` holds game content in logical units; entities with `Renderable2D` mount there. `renderer.backdrop` sits behind it, in unscaled CSS pixels from the screen's top-left; cover `viewport.screen` with it to fill the area outside the frame and the safe area.
+- `renderer.root` holds game content in logical units; entities with `Renderable2D` mount there, and named layers live there (see [Scene](#scene-transform2d-pixinode-and-layers)). `renderer.backdrop` sits behind it, in unscaled CSS pixels from the screen's top-left; cover `viewport.screen` with it to fill the area outside the frame and the safe area.
 - `ctx.resources.get(Viewport)` is plain data: logical `width` and `height`, `scale` (CSS pixels per logical unit), the frame's `offset` on the screen, the `insets` in use, the `screen` size and the `resolution`. Each change replaces the object.
 - `ViewportResized` carries the new `Viewport`. It is sent once at startup and then on each change, never twice for the same layout. A resize is applied in the next frame's `PreUpdate` (`fenrir.viewport.preUpdate`), before anything renders. While the game is paused no frame runs, so the plugin applies the layout and renders once on the next animation frame.
 - `ctx.input.pointer` is already in logical units: see [Input](#input). `pixi.renderer.clientToLogical(clientX, clientY)` converts a DOM event's position into logical units, and `logicalToClient` converts back. `screenToLogical(viewport, point)` and `logicalToScreen` do the same for points relative to the canvas.
@@ -166,6 +166,51 @@ The page needs `viewport-fit=cover`, or the browser reports zero insets and lett
 <style>html, body { margin: 0; overflow: hidden; }</style>
 <canvas id="game"></canvas>
 ```
+
+### Scene: Transform2D, PixiNode and layers
+
+Real art is usually a Pixi container the game builds itself. Give it to an entity with `PixiNode` and the renderer mounts it, moves it with the entity's `Transform2D`, parents it under the parent entity's node and destroys it with the entity.
+
+```ts
+import { EntityBuilder, Schedule, createGame, type SystemCtx } from "fenrir-ts";
+import { PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
+import { Container, Graphics } from "pixi.js";
+
+const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, layers: ["background", "world", "ui"] });
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [pixi] });
+const SWIMMING = [Transform2D] as const;
+
+function spawnBoat({ entities }: SystemCtx): void {
+  const hull = new Container();
+  hull.addChild(new Graphics().roundRect(-40, -10, 80, 20, 6).fill(0x8b5a2b));
+  EntityBuilder.create()
+    .transform2D(195, 300)
+    .pixiNode(hull, { layer: "world" })
+    .child((flag) => flag.transform2D(0, -30).pixiNode(new Graphics().rect(0, 0, 16, 10).fill(0xff3344)))
+    .spawn(entities);
+
+  // A node the app keeps across runs: unmounted at stop, never destroyed.
+  const banner = entities.createEntity();
+  entities.set(banner, PixiNode, { node: myOverlay, layer: "ui", keep: true });
+}
+
+function swim({ entities, time }: SystemCtx): void {
+  entities.each(SWIMMING, (_entity, transform) => {
+    transform.rotation = Math.sin(time.elapsed) * 0.1;
+  });
+}
+
+game.addSystem(Schedule.Init, spawnBoat).addSystem(Schedule.Update, swim);
+await game.run();
+```
+
+- `Transform2D` is `{ x, y, rotation, scaleX, scaleY }`: logical units and radians, plain numbers. It lives in core (`fenrir-ts` exports it too), so game logic and `createTestGame` tests use it with no renderer. `builder.transform2D(x, y, { rotation, scaleX, scaleY })` adds it; entities do not get one by default.
+- `PixiNode` is `{ node, layer?, keep? }`. `builder.pixiNode(node, { layer, keep })` adds it; spawn such a builder once, since every spawn gets the same node.
+- Each frame `fenrir.pixi.postUpdate` writes `Transform2D` to every node, then renders. It runs after every `Update` system, so a move made in `Update` is drawn in the same frame. A node whose entity has no `Transform2D` keeps the position the app gives it. `Renderable2D` entities follow `Transform2D` too; an entity with both `Transform2D` and the default `Transform` follows `Transform2D`.
+- A node goes under its parent entity's node (or `Renderable2D` view) when the parent has one, otherwise in its `layer`, otherwise straight in `renderer.root`. Layers are containers under `root`, back to front in the order given, and sort their children by `zIndex`; `pixi.renderer.layer("ui")` returns one for drawing into it directly. Content added straight to `root` draws above every layer; `renderer.backdrop` stays behind them all. An unknown layer name throws at `entities.set`, listing the declared layers.
+- When the `PixiNode` or its entity is removed, the node is removed from its parent and destroyed with its children (textures are left alone). When the run stops, every node is destroyed and its `PixiNode` removed, so the next run starts clean. Nodes of child entities and `Renderable2D` views inside a destroyed node are moved out first and survive. With `keep: true` a node is only removed from its parent, and at stop its `PixiNode` stays, so the next run mounts it again. One node belongs to one entity: giving it to a second throws.
+- `game.inspect()` shows `fenrir.Transform2D` as its numbers and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name.
 
 ### Input
 
@@ -435,7 +480,7 @@ let paused = false;
 
 game
   .addSystem(Schedule.Update, applyDamage, { after: "movePlayer", runIf: () => !paused })
-  .addSystem(Schedule.Update, movePlayer, { before: "fenrir.pixi.update" })
+  .addSystem(Schedule.Update, movePlayer, { before: "myGame.trace" })
   .addSystem(Schedule.Update, (ctx) => ctx.logger.trace("frame"), { name: "myGame.trace" });
 
 // While the game runs, both take effect from the next frame.
@@ -445,7 +490,7 @@ game.removeSystem("myGame.trace");
 
 Order is resolved when `run()` starts. A `before` or `after` that names a system not in the stage, or a cycle, makes `run()` reject with an error that names both systems. While the game runs, `addSystem`, `replaceSystem` and `removeSystem` check the new order at once and throw at the call if it does not resolve. `replaceSystem` and `removeSystem` act on the name in every stage that has it.
 
-Engine systems are named `fenrir.<module>.<stage>`, for example `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.input.dom.init` and `fenrir.physics.tick`.
+Engine systems are named `fenrir.<module>.<stage>`, for example `fenrir.pixi.postUpdate` (writes transforms to nodes, then renders), `fenrir.input.dom.init` and `fenrir.physics.tick`.
 
 ### Resources
 
@@ -617,7 +662,7 @@ console.log(snapshot.resources["myGame.Scores"]); // { $type: "Map", entries: [[
 {
   "frame": 120,
   "time": { "elapsed": 2.0, "delta": 0.016 },
-  "schedule": { "preInit": [], "init": ["fenrir.pixi.init", "spawn"], "update": ["fenrir.pixi.update"], "...": [] },
+  "schedule": { "preInit": [], "init": ["fenrir.pixi.init", "spawn"], "update": ["move"], "postUpdate": ["fenrir.pixi.postUpdate"], "...": [] },
   "states": { "myGame.Phase": { "value": "playing", "timeIn": 1.5 } },
   "resources": { "myGame.Scores": { "$type": "Map", "entries": [["ana", 10]] } },
   "entities": [

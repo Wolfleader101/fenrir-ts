@@ -1,4 +1,5 @@
 export { Renderable2D } from "./render2DComponents";
+export { PixiNode } from "./PixiNode";
 export type {
   SpriteDesc,
   GraphicsDesc,

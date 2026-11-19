@@ -3,7 +3,11 @@ import type { Entity, EntityList } from "../ECS";
 import type { SystemCtx } from "../SystemCtx";
 import { PixiRenderer } from "./PixiRenderer";
 import type { PixiRendererOptions } from "./PixiRenderer";
+import { PixiNode } from "./PixiNode";
 import { Renderable2D } from "./render2DComponents";
+
+const RENDERABLES = [Renderable2D] as const;
+const NODES = [PixiNode] as const;
 
 export interface PixiRendererSystemOptions extends PixiRendererOptions {}
 
@@ -12,9 +16,16 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
   let active: EntityList | undefined;
   let unsubscribe: Array<() => void> = [];
 
+  function unbind(): void {
+    for (const off of unsubscribe) off();
+    unsubscribe = [];
+  }
+
   function bindScene(entities: EntityList): void {
     if (active === entities) return;
-    for (const off of unsubscribe) off();
+    unbind();
+    // Another scene's nodes stay on its entities, alive, until that scene is active again.
+    renderer.unmountNodes();
     renderer.clearRenderables();
     active = entities;
     const ids = new Map<Entity, number>();
@@ -27,6 +38,7 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
         opts.logger.error("Unable to update Pixi renderable", { entity, error });
       });
     };
+    const attach = (entity: Entity, node: PixiNode) => renderer.attachNode(entities, entity, node);
 
     unsubscribe = [
       entities.signals.onAdd(Renderable2D, upsert),
@@ -35,8 +47,12 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
         ids.delete(entity);
         renderer.removeRenderable(entity, renderable.id);
       }),
+      entities.signals.onAdd(PixiNode, attach),
+      entities.signals.onReplace(PixiNode, attach),
+      entities.signals.onRemove(PixiNode, (entity, node) => renderer.detachNode(entity, node)),
     ];
-    entities.each([Renderable2D], upsert);
+    entities.each(RENDERABLES, upsert);
+    entities.each(NODES, attach);
   }
 
   return nameEngineSystems("pixi", {
@@ -46,14 +62,15 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
       bindScene(ctx.entities);
       ctx.logger.info("PixiRendererSystem initialized");
     },
-    update: (ctx: SystemCtx) => {
+    // Syncs after every Update system has run, then renders.
+    postUpdate: (ctx: SystemCtx) => {
       bindScene(ctx.entities);
       renderer.syncTransforms(ctx.entities);
+      renderer.render();
     },
-    postUpdate: () => renderer.render(),
     exit: (ctx: SystemCtx) => {
-      for (const off of unsubscribe) off();
-      unsubscribe = [];
+      unbind();
+      renderer.releaseNodes(active);
       active = undefined;
       renderer.dispose();
       ctx.logger.info("PixiRendererSystem disposed");

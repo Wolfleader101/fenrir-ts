@@ -1118,6 +1118,21 @@ export type Relationship = {
 	prevSibling: Entity;
 };
 export declare const Relationship: ComponentType<Relationship>;
+/**
+ * Position, rotation and scale in 2D, as plain numbers: logical units for `x` and `y`,
+ * radians for `rotation`. Opt in per entity; entities still get the default `Transform`.
+ * The 2D renderer writes it to an entity's `PixiNode` and `Renderable2D` each frame and
+ * prefers it over `Transform` when an entity has both. It is plain data, so game logic and
+ * `createTestGame` tests use it with no renderer.
+ */
+export type Transform2D = {
+	x: number;
+	y: number;
+	rotation: number;
+	scaleX: number;
+	scaleY: number;
+};
+export declare const Transform2D: ComponentType<Transform2D>;
 export type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
 export declare class EntityBuilder {
 	private readonly ops;
@@ -1149,6 +1164,12 @@ export declare class EntityBuilder {
 export interface EntityBuilder {
 	transform(pos?: Vec3Like, rot?: QuatLike, scale?: Vec3Like): EntityBuilder;
 	name(value: string): EntityBuilder;
+	/** Adds `Transform2D`: `x`, `y` in logical units, `rotation` in radians, scale 1 unless given. */
+	transform2D(x?: number, y?: number, options?: {
+		rotation?: number;
+		scaleX?: number;
+		scaleY?: number;
+	}): EntityBuilder;
 }
 export type SkyboxType = "cubemap" | "equirectangular" | "color";
 /**

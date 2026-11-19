@@ -33,9 +33,10 @@ describe("pixi2d", () => {
     const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: adoptedApplication(canvas).app })] });
     // The names are stable, so game systems can order against them.
     function movePlayer() {}
-    game.addSystem(Schedule.Update, movePlayer, { before: "fenrir.pixi.update" });
+    game.addSystem(Schedule.PostUpdate, movePlayer, { before: "fenrir.pixi.postUpdate" });
+    expect(game.inspect().schedule.update).toEqual([]);
     expect(() => game.removeSystem("fenrir.pixi.postUpdate")).not.toThrow();
-    for (const name of ["fenrir.pixi.init", "fenrir.pixi.update", "fenrir.pixi.exit"]) {
+    for (const name of ["fenrir.pixi.init", "fenrir.pixi.exit"]) {
       expect(() => game.replaceSystem(name, () => {})).not.toThrow();
     }
   });

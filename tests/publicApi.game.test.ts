@@ -64,7 +64,7 @@ describe("createGame with pixi2d, through the public entry points", () => {
       .addSystem(Schedule.Update, function movePlayer({ entities }) {
         order.push("movePlayer");
         entities.each(MOVING, (_e, velocity) => { velocity.x += 1; });
-      }, { before: "fenrir.pixi.update" });
+      });
 
     await game.run();
     frame();

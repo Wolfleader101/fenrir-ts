@@ -1,6 +1,8 @@
 import * as PIXI from "pixi.js";
 import type { Entity, EntityList } from "../ECS";
 import { Relationship, Transform } from "../ECS/DefaultComponents";
+import { Transform2D } from "../ECS/Transform2D";
+import { PixiNode } from "./PixiNode";
 import type {
   Renderable2D,
   SpriteDesc,
@@ -29,7 +31,15 @@ export interface PixiRendererOptions {
   readonly application?: PIXI.Application;
   /** Initialization options for an engine-owned application. */
   readonly applicationOptions?: Partial<Omit<PIXI.ApplicationOptions, "canvas" | "autoStart" | "sharedTicker">>;
+  /** Named layers under `root`, back to front. */
+  readonly layers?: readonly string[];
 }
+
+type NodeEntry = {
+  readonly node: PIXI.Container;
+  readonly keep: boolean;
+  readonly layer: PIXI.Container | undefined;
+};
 
 type RenderedObject = {
   entity: Entity;
@@ -44,6 +54,10 @@ export class PixiRenderer {
   private readonly pending = new Map<ObjKey, symbol>();
   private isInitialized = false;
   private viewport: Viewport = identityViewport({ width: 0, height: 0 }, 1);
+  private readonly layerMap = new Map<string, PIXI.Container>();
+  private readonly nodes = new Map<Entity, NodeEntry>();
+  private readonly owners = new Map<PIXI.Container, Entity>();
+  private readonly views = new WeakSet<PIXI.Container>();
 
   /**
    * Game content, drawn in logical units. `pixi2d` scales and positions it to the design frame;
@@ -59,6 +73,102 @@ export class PixiRenderer {
   constructor(options: PixiRendererOptions) {
     this.options = options;
     this.application = options.application ?? new PIXI.Application();
+    for (const name of options.layers ?? []) {
+      if (typeof name !== "string" || name === "" || this.layerMap.has(name)) {
+        throw new Error(`pixi2d: layers must be unique, non-empty names, got ${JSON.stringify(options.layers)}.`);
+      }
+      const layer = new PIXI.Container({ label: `fenrir.layer.${name}`, sortableChildren: true });
+      this.layerMap.set(name, layer);
+      this.root.addChild(layer);
+    }
+  }
+
+  /**
+   * The container of a layer from `pixi2d({ layers })`: a child of `root`, in logical units,
+   * its children sorted by `zIndex`. Throws for an unknown name, listing the declared ones.
+   */
+  public layer(name: string): PIXI.Container {
+    const layer = this.layerMap.get(name);
+    if (layer) return layer;
+    const names = [...this.layerMap.keys()].map((n) => `"${n}"`);
+    throw new Error(
+      `pixi2d: unknown layer "${name}". ` +
+        (names.length ? `Declared layers: ${names.join(", ")}.` : "No layers are declared; pass pixi2d({ layers: [...] })."),
+    );
+  }
+
+  /** Mounts an entity's `PixiNode`, replacing the node it had. Internal: the renderer system calls it. */
+  public attachNode(entities: EntityList, entity: Entity, value: PixiNode): void {
+    const layer = value.layer === undefined ? undefined : this.layer(value.layer);
+    const owner = this.owners.get(value.node);
+    if (owner !== undefined && owner !== entity) {
+      throw new Error(`PixiNode: this node already belongs to entity ${owner}. Give each entity its own node.`);
+    }
+    const previous = this.nodes.get(entity);
+    if (previous && previous.node !== value.node) this.releaseNode(previous);
+    const entry: NodeEntry = { node: value.node, keep: value.keep ?? false, layer };
+    this.nodes.set(entity, entry);
+    this.owners.set(value.node, entity);
+    this.syncNode(entities, entity, entry, new Map());
+  }
+
+  /** Unmounts `value.node` after an entity's `PixiNode` was removed. Internal. */
+  public detachNode(entity: Entity, value: PixiNode): void {
+    const entry = this.nodes.get(entity);
+    if (!entry || entry.node !== value.node) return;
+    this.nodes.delete(entity);
+    this.releaseNode(entry);
+  }
+
+  /**
+   * Unmounts every node at stop. Destroys the ones not kept and removes their `PixiNode`
+   * components, so a later run never mounts a destroyed node. Internal.
+   */
+  public releaseNodes(entities: EntityList | undefined): void {
+    for (const [entity, entry] of this.nodes) {
+      this.releaseNode(entry);
+      if (!entry.keep && entities?.isAlive(entity) && entities.tryGet(entity, PixiNode)?.node === entry.node) {
+        entities.remove(entity, PixiNode);
+      }
+    }
+    this.nodes.clear();
+  }
+
+  /** Unmounts every node without destroying any, when the active scene changes. Internal. */
+  public unmountNodes(): void {
+    for (const { node } of this.nodes.values()) {
+      this.rescueChildren(node);
+      node.removeFromParent();
+    }
+    this.nodes.clear();
+    this.owners.clear();
+  }
+
+  private releaseNode(entry: NodeEntry): void {
+    this.owners.delete(entry.node);
+    this.rescueChildren(entry.node);
+    entry.node.removeFromParent();
+    if (!entry.keep && !entry.node.destroyed) entry.node.destroy({ children: true });
+  }
+
+  /** Moves other entities' nodes and views out of `view` so destroying it spares them. The next sync places them. */
+  private rescueChildren(view: PIXI.Container): void {
+    for (const child of [...view.children]) {
+      if (this.owners.has(child) || this.views.has(child)) this.root.addChild(child);
+    }
+  }
+
+  /** Writes the entity's `Transform2D` to its node and mounts it under its parent's view, its layer or `root`. */
+  private syncNode(entities: EntityList, entity: Entity, entry: NodeEntry, primaryViews: Map<Entity, PIXI.Container>): void {
+    const transform = entities.tryGet(entity, Transform2D);
+    if (transform) applyTransform2D(entry.node, transform);
+    const parent = entities.tryGet(entity, Relationship)?.parent;
+    const target = (parent !== undefined && this.viewOf(parent, primaryViews)) || entry.layer || this.root;
+    if (entry.node.parent !== target) target.addChild(entry.node);
+  }
+
+  private viewOf(entity: Entity, primaryViews: Map<Entity, PIXI.Container>): PIXI.Container | undefined {
+    return this.nodes.get(entity)?.node ?? primaryViews.get(entity);
   }
 
   public get app(): PIXI.Application {
@@ -158,12 +268,13 @@ export class PixiRenderer {
         const replacement = this.createDisplayObject(renderable, texture);
         if (view) this.destroyDisplayObject(view);
         view = replacement;
+        this.views.add(view);
         this.root.addChild(view);
       }
 
       this.objects.set(key, { entity, renderable, view });
       this.applyFlags(view, renderable.flags);
-      if (entities.has(entity, Transform)) this.applyTransform(view, entities.get(entity, Transform));
+      this.applyEntityTransform(view, entities, entity);
     } catch (error) {
       if (this.pending.get(key) === request && entities.isAlive(entity)) throw error;
     } finally {
@@ -182,31 +293,41 @@ export class PixiRenderer {
   }
 
   private destroyDisplayObject(view: PIXI.Container): void {
-    // Children with their own renderables belong to their own ECS entities.
-    for (const entry of this.objects.values()) {
-      if (entry.view.parent === view) this.root.addChild(entry.view);
-    }
+    // Children with their own renderables or nodes belong to their own ECS entities.
+    this.rescueChildren(view);
     view.removeFromParent();
     view.destroy({ children: true });
   }
 
+  /**
+   * Writes transforms to every node and renderable view and mounts each under its parent.
+   * Runs once a frame, before rendering. Internal.
+   */
   public syncTransforms(entities: EntityList): void {
+    const primaryViews = new Map<Entity, PIXI.Container>();
     for (const { entity, renderable, view } of this.objects.values()) {
       if (!entities.isAlive(entity)) {
         this.removeRenderable(entity, renderable.id);
-      } else if (entities.has(entity, Transform)) {
-        this.applyTransform(view, entities.get(entity, Transform));
+      } else {
+        this.applyEntityTransform(view, entities, entity);
+        if (!primaryViews.has(entity)) primaryViews.set(entity, view);
       }
     }
-    this.syncHierarchy(entities);
+    for (const [entity, entry] of this.nodes) {
+      if (entities.isAlive(entity)) {
+        this.syncNode(entities, entity, entry, primaryViews);
+      } else {
+        this.nodes.delete(entity);
+        this.releaseNode(entry);
+      }
+    }
+    if (this.objects.size > 0) this.syncHierarchy(entities, primaryViews);
   }
 
-  private syncHierarchy(entities: EntityList): void {
+  private syncHierarchy(entities: EntityList, primaryViews: Map<Entity, PIXI.Container>): void {
     const stage = this.root;
-    const primaryViews = new Map<number, PIXI.Container>();
     const declaredParents = new Map<number, PIXI.Container>();
-    for (const { entity, renderable, view } of this.objects.values()) {
-      if (!primaryViews.has(entity)) primaryViews.set(entity, view);
+    for (const { renderable, view } of this.objects.values()) {
       for (const child of renderable.container?.children ?? []) {
         if (!declaredParents.has(child)) declaredParents.set(child, view);
       }
@@ -215,7 +336,7 @@ export class PixiRenderer {
     const parents = new Map<PIXI.Container, PIXI.Container>();
     for (const { entity, view } of this.objects.values()) {
       const relationship = entities.has(entity, Relationship) ? entities.get(entity, Relationship) : undefined;
-      const parent = (relationship && primaryViews.get(relationship.parent)) ?? declaredParents.get(entity) ?? stage;
+      const parent = (relationship && this.viewOf(relationship.parent, primaryViews)) ?? declaredParents.get(entity) ?? stage;
       parents.set(view, parent);
     }
 
@@ -243,6 +364,7 @@ export class PixiRenderer {
 
   public clearRenderables(): void {
     this.pending.clear();
+    for (const { view } of this.objects.values()) this.rescueChildren(view);
     for (const { view } of this.objects.values()) view.removeFromParent();
     for (const { view } of this.objects.values()) view.destroy({ children: true });
     this.objects.clear();
@@ -359,6 +481,14 @@ export class PixiRenderer {
     if (flags.blendMode !== undefined) obj.blendMode = flags.blendMode as any;
   }
 
+  /** `Transform2D` when the entity has it, otherwise its `Transform`. */
+  private applyEntityTransform(view: PIXI.Container, entities: EntityList, entity: Entity): void {
+    const transform2D = entities.tryGet(entity, Transform2D);
+    if (transform2D) return applyTransform2D(view, transform2D);
+    const transform = entities.tryGet(entity, Transform);
+    if (transform) this.applyTransform(view, transform);
+  }
+
   /**
    * Apply transform component to display object
    * Maps 3D transform to 2D (uses x/y, ignores z)
@@ -385,4 +515,11 @@ export class PixiRenderer {
     );
     obj.rotation = angle;
   }
+}
+
+// Pixi's setters skip unchanged values, so rewriting an unchanged transform each frame is a few compares.
+function applyTransform2D(view: PIXI.Container, { x, y, rotation, scaleX, scaleY }: Transform2D): void {
+  view.position.set(x, y);
+  view.scale.set(scaleX, scaleY);
+  view.rotation = rotation;
 }
