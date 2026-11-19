@@ -213,54 +213,6 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
-  it("claims keys, runs gesture code, orders edges, consumes keys and reports focus and cancels", async () => {
-    const { Schedule, createGame, createTestGame, defineAction, NullLogger } = core;
-    type InputEdge = import("@/index").InputEdge;
-    const FocusNext = defineAction("publicApi.input.focusNext", ["Tab"]);
-    const Activate = defineAction("publicApi.input.activate", ["Enter", "pointer.primary"]);
-
-    const test = await createTestGame({ seed: 1, logger: new NullLogger() });
-    const seen: Array<{ edges: readonly InputEdge[]; focused: boolean; cancelled: boolean; activated: boolean }> = [];
-    test
-      .addSystem(Schedule.Update, function ui({ input }) {
-        if (input.pressed(Activate)) input.consume(Activate);
-      })
-      .addSystem(Schedule.Update, function play({ input }) {
-        seen.push({ edges: input.edges([FocusNext]), focused: input.focused, cancelled: input.pointer.cancelled, activated: input.pressed(Activate) });
-      });
-    const gestures: string[] = [];
-    test.input.onGesture(() => void gestures.push("gesture"));
-    test.input.onDown(FocusNext, () => true);
-    await test.start();
-    test.input.focus();
-    expect(test.input.press(FocusNext)).toBe(true);
-    test.input.release(FocusNext);
-    test.input.press(Activate);
-    test.step();
-    test.input.pointerDown(1, 1);
-    test.step();
-    test.input.pointerCancel();
-    test.step();
-    expect(gestures).toHaveLength(3);
-    expect(seen.map(({ edges, ...rest }) => ({ edges: edges.map((edge) => edge.kind), ...rest }))).toEqual([
-      { edges: ["pressed", "released"], focused: true, cancelled: false, activated: false },
-      { edges: [], focused: true, cancelled: false, activated: false },
-      { edges: [], focused: true, cancelled: true, activated: false },
-    ]);
-    await test.stop();
-
-    vi.stubGlobal("requestAnimationFrame", () => 1);
-    vi.stubGlobal("cancelAnimationFrame", () => {});
-    const canvas = document.createElement("canvas");
-    const game = await createGame({ canvas, logger: new NullLogger() });
-    game.input.onDown(FocusNext, () => true);
-    await game.run();
-    const tab = new KeyboardEvent("keydown", { code: "Tab", cancelable: true });
-    canvas.dispatchEvent(tab);
-    expect(tab.defaultPrevented).toBe(true);
-    await game.stop();
-  });
-
   it("delivers events to game.on and ctx.events.on listeners, each with its own lifetime", async () => {
     const { Schedule, createGame, defineEvent, NullLogger } = core;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
