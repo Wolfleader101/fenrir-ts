@@ -70,4 +70,4 @@ export type { SkyboxDescriptor } from "./Skybox/SkyboxDescriptor";
 // Input: actions bound to keys and pointer buttons, on game.input and ctx.input
 export { defineAction } from "./Input/Action";
 export type { ActionType, InputBinding, KeyCode, PointerBinding } from "./Input/Action";
-export type { Input, InputPointer, TestInput } from "./Input/Input";
+export type { Input, InputDomEvent, InputDownHandler, InputEdge, InputGestureHandler, InputPointer, TestInput } from "./Input/Input";
