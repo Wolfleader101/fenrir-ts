@@ -32,7 +32,7 @@ afterAll(() => {
 
 describe("fenrir-ts core public API", () => {
   it("exports no renderer, physics or 3D setup", () => {
-    for (const name of ["bootstrapEngine", "createPixiRendererSystem", "PixiRenderer", "Renderable2D", "Camera", "SkyboxUtils", "PhysicsBody",
+    for (const name of ["bootstrapEngine", "createPixiRendererSystem", "PixiRenderer", "Renderable2D", "PixiNode", "Camera", "SkyboxUtils", "PhysicsBody",
       "createDomInputSystems", "createInputStateSystem", "createPointerInputSystems", "InputState", "InputEvent"]) {
       expect(core).not.toHaveProperty(name);
     }
@@ -42,9 +42,18 @@ describe("fenrir-ts core public API", () => {
     const prototype = core.EntityBuilder.prototype as unknown as Record<string, unknown>;
     expect(prototype.transform).toBeTypeOf("function");
     expect(prototype.name).toBeTypeOf("function");
-    for (const method of ["renderSprite", "renderBox", "model", "physicsBody", "perspectiveCamera"]) {
+    expect(prototype.transform2D).toBeTypeOf("function");
+    for (const method of ["pixiNode", "renderSprite", "renderBox", "model", "physicsBody", "perspectiveCamera"]) {
       expect(prototype[method]).toBeUndefined();
     }
+  });
+
+  it("exports Transform2D as plain data, opt in per entity", () => {
+    const { EntityBuilder, EntityList, Transform2D } = core;
+    const entities = new EntityList();
+    expect(entities.has(entities.createEntity(), Transform2D)).toBe(false);
+    const entity = EntityBuilder.create().transform2D(1, 2, { rotation: 0.5 }).spawn(entities);
+    expect(entities.get(entity, Transform2D)).toEqual({ x: 1, y: 2, rotation: 0.5, scaleX: 1, scaleY: 1 });
   });
 
   it("gives entities a plain transform and an asset store with no renderer loaders", () => {

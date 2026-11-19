@@ -34,6 +34,12 @@ export interface Pixi2DOptions {
   /** Size of a Pixi application the plugin creates, without `design`. Defaults to the window size. */
   readonly width?: number;
   readonly height?: number;
+  /**
+   * Named layers under `renderer.root`, back to front. An entity's `PixiNode` picks one by name;
+   * `renderer.layer(name)` returns its container. Content added straight to `root` draws above
+   * every layer, and `renderer.backdrop` stays behind them all.
+   */
+  readonly layers?: readonly string[];
   /** Other initialization options for a Pixi application the plugin creates. */
   readonly applicationOptions?: PixiRendererOptions["applicationOptions"];
 }
@@ -51,8 +57,8 @@ export interface Pixi2DPlugin extends Plugin {
 /**
  * The PixiJS 2D renderer as a game plugin. Registers `fenrir.pixi.init` (Init),
  * `fenrir.viewport.init` (Init, after it), `fenrir.viewport.preUpdate` (PreUpdate, applies resizes),
- * `fenrir.pixi.update` (Update, syncs transforms), `fenrir.pixi.postUpdate` (PostUpdate, renders)
- * and `fenrir.pixi.exit` (Exit). Keeps the `Viewport` resource and sends `ViewportResized`.
+ * `fenrir.pixi.postUpdate` (PostUpdate: writes `Transform2D` to `PixiNode` and `Renderable2D`
+ * entities, then renders) and `fenrir.pixi.exit` (Exit, unmounts and destroys nodes). Keeps the `Viewport` resource and sends `ViewportResized`.
  *
  * ```ts
  * const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, background: 0x101820 });
@@ -92,6 +98,7 @@ export function pixi2d(options: Pixi2DOptions = {}): Pixi2DPlugin {
         application: options.application,
         width: options.width,
         height: options.height,
+        layers: options.layers,
         applicationOptions: {
           resolution: Math.min(maxResolution, window.devicePixelRatio || 1),
           ...options.applicationOptions,
@@ -102,7 +109,6 @@ export function pixi2d(options: Pixi2DOptions = {}): Pixi2DPlugin {
         .addSystem(Schedule.Init, system.init)
         .addSystem(Schedule.Init, viewport.init, { after: system.init.name })
         .addSystem(Schedule.PreUpdate, viewport.preUpdate)
-        .addSystem(Schedule.Update, system.update)
         .addSystem(Schedule.PostUpdate, system.postUpdate)
         .addSystem(Schedule.Exit, system.exit);
       renderer = system.renderer;

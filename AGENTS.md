@@ -54,8 +54,8 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), `inspect()`, `EntityBuilder` with `transform()` and `name()`, the asset cache | none |
-| `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin, Pixi renderer and its system, `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), `inspect()`, `Transform2D`, `EntityBuilder` with `transform()`, `transform2D()` and `name()`, the asset cache | none |
+| `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin with named layers, Pixi renderer and its system, `PixiNode`, `Transform2D` (re-exported from core), `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
 | `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
@@ -69,7 +69,7 @@ New core code must keep it that way: put anything that needs a renderer in the e
 
 Each renderer entry adds to core types when it is imported, and to core classes when it loads:
 
-- `fenrir-ts/2d` adds `renderSprite` and the other 2D methods to `EntityBuilder`, and `requestTexture2D`, `loadTexture2D`, `getTexture2D` and the Pixi loader to `AssetStore`.
+- `fenrir-ts/2d` adds `pixiNode`, `renderSprite` and the other 2D methods to `EntityBuilder`, and `requestTexture2D`, `loadTexture2D`, `getTexture2D` and the Pixi loader to `AssetStore`.
 - `fenrir-ts/3d` adds the 3D builder methods, `loadModel`, `loadTexture`, `getTexture` and the glTF loader to `AssetStore`, and `skybox`, `setSkybox`, `removeSkybox` and `hasSkybox` to `Scene` (`src/core/Skybox/SceneSkybox.ts`), and makes every default `Transform` out of Three `Vector3` and `Quaternion`. `pnpm check:consumer` fails if a 2D bundle ships the skybox members.
 - `fenrir-ts/physics` adds the physics builder methods and `physics?: PhysicsHelpers` to `SystemCtx`, and also makes default transforms out of Three objects.
 
@@ -382,7 +382,7 @@ game.addSystem(Schedule.Init, setUp);
 await game.run();
 ```
 
-- Game content goes in `pixi.renderer.root` (logical units; `Renderable2D` entities mount there). Full-bleed content goes in `pixi.renderer.backdrop`, behind it, in CSS pixels; it covers `Viewport.screen`. Both live on the renderer because the renderer is the one handle to Pixi objects; the `Viewport` resource stays plain data that core can read.
+- Game content goes in `pixi.renderer.root` (logical units; `Renderable2D` entities and the named layers mount there). Full-bleed content goes in `pixi.renderer.backdrop`, behind it, in CSS pixels; it covers `Viewport.screen`. Both live on the renderer because the renderer is the one handle to Pixi objects; the `Viewport` resource stays plain data that core can read.
 - `ctx.resources.get(Viewport)`: logical `width` and `height`, `scale`, `offset`, `insets`, `screen` and `resolution`. A new object on each change. `ViewportResized` carries it, once at startup and then only when the layout changed.
 - With `design` the plugin pins the canvas to the window, sizes it to `innerWidth` by `innerHeight`, and owns the listeners: window resize, `visualViewport` resize, `screen.orientation` change and a `matchMedia` resolution query. They are attached in `fenrir.viewport.init` with `ctx.signal`, and the inset probe is removed with `ctx.onCleanup`. A resize marks the layout dirty and `fenrir.viewport.preUpdate` applies it before the frame renders. While paused, one `requestAnimationFrame` callback applies it and renders once.
 - Insets come from a hidden element padded with `env(safe-area-inset-*)`; the page needs `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. `safeArea: false` ignores them.
@@ -390,12 +390,45 @@ await game.run();
 - Pointer coordinates: `screenToLogical(viewport, { x, y })` converts a point relative to the canvas into logical units; `renderer.clientToLogical(clientX, clientY)` does it from DOM client coordinates. `ctx.input.pointer` is already logical.
 - Tests drive window size, `devicePixelRatio`, `visualViewport`, `matchMedia` and `getComputedStyle` with stubs: `tests/core/Renderer2D/pixi2dViewport.test.ts`. The layout table is in `tests/core/Renderer2D/Viewport.test.ts`.
 
+## Scene (2D)
+
+`Transform2D` (`src/core/ECS/Transform2D.ts`, core) is `{ x, y, rotation, scaleX, scaleY }` in logical units and radians. It is opt-in: `createEntity` still adds only the default `Transform`. `PixiNode` (`src/core/Renderer2D/PixiNode.ts`, `fenrir-ts/2d`) is `{ node, layer?, keep? }`: a Pixi `Container` the app built, owned by the entity. The node code is in `PixiRenderer` (`attachNode`, `detachNode`, `releaseNodes`, `syncTransforms`), driven by the component signals in `PixiRendererSystem.ts`.
+
+```ts
+import { EntityBuilder, Schedule, createGame, type SystemCtx } from "fenrir-ts";
+import { Transform2D, pixi2d } from "fenrir-ts/2d";
+import { Graphics } from "pixi.js";
+
+const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, layers: ["world", "ui"] });
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [pixi] });
+const MOVING = [Transform2D] as const;
+
+function spawn({ entities }: SystemCtx): void {
+  const fish = new Graphics().circle(0, 0, 12).fill(0xffaa00);
+  EntityBuilder.create().transform2D(100, 200).pixiNode(fish, { layer: "world" }).spawn(entities);
+}
+
+function swim({ entities, time }: SystemCtx): void {
+  entities.each(MOVING, (_entity, transform) => { transform.x += 30 * time.delta; });
+}
+
+game.addSystem(Schedule.Init, spawn).addSystem(Schedule.Update, swim);
+await game.run();
+```
+
+- `fenrir.pixi.postUpdate` writes `Transform2D` to every node and `Renderable2D` view, places each, then renders. It runs after every `Update` system. Pixi's setters skip unchanged values, so there is no change tracking. A node whose entity has no `Transform2D` is not moved. `Transform2D` wins over `Transform` on an entity that has both (every entity has a `Transform`).
+- Placement: under the direct parent entity's node or `Renderable2D` view if it has one, else in `layer`, else in `renderer.root`. Layers are `Container`s under `root`, labelled `fenrir.layer.<name>`, back to front, `sortableChildren` on. `renderer.layer(name)` returns one and throws for an unknown name, listing the declared layers; so does `entities.set` with an unknown `layer` while a run is going, and a run whose entities name one rejects at Init.
+- Lifetime: removing the component or the entity removes the node from its parent and calls `destroy({ children: true })` (textures stay). Other entities' nodes and views inside it are moved to `root` first. `keep: true` only unmounts. At stop every node is unmounted, destroyed unless kept, and its `PixiNode` removed, so a later run never mounts a destroyed node; kept nodes keep their component and are mounted again by the next run. A scene switch unmounts the old scene's nodes without destroying them. One node on two entities throws.
+- Tests: game logic that moves `Transform2D` needs no renderer, so test it with `createTestGame` and `inspect()`. Test node sync with `createPixiRendererSystem({ application })`, an `Application` whose `renderer` is a stub, and `createMockSystemCtx()`, calling `init`, `postUpdate` and `exit` directly: `tests/core/Renderer2D/PixiNode.test.ts`. Pixi containers need no renderer.
+- `inspect()` shows `fenrir.PixiNode` as `{ node: { $type: "<class name>" }, layer, keep }`.
+
 ## Naming rule
 
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
-System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.update` (syncs transforms), `fenrir.pixi.postUpdate` (renders), `fenrir.pixi.exit`, `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
 Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas

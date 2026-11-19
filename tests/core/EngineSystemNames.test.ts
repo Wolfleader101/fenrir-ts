@@ -12,8 +12,8 @@ describe("engine system names", () => {
     const pixi = createPixiRendererSystem({ logger: new NullLogger(), assets: new AssetStore() });
     expect([dom.init.name, dom.exit.name]).toEqual(["fenrir.input.dom.init", "fenrir.input.dom.exit"]);
     expect(state.preUpdate.name).toBe("fenrir.input.state.preUpdate");
-    expect([pixi.init.name, pixi.update.name, pixi.postUpdate.name, pixi.exit.name]).toEqual([
-      "fenrir.pixi.init", "fenrir.pixi.update", "fenrir.pixi.postUpdate", "fenrir.pixi.exit",
+    expect([pixi.init.name, pixi.postUpdate.name, pixi.exit.name]).toEqual([
+      "fenrir.pixi.init", "fenrir.pixi.postUpdate", "fenrir.pixi.exit",
     ]);
   });
 });

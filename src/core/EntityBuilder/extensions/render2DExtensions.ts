@@ -1,8 +1,16 @@
 import { EntityBuilder } from "../EntityBuilder";
+import type { Container } from "pixi.js";
 import { Renderable2D, type Render2DFlags } from "../../Renderer2D";
+import { PixiNode } from "../../Renderer2D/PixiNode";
 
 declare module "../EntityBuilder" {
   interface EntityBuilder {
+    /**
+     * Gives the entity a Pixi display object the app built (`PixiNode`). Mounted in `layer`, or
+     * under the parent entity's node; destroyed with the entity unless `keep` is true.
+     */
+    pixiNode(node: Container, options?: { layer?: string; keep?: boolean }): this;
+
     /**
      * Add a 2D sprite renderable
      */
@@ -162,4 +170,12 @@ EntityBuilder.prototype.renderText = function (
     },
     flags: options?.flags,
   });
+};
+
+/**
+ * Give the entity an app-built Pixi display object. Pass the node directly: every spawn of
+ * this builder gets the same one, so spawn a builder with a node once.
+ */
+EntityBuilder.prototype.pixiNode = function (node: Container, options?: { layer?: string; keep?: boolean }): EntityBuilder {
+  return this.with(PixiNode, { ...options, node });
 };
