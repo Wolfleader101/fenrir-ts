@@ -161,7 +161,7 @@ export class Engine {
     // Immediate listeners receive this run's ctx, from PreInit until the last cleanup.
     beginEventRun(this.events, ctx);
     // Listeners for this run; removed when it stops or rolls back.
-    this.input.start(ctx.signal, ctx.onCleanup);
+    this.input.start(ctx);
     this.time.reset();
     this.frames = { count: 0, elapsed: 0 };
 

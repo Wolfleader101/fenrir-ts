@@ -612,7 +612,28 @@ export interface InputPointer {
 	readonly down: boolean;
 	/** The pointer is over the canvas. False after a finger lifts or the mouse leaves. */
 	readonly inside: boolean;
+	/**
+	 * The primary pointer went up this frame without being lifted: the browser cancelled it
+	 * (`pointercancel` or lost pointer capture), the canvas lost focus, or the page was hidden.
+	 * `released` still reports the release; check this to ignore a cancelled press.
+	 */
+	readonly cancelled: boolean;
 }
+/** One press or release of an action, from `input.edges(actions)`. */
+export interface InputEdge {
+	readonly action: ActionType;
+	readonly kind: "pressed" | "released";
+}
+/** The DOM event an input handler runs inside: a `keydown`, or a `pointerdown` or `pointerup`. */
+export type InputDomEvent = KeyboardEvent | PointerEvent;
+/**
+ * Runs inside the DOM event that pressed one of an action's bindings, with the current run's
+ * ctx. Return `true` to claim the event: the engine calls `preventDefault()` on it. `event` is
+ * `undefined` when a test game's input stands in for the player without one.
+ */
+export type InputDownHandler = (event: InputDomEvent | undefined, ctx: SystemCtx) => boolean | void;
+/** Runs inside a user gesture on the canvas, with the current run's ctx. `event` is `undefined` in a test game. */
+export type InputGestureHandler = (event: InputDomEvent | undefined, ctx: SystemCtx) => void;
 /**
  * Actions and the pointer, latched when each frame starts: every system in a frame, in every
  * stage, reads the same answers. `game.input` and `ctx.input` are the same object.
@@ -629,6 +650,18 @@ export interface Input {
 	/** Any of the action's bindings is down. A tap is held for the one frame it is pressed in. */
 	held(action: ActionType): boolean;
 	readonly pointer: InputPointer;
+	/** The canvas had keyboard focus when this frame started. Keys reach the game only while it has. */
+	readonly focused: boolean;
+	/**
+	 * This frame's presses and releases of `actions`, in the order they happened, every one kept:
+	 * two presses of one key between two frames are two `pressed` edges. An action is pressed
+	 * when its first binding goes down and released when its last goes up, as for `pressed` and
+	 * `released`. The list is what arrived since the last frame, so a quick tap is `pressed`
+	 * then `released` here in the frame where `pressed()` is true. Bindings hidden by `consume`
+	 * or `consumePointer` are left out. In `Tick` it is the frame's list in every tick: read it
+	 * in `PreUpdate` or `Update`.
+	 */
+	edges(actions: readonly ActionType[]): readonly InputEdge[];
 	/**
 	 * Stops this frame's pointer press reaching actions: for UI that handled the tap. Systems that
 	 * run after this call see no `pressed`, `held` or `released` from the pointer bindings until
@@ -637,22 +670,65 @@ export interface Input {
 	 * reports the pointer. Does nothing in a frame with no new pointer press.
 	 */
 	consumePointer(): void;
+	/**
+	 * Stops this frame's press of `action` reaching later systems, whichever binding pressed it:
+	 * for UI that handled the press. It hides the bindings that went down this frame as
+	 * `consumePointer` hides the pointer: until they lift, systems that run after the call see no
+	 * `pressed`, `held`, `released` or edges from them, for this action or any other bound to the
+	 * same key or button. Does nothing when no binding of the action went down this frame.
+	 */
+	consume(action: ActionType): void;
+	/**
+	 * Calls `handler` synchronously inside each DOM event that presses one of `action`'s
+	 * bindings, before the press is latched: every `keydown` of a bound key, auto-repeats
+	 * included, and the `pointerdown` that presses a bound pointer button. Return `true` to claim
+	 * the event and the engine calls `preventDefault()` on it, for example to keep Tab on the
+	 * canvas while a canvas control can still take focus. The press is latched either way.
+	 *
+	 * Setup, like `game.on`: register once, not in a system. A handler stays across `stop()` and
+	 * `run()` and is called only while the game runs. Returns a function that removes it. A
+	 * handler that throws is logged and does not claim.
+	 */
+	onDown(action: ActionType, handler: InputDownHandler): () => void;
+	/**
+	 * Calls `handler` synchronously inside every user gesture on the canvas: each `keydown` that
+	 * is not an auto-repeat, `pointerdown` and `pointerup`. Some browser calls work only inside a
+	 * gesture, such as `audioContext.resume()` on iOS Safari, where a touch counts on `pointerup`.
+	 * Setup, like `onDown`: stays across runs, called only while the game runs. Returns a function
+	 * that removes it. A handler that throws is logged.
+	 */
+	onGesture(handler: InputGestureHandler): () => void;
 }
 /**
  * `game.input` in a test game: `Input`, plus calls that stand in for the player. Each takes
- * effect when the next frame starts, as a DOM event would.
+ * effect when the next frame starts, as a DOM event would. Handlers (`onDown`, `onGesture`) run
+ * at the call, as they would inside the DOM event, while the game runs.
  */
 export interface TestInput extends Input {
-	/** Presses the action's first binding, as if that key or pointer button went down. */
-	press(action: ActionType): void;
+	/**
+	 * Presses the action's first binding, as if that key or pointer button went down. Calls the
+	 * `onDown` handlers of every action bound to it, then the `onGesture` handlers, passing
+	 * `event`. Returns whether a handler claimed the press. A pointer binding also focuses the
+	 * canvas, as a press on it does.
+	 */
+	press(action: ActionType, event?: InputDomEvent): boolean;
 	/** Releases every binding of the action. */
 	release(action: ActionType): void;
-	/** Moves the primary pointer to logical `x`, `y` over the canvas and presses it. */
-	pointerDown(x: number, y: number): void;
+	/**
+	 * Moves the primary pointer to logical `x`, `y` over the canvas and presses it. Calls the
+	 * handlers and focuses the canvas as `press` does, and returns whether a handler claimed it.
+	 */
+	pointerDown(x: number, y: number): boolean;
 	/** Moves the primary pointer to logical `x`, `y` over the canvas. */
 	pointerMove(x: number, y: number): void;
-	/** Lifts the primary pointer where it is. */
+	/** Lifts the primary pointer where it is. A gesture: calls the `onGesture` handlers. */
 	pointerUp(): void;
+	/** The browser cancels the primary pointer: it goes up, with `pointer.cancelled` in the frame that releases it. */
+	pointerCancel(): void;
+	/** The canvas gains keyboard focus. */
+	focus(): void;
+	/** The canvas loses keyboard focus, which releases everything held, as in the browser. */
+	blur(): void;
 }
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the

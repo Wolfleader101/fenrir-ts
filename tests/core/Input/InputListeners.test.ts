@@ -111,7 +111,7 @@ describe("input listeners on the canvas", () => {
 
     pointer(canvas, "pointermove", { x: 110, y: 220 });
     game.step();
-    expect(game.input.pointer).toEqual({ x: 100, y: 200, down: false, inside: true });
+    expect(game.input.pointer).toEqual({ x: 100, y: 200, down: false, inside: true, cancelled: false });
     expect(game.inspect().resources).not.toHaveProperty(["fenrir.viewport.Viewport"]);
   });
 
@@ -123,7 +123,7 @@ describe("input listeners on the canvas", () => {
 
     pointer(canvas, "pointerdown", { x: 10 + 30 + 2 * 50, y: 20 + 40 + 2 * 75, buttons: 1 });
     game.step();
-    expect(game.input.pointer).toEqual({ x: 50, y: 75, down: true, inside: true });
+    expect(game.input.pointer).toEqual({ x: 50, y: 75, down: true, inside: true, cancelled: false });
     expect(game.input.pressed(Tap)).toBe(true);
 
     // A viewport with no area keeps the last position.
@@ -198,12 +198,12 @@ describe("input listeners on the canvas", () => {
     pointer(canvas, "pointerdown", { x: 50, y: 50, buttons: 1 });
     pointer(canvas, "pointermove", { x: 150, y: 50, buttons: 1 });
     game.step();
-    expect(game.input.pointer).toEqual({ x: 150, y: 50, down: true, inside: false });
+    expect(game.input.pointer).toEqual({ x: 150, y: 50, down: true, inside: false, cancelled: false });
 
     pointer(canvas, "pointerup", { x: 60, y: 50 });
     pointer(canvas, "pointerleave", { x: 60, y: -1 });
     game.step();
-    expect(game.input.pointer).toEqual({ x: 60, y: 50, down: false, inside: false });
+    expect(game.input.pointer).toEqual({ x: 60, y: 50, down: false, inside: false, cancelled: false });
   });
 });
 
@@ -290,5 +290,188 @@ describe("stuck input", () => {
     await expect(game.run()).rejects.toThrow("no assets");
     expect(key(canvas, "keydown", "Space").defaultPrevented).toBe(false);
     expect([canvas.hasAttribute("tabindex"), canvas.style.touchAction]).toEqual([false, touchAction]);
+  });
+});
+
+const FocusNext = defineAction("test.listen.focusNext", ["Tab"]);
+const Next = defineAction("test.listen.next", ["ArrowRight"]);
+
+describe("onDown inside the DOM event", () => {
+  it("leaves Tab's default alone with no handler (#57)", async () => {
+    const canvas = canvasAt();
+    await running(canvas);
+    expect(key(canvas, "keydown", "Tab").defaultPrevented).toBe(false);
+  });
+
+  it("prevents Tab's default when a handler claims it, decided at the key press (#57)", async () => {
+    const canvas = canvasAt();
+    let controlsLeft = 2;
+    const seen: Array<{ shift: boolean; heldInside: boolean }> = [];
+    const game = await running(canvas, (g) => {
+      g.input.onDown(FocusNext, (event, ctx) => {
+        seen.push({ shift: (event as KeyboardEvent).shiftKey, heldInside: ctx.input.held(FocusNext) });
+        return controlsLeft-- > 0;
+      });
+    });
+
+    const claimed = [key(canvas, "keydown", "Tab"), key(canvas, "keydown", "Tab", true), key(canvas, "keydown", "Tab", true)];
+    expect(claimed.map((event) => event.defaultPrevented)).toEqual([true, true, false]);
+    // Called before the press is latched: the frame's answers do not include it yet.
+    expect(seen.map((call) => call.heldInside)).toEqual([false, false, false]);
+    game.step();
+    expect(game.input.pressed(FocusNext)).toBe(true);
+  });
+
+  it("passes the event, so a handler can read modifiers", async () => {
+    const canvas = canvasAt();
+    const shifts: boolean[] = [];
+    await running(canvas, (g) => g.input.onDown(FocusNext, (event) => void shifts.push((event as KeyboardEvent).shiftKey)));
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { code: "Tab", shiftKey: true, bubbles: true, cancelable: true }));
+    expect(shifts).toEqual([true]);
+  });
+
+  it("claims a pointer press once, on the event that presses the button", async () => {
+    const canvas = canvasAt();
+    const handler = vi.fn(() => true);
+    const game = await running(canvas, (g) => g.input.onDown(Tap, handler));
+
+    expect(pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 }).defaultPrevented).toBe(true);
+    expect(pointer(canvas, "pointermove", { x: 25, y: 30, buttons: 1 }).defaultPrevented).toBe(false);
+    pointer(canvas, "pointerup", { x: 25, y: 30 });
+    expect(handler).toHaveBeenCalledTimes(1);
+    game.step();
+    expect(game.input.pressed(Tap)).toBe(true);
+  });
+
+  it("is not called for keys bound to no action with a handler, nor after stop", async () => {
+    const canvas = canvasAt();
+    const handler = vi.fn(() => true);
+    const game = await running(canvas, (g) => g.input.onDown(FocusNext, handler));
+    expect(key(canvas, "keydown", "KeyA").defaultPrevented).toBe(false);
+    await game.stop();
+    expect(key(canvas, "keydown", "Tab").defaultPrevented).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("onGesture inside the DOM event", () => {
+  it("runs inside keydown, pointerdown and pointerup, not key repeats or moves (#59)", async () => {
+    const canvas = canvasAt();
+    const types: string[] = [];
+    await running(canvas, (g) => g.input.onGesture((event) => void types.push(event!.type)));
+
+    key(canvas, "keydown", "Space");
+    key(canvas, "keydown", "Space", true);
+    key(canvas, "keyup", "Space");
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    pointer(canvas, "pointermove", { x: 21, y: 30, buttons: 1 });
+    pointer(canvas, "pointerup", { x: 21, y: 30 });
+    // A second finger's lift is a gesture too, though it drives no input.
+    pointer(canvas, "pointerup", { x: 0, y: 0, id: 2, primary: false });
+
+    expect(types).toEqual(["keydown", "pointerdown", "pointerup", "pointerup"]);
+  });
+
+  it("runs synchronously, so a call that needs the gesture happens inside it", async () => {
+    const canvas = canvasAt();
+    let insideEvent = false;
+    let dispatching = false;
+    await running(canvas, (g) => g.input.onGesture(() => void (insideEvent = dispatching)));
+    dispatching = true;
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    dispatching = false;
+    expect(insideEvent).toBe(true);
+  });
+});
+
+describe("canvas focus", () => {
+  it("reports focus and its loss, latched each frame (#60)", async () => {
+    const canvas = canvasAt();
+    const game = await running(canvas);
+    game.step();
+    expect(game.input.focused).toBe(false);
+
+    canvas.focus();
+    game.step();
+    expect(game.input.focused).toBe(true);
+
+    canvas.blur();
+    game.step();
+    expect(game.input.focused).toBe(false);
+  });
+
+  it("starts focused when the canvas already has focus", async () => {
+    const canvas = canvasAt();
+    canvas.tabIndex = 0;
+    canvas.focus();
+    const game = await running(canvas);
+    game.step();
+    expect(game.input.focused).toBe(true);
+  });
+
+  it("tells a focus loss from a key release", async () => {
+    const canvas = canvasAt();
+    const game = await running(canvas);
+    canvas.focus();
+    key(canvas, "keydown", "KeyA");
+    game.step();
+    key(canvas, "keyup", "KeyA");
+    game.step();
+    expect([game.input.released(Left), game.input.focused]).toEqual([true, true]);
+  });
+});
+
+describe("cancelled pointer", () => {
+  it.each(["pointercancel", "lostpointercapture"])("reports %s as cancelled, and a lift as not (#62)", async (type) => {
+    const canvas = canvasAt();
+    const game = await running(canvas);
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    game.step();
+    pointer(canvas, type, { x: 20, y: 30 });
+    game.step();
+    expect([game.input.released(Tap), game.input.pointer.cancelled]).toEqual([true, true]);
+
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    game.step();
+    pointer(canvas, "pointerup", { x: 20, y: 30 });
+    // The capture is lost after every lift; it is not a cancel.
+    pointer(canvas, "lostpointercapture", { x: 20, y: 30 });
+    game.step();
+    expect([game.input.released(Tap), game.input.pointer.cancelled]).toEqual([true, false]);
+  });
+});
+
+describe("edges from DOM events", () => {
+  it("keeps two key presses that land in one frame (#58)", async () => {
+    const canvas = canvasAt();
+    const game = await running(canvas);
+    for (let i = 0; i < 2; i++) {
+      key(canvas, "keydown", "ArrowRight");
+      key(canvas, "keydown", "ArrowRight", true); // auto-repeat adds nothing
+      key(canvas, "keyup", "ArrowRight");
+    }
+    game.step();
+    expect(game.input.edges([Next]).filter((edge) => edge.kind === "pressed")).toHaveLength(2);
+  });
+});
+
+describe("synthetic pointer events (#63)", () => {
+  it("sees no press from a pointerdown without buttons", async () => {
+    const canvas = canvasAt();
+    const game = await running(canvas);
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 0 });
+    game.step();
+    expect(game.input.pressed(Tap)).toBe(false);
+  });
+
+  it("sees a press and release from buttons: 1 then a pointerup with buttons: 0", async () => {
+    const canvas = canvasAt();
+    const game = await running(canvas);
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    pointer(canvas, "pointerup", { x: 20, y: 30, buttons: 0 });
+    game.step();
+    expect(game.input.pressed(Tap)).toBe(true);
+    game.step();
+    expect(game.input.released(Tap)).toBe(true);
   });
 });
