@@ -13,7 +13,8 @@
 // dropped a module that fenrir-ts/2d needs for its side effects.
 //
 // The measured fixtures import no 3D entry, so their engine code must not
-// contain the 3D-only members that fenrir-ts/3d adds to core classes.
+// contain the 3D-only members that fenrir-ts/3d adds to core classes. Only
+// game-2d-motion uses timers and tweens: the others must not ship that code.
 //
 // Run `build:lib` first.
 //   --update        rewrite the consumer budgets from this build
@@ -46,11 +47,15 @@ const showBreakdown = process.argv.includes("--breakdown");
 const HEADROOM = 1.03;
 
 /** Fixtures measured against a budget. */
-const MEASURED = ["game-2d", "core-only"];
+const MEASURED = ["game-2d", "core-only", "game-2d-motion"];
 /** Fixtures run after bundling. */
 const RUN = ["side-effects-2d"];
 /** Members fenrir-ts/3d adds to core classes. A fixture without fenrir-ts/3d must not ship them. */
 const THREE_D_ONLY = /\b(?:setSkybox|removeSkybox|hasSkybox)\b/g;
+/** Names only the timers and tweens code holds. A fixture that does not import them must not ship them. */
+const MOTION_ONLY = /fenrir\.(?:motion|Timers|Tweens|MotionSettings)\b/g;
+/** Fixtures that use timers and tweens. */
+const USES_MOTION = ["game-2d-motion"];
 
 if (!existsSync(join(root, "dist", "index.js"))) {
   console.error("dist/index.js is missing. Run build:lib first.");
@@ -245,6 +250,11 @@ try {
     const leaked = [...new Set(result.engine.match(THREE_D_ONLY) ?? [])];
     if (leaked.length > 0) {
       console.error(`${name}: ships ${leaked.join(", ")}, which belong to fenrir-ts/3d. Move them out of core.`);
+      failed = true;
+    }
+    const motionLeaked = USES_MOTION.includes(name) ? [] : [...new Set(result.engine.match(MOTION_ONLY) ?? [])];
+    if (motionLeaked.length > 0) {
+      console.error(`${name}: ships ${motionLeaked.join(", ")} without importing timers or tweens. Keep them tree-shakeable.`);
       failed = true;
     }
     const line = `${name}: engine ${kB(result.minified)} minified, ${kB(result.gzip)} gzip`;

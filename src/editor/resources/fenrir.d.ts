@@ -1080,6 +1080,205 @@ export interface TestGame extends GameBase {
  * ```
  */
 export declare function createTestGame(options: TestGameOptions): Promise<TestGame>;
+/** Maps progress `t` from 0 to 1 onto eased progress, 0 at 0 and 1 at 1. */
+export type Easing = (t: number) => number;
+/**
+ * The built-in easings, by the name a tween's `ease` takes. Each is a plain function, so code
+ * can also call one directly: `easings.quadOut(0.5)`.
+ */
+export declare const easings: {
+	linear: (t: number) => number;
+	quadIn: (t: number) => number;
+	quadOut: (t: number) => number;
+	quadInOut: (t: number) => number;
+	cubicIn: (t: number) => number;
+	cubicOut: (t: number) => number;
+	cubicInOut: (t: number) => number;
+	sineIn: (t: number) => number;
+	sineOut: (t: number) => number;
+	sineInOut: (t: number) => number;
+	/** Overshoots the end by about 10% and settles back. */
+	backOut: (t: number) => number;
+};
+/** The name of a built-in easing. */
+export type EasingName = keyof typeof easings;
+/**
+ * Adds an easing that tweens can name in `ease`, so tween data stays plain JSON. Prefix the
+ * name with your game's namespace (`myGame.bounce`); the built-in names cannot be redefined.
+ * Defining the same name again replaces the function.
+ *
+ * @example
+ * defineEasing("myGame.steps", (t) => Math.floor(t * 4) / 4);
+ * addTween(ctx, entity, Display2D, { to: { alpha: 0 }, duration: 1, ease: "myGame.steps" });
+ */
+export declare function defineEasing(name: string, easing: Easing): void;
+/**
+ * One timer, as plain data in an entity's `Timers`. Times are seconds of game time. The motion
+ * system advances it each frame and sends `TimerFired` each time `elapsed` reaches `duration`.
+ * Edit `paused` directly to pause and resume it.
+ */
+export interface Timer {
+	/** Seconds from the start of the current period to the next firing. */
+	duration: number;
+	/** Seconds into the current period. */
+	elapsed: number;
+	/** `duration - elapsed`, kept up to date by the motion system. */
+	remaining: number;
+	/** Firings after the first: 0 fires once, `Infinity` repeats until cancelled. */
+	repeat: number;
+	/** Times it has fired. */
+	fired: number;
+	paused: boolean;
+	/** Paused with every other timer and tween of its group by `MotionSettings.paused[group]`. */
+	group: string | null;
+	/** While set, the timer exists only while that state has that value; it is removed, unfired, once it has not. */
+	state: {
+		name: string;
+		value: string;
+	} | null;
+}
+/** The timers of one entity, by name. */
+export type Timers = Record<string, Timer>;
+export declare const Timers: ComponentType<Timers>;
+/**
+ * One tween, as plain data in an entity's `Tweens`: numeric fields of one component on the same
+ * entity, from `from` to `to`. The motion system writes the fields each frame and removes the
+ * tween when it finishes, sending `TweenDone`. Edit `paused` directly to pause and resume it.
+ */
+export interface Tween {
+	/** The component's name, as given to `defineComponent`, for example `fenrir.Transform2D`. */
+	component: string;
+	/** Start values. Fields not given are read from the component when the delay ends. */
+	from: Record<string, number>;
+	/** End values, by field. */
+	to: Record<string, number>;
+	/** Seconds per play. */
+	duration: number;
+	/** Seconds before the first play starts. */
+	delay: number;
+	/** An easing name: a built-in (`EasingName`) or one added with `defineEasing`. */
+	ease: string;
+	/** Plays after the first: 0 plays once, `Infinity` repeats until cancelled. */
+	repeat: number;
+	/** Every second play runs from `to` back to `from`. */
+	yoyo: boolean;
+	/** Seconds since the tween was added, delay included, pauses excluded. */
+	elapsed: number;
+	/** True once the delay has ended and `from` holds every field. */
+	started: boolean;
+	paused: boolean;
+	/** Paused with every other timer and tween of its group by `MotionSettings.paused[group]`. */
+	group: string | null;
+}
+/** The tweens of one entity, by name. */
+export type Tweens = Record<string, Tween>;
+export declare const Tweens: ComponentType<Tweens>;
+/** Sent each time a timer fires, in the frame it fires. `last` is true when the timer is gone. */
+export declare const TimerFired: EventType<{
+	entity: Entity;
+	name: string;
+	count: number;
+	last: boolean;
+}>;
+/** Sent when a tween ends on its end values, in the frame it ends. Not sent when it is cancelled or replaced. */
+export declare const TweenDone: EventType<{
+	entity: Entity;
+	name: string;
+}>;
+/** Settings for every timer and tween of a game. Set by the `motion()` plugin; edit the fields. */
+export interface MotionSettings {
+	/** Groups whose timers and tweens are paused: `paused.ambient = true`. Remove or set false to resume. */
+	paused: Record<string, boolean>;
+	/**
+	 * When true, every tween jumps to its end values at the next frame and sends `TweenDone`,
+	 * including tweens added later and repeating ones (which end where their last play would).
+	 * Timers are not affected: they measure game time, not motion.
+	 */
+	reducedMotion: boolean;
+}
+export declare const MotionSettings: ResourceType<MotionSettings>;
+/** What the helpers need: a `SystemCtx`, or anything with the game's `entities` and `resources`. */
+export type MotionCtx = {
+	readonly entities: EntityList;
+	readonly resources: Resources;
+};
+/** The keys of `T` whose values are numbers. */
+export type NumericKeys<T> = {
+	[K in keyof T]-?: T[K] extends number ? K : never;
+}[keyof T] & string;
+export interface TweenOptions<T> {
+	/** End values of numeric fields of the component. */
+	to: Partial<Record<NumericKeys<T>, number>>;
+	/** Start values. Fields left out start from the component's value when the delay ends. */
+	from?: Partial<Record<NumericKeys<T>, number>>;
+	/** Seconds per play, at least 0. */
+	duration: number;
+	/** Seconds before the first play. Defaults to 0. */
+	delay?: number;
+	/** Defaults to `"linear"`. */
+	ease?: EasingName | (string & {});
+	/** Plays after the first. Defaults to 0; `Infinity` repeats until cancelled. */
+	repeat?: number;
+	/** Every second play runs back to the start. Defaults to false. */
+	yoyo?: boolean;
+	/**
+	 * Adding a tween with a running tween's name replaces it. Defaults to the component's name and
+	 * the fields, such as `fenrir.Transform2D:x,y`, so tweening the same fields again replaces.
+	 */
+	name?: string;
+	group?: string;
+}
+export interface TimerOptions {
+	/** Seconds until it fires, and between firings. */
+	duration: number;
+	/** Firings after the first. Defaults to 0; `Infinity` repeats until cancelled. Needs a duration above 0. */
+	repeat?: number;
+	group?: string;
+	/** Removes the timer, unfired, once `state` no longer has `value`. Pass the state and its value. */
+	state?: [
+		StateType<string>,
+		string
+	];
+}
+/**
+ * Starts a timer called `name` on `entity`, replacing a timer of that name. It fires
+ * `TimerFired` after `duration` seconds of game time, then `repeat` more times, each a
+ * `duration` later, and is then removed. Cancel it with `cancelTimer`, by removing `Timers`, or
+ * by destroying the entity. Needs the `motion()` plugin.
+ *
+ * For how long a state has had its value, read `states.timeIn` instead: a timer is for
+ * something that must happen once, or again and again, at a time.
+ *
+ * @example
+ * addTimer(ctx, entity, "myGame.toResults", { duration: 1.5, state: [Phase, "over"] });
+ */
+export declare function addTimer(ctx: MotionCtx, entity: Entity, name: string, options: TimerOptions): Timer;
+/** Removes the timer called `name` from `entity`, unfired. Returns whether there was one. */
+export declare function cancelTimer(ctx: MotionCtx, entity: Entity, name: string): boolean;
+/**
+ * Tweens numeric fields of `component` on `entity` to `to` over `duration` seconds of game time.
+ * The entity must have the component. A tween with the same name is replaced, and fields this
+ * tween drives are taken from any other tween of that component on the entity, so the newest
+ * tween of a field wins. Returns the tween's name. Needs the `motion()` plugin.
+ *
+ * @example
+ * addTween(ctx, fish, Transform2D, { to: { x: 300, rotation: Math.PI }, duration: 0.6, ease: "quadOut" });
+ * addTween(ctx, fish, Display2D, { from: { alpha: 0 }, to: { alpha: 1 }, duration: 0.3 });
+ */
+export declare function addTween<T>(ctx: MotionCtx, entity: Entity, component: ComponentType<T>, options: TweenOptions<T>): string;
+/** Removes the tween called `name` from `entity`, leaving its fields where they are. Returns whether there was one. */
+export declare function cancelTween(ctx: MotionCtx, entity: Entity, name: string): boolean;
+/**
+ * Runs timers and tweens: `addTimer` and `addTween` need it. It adds the `MotionSettings`
+ * resource and one system, `fenrir.motion.preUpdate`, which advances every timer and tween of
+ * the active scene by `time.delta`. Plugins install before the game adds its systems, so it runs
+ * before the game's `PreUpdate` systems, and the game's `Update` systems and the renderer see
+ * this frame's values. A game without it ships none of this code.
+ *
+ * @example
+ * const game = await createGame({ canvas, plugins: [motion(), pixi2d()] });
+ */
+export declare function motion(): Plugin$1;
 export declare class ConsoleLogger implements ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;

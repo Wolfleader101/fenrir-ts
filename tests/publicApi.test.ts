@@ -170,6 +170,44 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
+  it("runs timers and tweens headless with the motion() plugin, as plain data (#38)", async () => {
+    const { Display2D, MotionSettings, Schedule, TimerFired, Transform2D, TweenDone, Tweens, addTimer, addTween, cancelTween, createTestGame, defineEasing, easings, motion, NullLogger } = core;
+    type Tween = import("@/index").Tween;
+    type NumericKeys<T> = import("@/index").NumericKeys<T>;
+    expectTypeOf<NumericKeys<import("@/index").Display2D>>().toEqualTypeOf<"alpha">();
+    expectTypeOf(easings.quadOut).toEqualTypeOf<(t: number) => number>();
+
+    const game = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [motion()] });
+    const events: string[] = [];
+    game.on(TimerFired, ({ name, count }) => void events.push(`${name} ${count}`));
+    game.on(TweenDone, ({ name }) => void events.push(`${name} done`));
+    defineEasing("publicApi.half", (t) => t / 2);
+    let entity = 0;
+    let ctx!: import("@/index").SystemCtx;
+    game.addSystem(Schedule.Init, function spawn(c) {
+      ctx = c;
+      entity = core.EntityBuilder.create().transform2D(0, 0).display2D().spawn(c.entities);
+      addTween(c, entity, Transform2D, { to: { x: 10 }, duration: 0.5, ease: "publicApi.half" });
+      addTween(c, entity, Display2D, { to: { alpha: 0 }, duration: 0.25, name: "publicApi.fade" });
+      addTimer(c, entity, "publicApi.timer", { duration: 0.125, repeat: 1 });
+      // @ts-expect-error visible is a boolean, not a tweenable number
+      expect(() => addTween(c, entity, Display2D, { to: { visible: 1 }, duration: 1 })).toThrow(/not a number/);
+    });
+    await game.start();
+    game.step(0.25);
+    expect(events).toEqual(["publicApi.timer 1", "publicApi.timer 2", "publicApi.fade done"]);
+    expect(ctx.entities.get(entity, Transform2D).x).toBe(2.5);
+    const tween: Tween = ctx.entities.get(entity, Tweens)["fenrir.Transform2D:x"]!;
+    expect(tween).toMatchObject({ component: "fenrir.Transform2D", ease: "publicApi.half", elapsed: 0.25 });
+    expect(game.inspect().resources["fenrir.MotionSettings"]).toEqual({ paused: {}, reducedMotion: false });
+    expect(game.inspect().schedule.preUpdate).toEqual(["fenrir.motion.preUpdate"]);
+    game.resources.get(MotionSettings).reducedMotion = true;
+    game.step(0);
+    expect(ctx.entities.get(entity, Transform2D).x).toBe(10);
+    expect(cancelTween(ctx, entity, "fenrir.Transform2D:x")).toBe(false);
+    await game.stop();
+  });
+
   it("ships no skybox members on Scene: fenrir-ts/3d adds them (#66)", () => {
     const scene = new core.Scene("publicApi.scene");
     expect(["skybox", "setSkybox", "removeSkybox", "hasSkybox"].filter((member) => member in scene)).toEqual([]);

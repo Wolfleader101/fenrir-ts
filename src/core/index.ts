@@ -21,6 +21,12 @@ export type { JsonValue } from "./Json";
 export { defineState, inState } from "./State";
 export type { StateType, States } from "./State";
 
+// Timers and tweens: the motion() plugin, plain-data components on entities
+export { motion, addTimer, cancelTimer, addTween, cancelTween, Timers, Tweens, TimerFired, TweenDone, MotionSettings } from "./Motion/Motion";
+export type { Timer, Tween, TimerOptions, TweenOptions, MotionCtx, NumericKeys } from "./Motion/Motion";
+export { easings, defineEasing } from "./Motion/Easing";
+export type { Easing, EasingName } from "./Motion/Easing";
+
 // Core engine
 export { Engine } from "./Engine";
 export type { EngineOptions } from "./Engine";
