@@ -1,3 +1,4 @@
+import { AssetStore } from "@/core/Assets/AssetStore";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Engine } from "@/core/Engine";
 import { Scheduler, Schedule } from "@/core/Scheduler";
@@ -207,6 +208,7 @@ describe("Engine", () => {
         resources: expect.any(Resources),
         states: expect.any(Object),
         input: expect.any(Object),
+        assets: expect.any(AssetStore),
       });
     });
 
@@ -409,6 +411,7 @@ describe("Engine", () => {
         resources: expect.any(Resources),
         states: expect.any(Object),
         input: expect.any(Object),
+        assets: expect.any(AssetStore),
       });
 
       // The stop function in exit context should be a no-op

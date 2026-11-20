@@ -6,3 +6,6 @@ export function createPixiTextureLoader(): AssetLoader<Texture> {
     return await Assets.load<Texture>(url);
   };
 }
+
+/** Destroys a texture `createPixiTextureLoader` loaded, through Pixi's own cache, which owns it. */
+export const unloadPixiTexture = (_texture: Texture, { url }: { url: string }): Promise<void> => Assets.unload(url);

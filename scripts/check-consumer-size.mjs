@@ -14,7 +14,8 @@
 //
 // The measured fixtures import no 3D entry, so their engine code must not
 // contain the 3D-only members that fenrir-ts/3d adds to core classes. Only
-// game-2d-motion uses timers and tweens: the others must not ship that code.
+// game-2d-motion uses timers and tweens, and game-2d-assets an asset manifest: the
+// others must not ship that code.
 //
 // Run `build:lib` first.
 //   --update        rewrite the consumer budgets from this build
@@ -47,7 +48,7 @@ const showBreakdown = process.argv.includes("--breakdown");
 const HEADROOM = 1.03;
 
 /** Fixtures measured against a budget. */
-const MEASURED = ["game-2d", "core-only", "game-2d-motion"];
+const MEASURED = ["game-2d", "core-only", "game-2d-motion", "game-2d-assets"];
 /** Fixtures run after bundling. */
 const RUN = ["side-effects-2d"];
 /** Members fenrir-ts/3d adds to core classes. A fixture without fenrir-ts/3d must not ship them. */
@@ -56,6 +57,10 @@ const THREE_D_ONLY = /\b(?:setSkybox|removeSkybox|hasSkybox)\b/g;
 const MOTION_ONLY = /fenrir\.(?:motion|Timers|Tweens|MotionSettings)\b/g;
 /** Fixtures that use timers and tweens. */
 const USES_MOTION = ["game-2d-motion"];
+/** Names only the asset manifest code holds. */
+const MANIFEST_ONLY = /fenrir\.assets\.\w+|defineAssets\(/g;
+/** Fixtures that declare an asset manifest. */
+const USES_MANIFEST = ["game-2d-assets"];
 
 if (!existsSync(join(root, "dist", "index.js"))) {
   console.error("dist/index.js is missing. Run build:lib first.");
@@ -255,6 +260,11 @@ try {
     const motionLeaked = USES_MOTION.includes(name) ? [] : [...new Set(result.engine.match(MOTION_ONLY) ?? [])];
     if (motionLeaked.length > 0) {
       console.error(`${name}: ships ${motionLeaked.join(", ")} without importing timers or tweens. Keep them tree-shakeable.`);
+      failed = true;
+    }
+    const manifestLeaked = USES_MANIFEST.includes(name) ? [] : [...new Set(result.engine.match(MANIFEST_ONLY) ?? [])];
+    if (manifestLeaked.length > 0) {
+      console.error(`${name}: ships ${manifestLeaked.join(", ")} without declaring an asset manifest. Keep it tree-shakeable.`);
       failed = true;
     }
     const line = `${name}: engine ${kB(result.minified)} minified, ${kB(result.gzip)} gzip`;

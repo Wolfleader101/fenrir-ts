@@ -18,6 +18,7 @@ import { NullLogger } from "./NullLogger";
 import { Resources, clearResources } from "./Resource";
 import { GameStates, afterSystem, beforeStage } from "./State";
 import { InputImpl } from "./Input/Input";
+import { AssetStore } from "./Assets/AssetStore";
 
 export type EngineOptions = {
   scheduler: Scheduler;
@@ -90,6 +91,7 @@ export class Engine {
       random: new Random(seedFromClock(clock)),
       states: new GameStates(),
       input: new InputImpl(resources),
+      assets: new AssetStore(),
     };
     this.loop = opts.loop ?? "animationFrame";
     this.beforeStep = opts.beforeStep;

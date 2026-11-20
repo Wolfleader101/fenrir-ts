@@ -1,3 +1,4 @@
+import type { AssetStore } from "./Assets/AssetStore";
 import type { EntityList } from "./ECS";
 import type { EventBus } from "./EventBus";
 import type { Resources } from "./Resource";
@@ -27,6 +28,9 @@ export interface GameServices {
 
   /** Actions and the pointer, latched when each frame starts. See `defineAction`. */
   readonly input: Input;
+
+  /** Loaded assets by key, and the loaders for each kind. A manifest loads into it: see `defineAssets`. */
+  readonly assets: AssetStore;
 }
 
 /**

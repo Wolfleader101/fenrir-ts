@@ -37,7 +37,7 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 
 | Import | Contents |
 | --- | --- |
-| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore` |
+| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore`, asset manifests (`defineAssets`, `loadAssets`) |
 | `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
@@ -222,6 +222,99 @@ await game.run();
 - Child entities' nodes sort by `zIndex` under their parent's node with nothing set by the app: Pixi turns `sortableChildren` on for a container when a child with a non-zero `zIndex` is added to it or a child's `zIndex` changes, and it does that even over an explicit `sortableChildren = false`. Give a node that has child entities a plain `Container`, with its own art as a child of it: Pixi draws a `Graphics` or `Sprite` before all of its children, so no `zIndex` puts a child behind it.
 - When the `PixiNode` or its entity is removed, the node is removed from its parent and destroyed with its children (textures are left alone). When the run stops, every node is destroyed and its `PixiNode` removed, so the next run starts clean. Nodes of child entities and `Renderable2D` views inside a destroyed node are moved out first and survive. With `keep: true` a node is only removed from its parent, and at stop its `PixiNode` stays, so the next run mounts it again. One node belongs to one entity: giving it to a second throws.
 - `game.inspect()` shows `fenrir.Transform2D` and `fenrir.Display2D` as their values and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name.
+
+### Assets
+
+Declare a game's assets once, by name, in bundles: `boot`, and one per level or location. `defineAssets` from `fenrir-ts` takes plain data (no `as const` needed), so a tool or test can read `manifest.assets` and `manifest.bundles`. `getAsset` returns the type of the asset's kind (a Pixi `Texture` for `texture2d`), and a wrong asset or bundle name is a compile error. A game that does not call `defineAssets` ships none of this code.
+
+```ts
+import { AssetBundleLoaded, EntityBuilder, Schedule, createGame, defineAssets, defineState, getAsset, loadAssets, unloadAssets, type SystemCtx } from "fenrir-ts";
+import { pixi2d } from "fenrir-ts/2d";
+import { Graphics, Sprite } from "pixi.js";
+
+export const GameAssets = defineAssets("myGame.assets", {
+  assets: {
+    logo: { kind: "texture2d", src: "img/logo.png" },
+    missing: { kind: "texture2d", src: "img/missing.png" },
+    // If reef.webp fails, the reef asset is the missing texture instead.
+    reef: { kind: "texture2d", src: "img/reef.webp", fallback: "missing" },
+  },
+  bundles: { boot: ["logo", "missing"], reef: ["reef", "logo"] },
+});
+
+const Level = defineState("myGame.Level", { values: ["loading", "reef"], initial: "loading" });
+const pixi = pixi2d({ design: { width: 390, minHeight: 520 } });
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [pixi] });
+const bar = new Graphics();
+
+// Awaited in PreInit, so run() waits for boot and rejects if it fails.
+async function loadBoot(ctx: SystemCtx): Promise<void> {
+  await loadAssets(ctx, GameAssets, "boot");
+}
+
+function showTitle(ctx: SystemCtx): void {
+  EntityBuilder.create().transform2D(195, 80).renderSprite("logo").spawn(ctx.entities); // by name, through game.assets
+  pixi.renderer.root.addChild(bar);
+  void loadAssets(ctx, GameAssets, "reef"); // not awaited: progress below, then AssetBundleLoaded
+}
+
+function drawProgress({ resources }: SystemCtx): void {
+  const { fraction } = resources.get(GameAssets.progress).bundles.reef;
+  bar.clear().rect(20, 500, 350 * fraction, 6).fill(0xffffff);
+}
+
+game.on(AssetBundleLoaded, ({ bundle }, { states }) => {
+  if (bundle === "reef") states.set(Level, "reef");
+});
+
+game
+  .onEnter(Level, "reef", (ctx) => {
+    const reef = new Sprite(getAsset(ctx, GameAssets, "reef")); // a Texture, no cast
+    EntityBuilder.create().transform2D(0, 0).pixiNode(reef).spawn(ctx.entities);
+  })
+  // Leaving the level: despawn what shows its textures first, then unload. logo stays: boot holds it.
+  .onExit(Level, "reef", (ctx) => unloadAssets(ctx, GameAssets, "reef"))
+  .addSystem(Schedule.PreInit, loadBoot)
+  .addSystem(Schedule.Init, showTitle)
+  .addSystem(Schedule.Update, drawProgress);
+await game.run();
+```
+
+- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
+- **Loading.** A loading or loaded bundle returns the same promise; an asset in two bundles loads once. Await `loadAssets` in a `PreInit` system to hold `run()` until a bundle is ready, or call it without awaiting and watch progress. Loads are not tied to a run: they finish after `stop()`, and loaded bundles stay loaded across `stop()` and `run()`, like entities.
+- **Progress.** `ctx.resources.get(manifest.progress)` is plain data updated as each asset settles: `loaded`, `failed`, `total` and `fraction` over every held asset, the same per bundle with its `status` (`unloaded`, `loading`, `loaded`, `failed`), and each asset's `status` (`unloaded`, `loading`, `loaded`, `fallback`, `failed`), `error` and the `bundles` holding it. `game.inspect()` shows it under the manifest's name. A bundle sends `AssetBundleLoaded { manifest, bundle, fallbacks }` or `AssetBundleFailed { manifest, bundle, failures }` when it settles.
+- **Failure.** Every asset of a bundle is tried. One that fails shows its declared `fallback` (another asset of the same kind, which every bundle listing it also loads) and the failure is logged as a warning. One that fails without a fallback fails the bundle: it is logged, `AssetBundleFailed` is sent and the promise rejects with an `AssetBundleError` whose `failures` name each asset, source and error. The assets that loaded stay loaded. Calling `loadAssets` again retries the failed assets; nothing retries on its own.
+- **Unloading.** `unloadAssets` drops each asset no other loading or loaded bundle holds, from any manifest, and calls its loader's `unload`. For 2D textures that is Pixi's `Assets.unload`, which destroys the texture: Pixi's cache owns 2D textures. Despawn the entities that show a bundle's textures before unloading it; nothing tracks them, and a sprite left on a destroyed texture draws nothing or fails to render. Unloading a bundle that is still loading rejects its promise. A custom loader frees its assets with `unload` in its `LoaderConfig`.
+
+Tests replace the loaders with `setAssetLoader(game, { load, unload? })`, so each asset resolves or fails when the test says, with no network and no canvas:
+
+```ts
+import { createTestGame, defineAssets, getAsset, loadAssets, setAssetLoader } from "fenrir-ts";
+import "fenrir-ts/2d"; // the texture2d kind
+import type { Texture } from "pixi.js";
+import { expect, it } from "vitest";
+
+const GameAssets = defineAssets("myGame.assets", {
+  assets: {
+    logo: { kind: "texture2d", src: "img/logo.png" },
+    missing: { kind: "texture2d", src: "img/missing.png" },
+    reef: { kind: "texture2d", src: "img/reef.webp", fallback: "missing" },
+  },
+  bundles: { boot: ["logo", "missing"], reef: ["reef", "logo"] },
+});
+
+it("shows the reef's progress and falls back when reef.webp fails", async () => {
+  const game = await createTestGame({ seed: 1 });
+  const textures: Record<string, Texture> = { logo: {} as Texture, missing: {} as Texture };
+  setAssetLoader(game, {
+    load: async ({ name }) => textures[name] ?? Promise.reject(new Error("404")),
+  });
+  await loadAssets(game, GameAssets, "reef");
+  expect(game.resources.get(GameAssets.progress).bundles.reef).toMatchObject({ status: "loaded", fraction: 1 });
+  expect(getAsset(game, GameAssets, "reef")).toBe(textures.missing);
+});
+```
 
 ### Timers and tweens
 

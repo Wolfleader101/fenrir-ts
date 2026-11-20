@@ -71,6 +71,25 @@ export * from "./EntityBuilder/extensions/coreExtensions";
 export type { IAssetStore, Asset, AssetKey, AssetKind, AssetKinds, AssetStoreConfig, LoaderConfig } from "./Assets/AssetStore";
 export { AssetStore, assetKey } from "./Assets/AssetStore";
 export type { AssetLoader, AssetSource } from "./Assets/AssetLoader";
+// Asset manifests: opt-in, so a game that declares none ships none of it.
+export { defineAssets, loadAssets, unloadAssets, getAsset, setAssetLoader, AssetBundleLoaded, AssetBundleFailed, AssetBundleError } from "./Assets/Manifest";
+export type {
+  AssetManifest,
+  AssetDeclaration,
+  AssetDeclarations,
+  AssetName,
+  BundleName,
+  ManifestAsset,
+  AssetCtx,
+  AssetProgress,
+  AssetCounts,
+  BundleProgress,
+  AssetState,
+  AssetStatus,
+  BundleStatus,
+  AssetFailure,
+  ManifestLoader,
+} from "./Assets/Manifest";
 
 // Skybox descriptors are plain data. fenrir-ts/3d stores them on Scene and runs the skybox system.
 export type { SkyboxDescriptor } from "./Skybox/SkyboxDescriptor";

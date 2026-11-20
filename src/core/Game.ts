@@ -135,7 +135,7 @@ export interface Game extends GameBase {
 export class GameImpl implements Game {
   declare public readonly resources: Resources;
   public readonly logger: ILogger;
-  public readonly assets: AssetStore;
+  declare public readonly assets: AssetStore;
   public readonly events: EventBus;
   declare public readonly random: Random;
   declare public readonly states: States;
@@ -150,7 +150,6 @@ export class GameImpl implements Game {
   ) {
     this.target = options.canvas;
     this.logger = options.logger ?? new ConsoleLogger();
-    this.assets = new AssetStore();
     this.events = new EventBus();
     Object.assign(this, services);
     this.engine = new Engine({
@@ -271,6 +270,8 @@ export function createServices(seed: number): GameServices {
     random: new Random(seed),
 
     input: new InputImpl(resources),
+
+    assets: new AssetStore(),
   };
 }
 
