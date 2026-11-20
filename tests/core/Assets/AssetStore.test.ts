@@ -60,6 +60,7 @@ vi.mock("@/core/Assets/loaders/textureLoader", () => ({
 
 vi.mock("@/core/Assets/loaders/pixiTextureLoader", () => ({
   createPixiTextureLoader: vi.fn(() => mockPixiTextureLoaderFn),
+  unloadPixiTexture: vi.fn(),
 }));
 
 describe("AssetStore", () => {

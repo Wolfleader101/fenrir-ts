@@ -1,3 +1,4 @@
+import { AssetStore } from "@/core/Assets/AssetStore";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Engine } from "@/core/Engine";
 import { EventBus } from "@/core/EventBus";
@@ -25,7 +26,7 @@ function engineOn(clock: ManualClock, seed: number) {
     sceneManager: new SceneManager(new NullLogger()),
     logger: new NullLogger(),
     clock,
-    services: { resources: new Resources(), random: new Random(seed), states: new GameStates(), input: new InputImpl(new Resources()) },
+    services: { resources: new Resources(), random: new Random(seed), states: new GameStates(), input: new InputImpl(new Resources()), assets: new AssetStore() },
   });
 }
 

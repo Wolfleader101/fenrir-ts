@@ -208,6 +208,37 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
+  it("loads an asset manifest headless with progress, a fallback and unload, as plain data (#38)", async () => {
+    const { AssetBundleError, AssetBundleLoaded, Schedule, createTestGame, defineAssets, getAsset, loadAssets, setAssetLoader, unloadAssets, NullLogger } = core;
+    // The core entry adds no asset kind; a game declares its own, as fenrir-ts/2d declares texture2d.
+    type Kind = import("@/index").AssetKind;
+    const kind = "texture2d" as Kind;
+    const Assets = defineAssets("publicApi.assets", {
+      assets: { a: { kind, src: "a.png" }, b: { kind, src: "b.png", fallback: "a" }, c: { kind, src: "c.png" } },
+      bundles: { boot: ["a"], level: ["b"], broken: ["c"] },
+    });
+    const game = await createTestGame({ seed: 1, logger: new NullLogger() });
+    const unloaded: string[] = [];
+    setAssetLoader(game, {
+      load: async ({ name }) => (name === "a" ? { name } : Promise.reject(new Error(`no ${name}`))),
+      unload: ({ name }) => void unloaded.push(name),
+    });
+    const loaded: string[] = [];
+    game.on(AssetBundleLoaded, ({ bundle, fallbacks }) => void loaded.push(`${bundle} ${fallbacks}`));
+    game.addSystem(Schedule.PreInit, async function boot(ctx) {
+      await loadAssets(ctx, Assets, ["boot", "level"]);
+    });
+    await game.start();
+    expect(loaded).toEqual(["boot ", "level b"]);
+    expect(getAsset(game, Assets, "b")).toEqual({ name: "a" });
+    await expect(loadAssets(game, Assets, "broken")).rejects.toBeInstanceOf(AssetBundleError);
+    expect(game.inspect().resources["publicApi.assets"]).toMatchObject({ loaded: 2, failed: 1, total: 3 });
+    unloadAssets(game, Assets, ["level", "boot", "broken"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(unloaded).toEqual(["a"]);
+    await game.stop();
+  });
+
   it("ships no skybox members on Scene: fenrir-ts/3d adds them (#66)", () => {
     const scene = new core.Scene("publicApi.scene");
     expect(["skybox", "setSkybox", "removeSkybox", "hasSkybox"].filter((member) => member in scene)).toEqual([]);

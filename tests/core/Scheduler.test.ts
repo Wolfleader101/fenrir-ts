@@ -1,3 +1,4 @@
+import { AssetStore } from "@/core/Assets/AssetStore";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Scheduler, Schedule } from "@/core/Scheduler";
 import type { SystemCtx, SyncSystemFn, AsyncSystemFn } from "@/core/SystemCtx";
@@ -28,6 +29,7 @@ function createMockSystemCtx(): SystemCtx {
     stop: vi.fn(),
     resources: new Resources(),
     states: new GameStates(),
+    assets: new AssetStore(),
     input: new InputImpl(new Resources()),
   };
 }

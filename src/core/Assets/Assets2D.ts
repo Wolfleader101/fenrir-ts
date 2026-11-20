@@ -4,7 +4,7 @@
 // texture loader, the `texture2DLoaders` option and the typed methods below.
 import type { Texture as PixiTexture } from "pixi.js";
 import { AssetStore, type AssetKey, type AssetKind, type LoaderConfig } from "./AssetStore";
-import { createPixiTextureLoader } from "./loaders/pixiTextureLoader";
+import { createPixiTextureLoader, unloadPixiTexture } from "./loaders/pixiTextureLoader";
 
 export type Texture2DState =
   | { readonly status: "loading" }
@@ -144,6 +144,7 @@ AssetStore.addInstaller((store, config) => {
   store.registerTexture2DLoader("pixi-texture", {
     loader: createPixiTextureLoader(),
     extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
+    unload: unloadPixiTexture,
   });
   for (const [name, loaderConfig] of Object.entries(config.texture2DLoaders ?? {})) {
     store.registerTexture2DLoader(name, loaderConfig);

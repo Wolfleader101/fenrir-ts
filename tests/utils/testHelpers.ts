@@ -1,3 +1,4 @@
+import { AssetStore } from "@/core/Assets/AssetStore";
 import { vi, expect } from "vitest";
 import { Engine } from "@/core/Engine";
 import { Scheduler } from "@/core/Scheduler";
@@ -44,6 +45,7 @@ export function createMockSystemCtx(
     stop: vi.fn(),
     resources: new Resources(),
     states: new GameStates(),
+    assets: new AssetStore(),
     input: new InputImpl(new Resources()),
     ...overrides,
   };

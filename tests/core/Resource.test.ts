@@ -1,3 +1,4 @@
+import { AssetStore } from "@/core/Assets/AssetStore";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { Resources, defineResource } from "@/core/Resource";
 import type { ResourceType } from "@/core/Resource";
@@ -230,7 +231,7 @@ describe("resources on an engine", () => {
       sceneManager: new SceneManager(logger),
       events: new EventBus(),
       logger,
-      services: resources ? { resources, states: new GameStates(), random: new Random(1), input: new InputImpl(resources) } : undefined,
+      services: resources ? { resources, states: new GameStates(), random: new Random(1), input: new InputImpl(resources), assets: new AssetStore() } : undefined,
     });
   }
 

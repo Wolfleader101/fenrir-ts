@@ -1,4 +1,4 @@
-import type { AssetLoader } from "./AssetLoader";
+import type { AssetLoader, AssetSource } from "./AssetLoader";
 
 export type AssetKey = string & { __assetKey?: true };
 export const assetKey = (k: string) => k as AssetKey;
@@ -7,6 +7,11 @@ export const assetKey = (k: string) => k as AssetKey;
 export type LoaderConfig<T> = {
   loader: AssetLoader<T>;
   extensions: string[];
+  /**
+   * Frees an asset this loader loaded, such as a GPU texture. Called by `unloadAssets` when the
+   * last bundle holding the asset is unloaded. Optional: without it the asset is only dropped.
+   */
+  unload?: (asset: T, src: AssetSource) => void | Promise<void>;
 };
 
 /**
@@ -96,7 +101,8 @@ export class AssetStore implements IAssetStore {
       const title = label.charAt(0).toUpperCase() + label.slice(1);
       console.warn(`${title} loader '${name}' is being overridden`);
     }
-    byName.set(name, config);
+    // Stored by kind: resolveLoader hands it out only for kind K.
+    byName.set(name, config as unknown as LoaderConfig<Asset>);
   }
 
   /** Sorted extensions that loaders of this kind handle. */
