@@ -28,6 +28,7 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
     renderer.unmountNodes();
     renderer.clearRenderables();
     active = entities;
+    renderer.bindScene(entities);
     const ids = new Map<Entity, number>();
 
     const upsert = (entity: Entity, renderable: Renderable2D) => {
@@ -62,14 +63,14 @@ export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
       bindScene(ctx.entities);
       ctx.logger.info("PixiRendererSystem initialized");
     },
-    // Syncs after every Update system has run, then renders.
+    // Syncs after every Update system has run, then renders. Every render syncs first.
     postUpdate: (ctx: SystemCtx) => {
       bindScene(ctx.entities);
-      renderer.syncTransforms(ctx.entities);
       renderer.render();
     },
     exit: (ctx: SystemCtx) => {
       unbind();
+      renderer.bindScene(undefined);
       renderer.releaseNodes(active);
       active = undefined;
       renderer.dispose();

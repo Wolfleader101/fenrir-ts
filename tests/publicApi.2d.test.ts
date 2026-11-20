@@ -55,25 +55,29 @@ describe("fenrir-ts/2d public API", () => {
     expect(entities.get(entity, twoD.Renderable2D).graphics).toMatchObject({ shape: "circle", data: { radius: 5 } });
   });
 
-  it("mounts a PixiNode in a named layer and writes Transform2D to it", async () => {
+  it("mounts a PixiNode in a named layer or the backdrop and writes Transform2D and Display2D to it", async () => {
     const { Application, Container } = await import("pixi.js");
     // An adopted application that looks initialized, so no GPU is needed.
     const application = new Application();
     Object.assign(application, { renderer: { screen: { width: 1, height: 1 }, render: vi.fn() } });
     const { EntityBuilder, EntityList } = core;
-    const { PixiNode, Transform2D, createPixiRendererSystem } = twoD;
+    const { Display2D, PixiNode, Transform2D, createPixiRendererSystem } = twoD;
     expect(Transform2D).toBe(core.Transform2D);
+    expect(Display2D).toBe(core.Display2D);
     const system = createPixiRendererSystem({ logger: new core.NullLogger(), assets: new core.AssetStore(), application, layers: ["world", "ui"] });
     const entities = new EntityList();
     const ctx = { entities, logger: new core.NullLogger() } as unknown as import("@/index").SystemCtx;
     await system.init(ctx);
 
     const card = new Container();
-    const entity = EntityBuilder.create().transform2D(30, 40).pixiNode(card, { layer: "ui" }).spawn(entities);
+    const entity = EntityBuilder.create().transform2D(30, 40).display2D({ alpha: 0.5 }).pixiNode(card, { layer: "ui" }).spawn(entities);
+    const sky = new Container();
+    EntityBuilder.create().pixiNode(sky, { layer: "fenrir.backdrop" }).spawn(entities);
     expectTypeOf(entities.get(entity, PixiNode)).toEqualTypeOf<import("@/2d").PixiNode>();
     system.postUpdate(ctx);
     expect(card.parent).toBe(system.renderer.layer("ui"));
-    expect([card.x, card.y]).toEqual([30, 40]);
+    expect([card.x, card.y, card.alpha]).toEqual([30, 40, 0.5]);
+    expect(sky.parent).toBe(system.renderer.backdrop);
     expect(() => system.renderer.layer("hud")).toThrow('Declared layers: "world", "ui".');
     system.exit(ctx);
     expect(card.destroyed).toBe(true);

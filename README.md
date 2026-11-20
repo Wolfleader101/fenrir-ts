@@ -37,7 +37,7 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 
 | Import | Contents |
 | --- | --- |
-| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore` |
+| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore` |
 | `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
@@ -169,17 +169,18 @@ The page needs `viewport-fit=cover`, or the browser reports zero insets and lett
 
 ### Scene: Transform2D, PixiNode and layers
 
-Real art is usually a Pixi container the game builds itself. Give it to an entity with `PixiNode` and the renderer mounts it, moves it with the entity's `Transform2D`, parents it under the parent entity's node and destroys it with the entity.
+Real art is usually a Pixi container the game builds itself. Give it to an entity with `PixiNode` and the renderer mounts it, moves it with the entity's `Transform2D`, shows it with its `Display2D`, parents it under the parent entity's node and destroys it with the entity.
 
 ```ts
 import { EntityBuilder, Schedule, createGame, type SystemCtx } from "fenrir-ts";
-import { PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
+import { Display2D, PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
 import { Container, Graphics } from "pixi.js";
 
 const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, layers: ["background", "world", "ui"] });
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const game = await createGame({ canvas, plugins: [pixi] });
 const SWIMMING = [Transform2D] as const;
+const FADING = [Display2D] as const;
 
 function spawnBoat({ entities }: SystemCtx): void {
   const hull = new Container();
@@ -188,7 +189,11 @@ function spawnBoat({ entities }: SystemCtx): void {
     .transform2D(195, 300)
     .pixiNode(hull, { layer: "world" })
     .child((flag) => flag.transform2D(0, -30).pixiNode(new Graphics().rect(0, 0, 16, 10).fill(0xff3344)))
+    .child((wake) => wake.display2D({ alpha: 0.6 }).pixiNode(new Graphics({ zIndex: -1 }).circle(0, 8, 30).fill(0xffffff)))
     .spawn(entities);
+
+  // Full-bleed art behind the design frame: Transform2D here is CSS pixels from the screen's corner.
+  EntityBuilder.create().transform2D(0, 0).pixiNode(new Graphics().rect(0, 0, 4000, 4000).fill(0x0f4250), { layer: "fenrir.backdrop" }).spawn(entities);
 
   // A node the app keeps across runs: unmounted at stop, never destroyed.
   const banner = entities.createEntity();
@@ -199,6 +204,9 @@ function swim({ entities, time }: SystemCtx): void {
   entities.each(SWIMMING, (_entity, transform) => {
     transform.rotation = Math.sin(time.elapsed) * 0.1;
   });
+  entities.each(FADING, (_entity, display) => {
+    display.alpha = 0.4 + Math.abs(Math.sin(time.elapsed)) * 0.4;
+  });
 }
 
 game.addSystem(Schedule.Init, spawnBoat).addSystem(Schedule.Update, swim);
@@ -206,11 +214,14 @@ await game.run();
 ```
 
 - `Transform2D` is `{ x, y, rotation, scaleX, scaleY }`: logical units and radians, plain numbers. It lives in core (`fenrir-ts` exports it too), so game logic and `createTestGame` tests use it with no renderer. `builder.transform2D(x, y, { rotation, scaleX, scaleY })` adds it; entities do not get one by default.
+- `Display2D` is `{ alpha, visible }`, also plain data in core. `builder.display2D({ alpha, visible })` adds it (1 and true unless given). It wins over a `Renderable2D`'s `flags.alpha` and `flags.visible`. An entity without it keeps the alpha and visibility the app gives its node; removing it leaves the last values written.
 - `PixiNode` is `{ node, layer?, keep? }`. `builder.pixiNode(node, { layer, keep })` adds it; spawn such a builder once, since every spawn gets the same node.
-- Each frame `fenrir.pixi.postUpdate` writes `Transform2D` to every node, then renders. It runs after every `Update` system, so a move made in `Update` is drawn in the same frame. A node whose entity has no `Transform2D` keeps the position the app gives it. `Renderable2D` entities follow `Transform2D` too; an entity with both `Transform2D` and the default `Transform` follows `Transform2D`.
-- A node goes under its parent entity's node (or `Renderable2D` view) when the parent has one, otherwise in its `layer`, otherwise straight in `renderer.root`. Layers are containers under `root`, back to front in the order given, and sort their children by `zIndex`; `pixi.renderer.layer("ui")` returns one for drawing into it directly. Content added straight to `root` draws above every layer; `renderer.backdrop` stays behind them all. An unknown layer name throws at `entities.set`, listing the declared layers.
+- Each frame `fenrir.pixi.postUpdate` writes `Transform2D` and `Display2D` to every node, then renders. It runs after every `Update` system, so a move made in `Update` is drawn in the same frame. Every render syncs first, so `pixi.renderer.render()` called by game code (to show a first frame from `PostInit` while assets load, say) and the render the plugin makes for a resize while paused draw entities where their `Transform2D` says too. A node whose entity has no `Transform2D` keeps the position the app gives it. `Renderable2D` entities follow `Transform2D` too; an entity with both `Transform2D` and the default `Transform` follows `Transform2D`.
+- A node goes under its parent entity's node (or `Renderable2D` view) when the parent has one, otherwise in its `layer`, otherwise straight in `renderer.root`. Layers are containers under `root`, back to front in the order given, and sort their children by `zIndex`; `pixi.renderer.layer("ui")` returns one for drawing into it directly. Content added straight to `root` draws above every layer. An unknown layer name throws at `entities.set`, listing the declared layers.
+- `layer: "fenrir.backdrop"` mounts a node in `renderer.backdrop`, behind every layer, with the same lifetime rules. There `Transform2D` is in unscaled CSS pixels from the screen's top-left, the backdrop's own space; cover `Viewport.screen` to fill the screen. Declared layer names cannot start with `fenrir.`, so none collides with it: `pixi2d({ layers: ["fenrir.ui"] })` throws.
+- Child entities' nodes sort by `zIndex` under their parent's node with nothing set by the app: Pixi turns `sortableChildren` on for a container when a child with a non-zero `zIndex` is added to it or a child's `zIndex` changes, and it does that even over an explicit `sortableChildren = false`. Give a node that has child entities a plain `Container`, with its own art as a child of it: Pixi draws a `Graphics` or `Sprite` before all of its children, so no `zIndex` puts a child behind it.
 - When the `PixiNode` or its entity is removed, the node is removed from its parent and destroyed with its children (textures are left alone). When the run stops, every node is destroyed and its `PixiNode` removed, so the next run starts clean. Nodes of child entities and `Renderable2D` views inside a destroyed node are moved out first and survive. With `keep: true` a node is only removed from its parent, and at stop its `PixiNode` stays, so the next run mounts it again. One node belongs to one entity: giving it to a second throws.
-- `game.inspect()` shows `fenrir.Transform2D` as its numbers and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name.
+- `game.inspect()` shows `fenrir.Transform2D` and `fenrir.Display2D` as their values and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name.
 
 ### Input
 

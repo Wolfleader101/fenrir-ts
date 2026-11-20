@@ -21,8 +21,9 @@ export * from "./core/EntityBuilder/extensions/render2DExtensions";
 // Renderer2D (PixiJS)
 export { pixi2d, PixiNode, Renderable2D, PixiRenderer, createPixiRendererSystem } from "./core/Renderer2D";
 
-// Transform2D is core data (plain numbers); re-exported here because 2D code uses it with PixiNode.
+// Transform2D and Display2D are core data (plain values); re-exported here because 2D code uses them with PixiNode.
 export { Transform2D } from "./core/ECS/Transform2D";
+export { Display2D } from "./core/ECS/Display2D";
 
 // Viewport: design resolution, safe area and resize
 export { Viewport, ViewportResized, layoutViewport, screenToLogical, logicalToScreen } from "./core/Renderer2D";

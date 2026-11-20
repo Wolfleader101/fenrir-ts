@@ -53,6 +53,7 @@ export type { Entity } from "./ECS";
 export { Name, Transform, Relationship } from "./ECS/DefaultComponents";
 export type { Vec3Like, QuatLike } from "./ECS/DefaultComponents";
 export { Transform2D } from "./ECS/Transform2D";
+export { Display2D } from "./ECS/Display2D";
 export { defineComponent } from "./ECS/Component";
 export type { ComponentType } from "./ECS/Component";
 
