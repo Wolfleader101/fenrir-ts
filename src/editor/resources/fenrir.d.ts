@@ -1133,6 +1133,17 @@ export type Transform2D = {
 	scaleY: number;
 };
 export declare const Transform2D: ComponentType<Transform2D>;
+/**
+ * How an entity's 2D node or `Renderable2D` view is shown: `alpha` from 0 to 1 and `visible`.
+ * Opt in per entity. The 2D renderer writes it each frame, with `Transform2D`, and it wins over
+ * a `Renderable2D`'s `flags.alpha` and `flags.visible`. Without it the renderer leaves the
+ * node's own `alpha` and `visible` alone; removing it leaves the last values written.
+ */
+export type Display2D = {
+	alpha: number;
+	visible: boolean;
+};
+export declare const Display2D: ComponentType<Display2D>;
 export type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
 export declare class EntityBuilder {
 	private readonly ops;
@@ -1169,6 +1180,11 @@ export interface EntityBuilder {
 		rotation?: number;
 		scaleX?: number;
 		scaleY?: number;
+	}): EntityBuilder;
+	/** Adds `Display2D`: `alpha` 1 and `visible` true unless given. */
+	display2D(options?: {
+		alpha?: number;
+		visible?: boolean;
 	}): EntityBuilder;
 }
 export type SkyboxType = "cubemap" | "equirectangular" | "color";

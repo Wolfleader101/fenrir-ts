@@ -37,7 +37,8 @@ export interface Pixi2DOptions {
   /**
    * Named layers under `renderer.root`, back to front. An entity's `PixiNode` picks one by name;
    * `renderer.layer(name)` returns its container. Content added straight to `root` draws above
-   * every layer, and `renderer.backdrop` stays behind them all.
+   * every layer, and `renderer.backdrop` stays behind them all; a `PixiNode` mounts there with
+   * the layer name `"fenrir.backdrop"`. Names starting with `fenrir.` are reserved and throw.
    */
   readonly layers?: readonly string[];
   /** Other initialization options for a Pixi application the plugin creates. */
@@ -57,8 +58,8 @@ export interface Pixi2DPlugin extends Plugin {
 /**
  * The PixiJS 2D renderer as a game plugin. Registers `fenrir.pixi.init` (Init),
  * `fenrir.viewport.init` (Init, after it), `fenrir.viewport.preUpdate` (PreUpdate, applies resizes),
- * `fenrir.pixi.postUpdate` (PostUpdate: writes `Transform2D` to `PixiNode` and `Renderable2D`
- * entities, then renders) and `fenrir.pixi.exit` (Exit, unmounts and destroys nodes). Keeps the `Viewport` resource and sends `ViewportResized`.
+ * `fenrir.pixi.postUpdate` (PostUpdate: writes `Transform2D` and `Display2D` to `PixiNode` and
+ * `Renderable2D` entities, then renders; `renderer.render()` does the same sync) and `fenrir.pixi.exit` (Exit, unmounts and destroys nodes). Keeps the `Viewport` resource and sends `ViewportResized`.
  *
  * ```ts
  * const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, background: 0x101820 });

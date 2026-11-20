@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import type { Entity, EntityList } from "../ECS";
 import { Relationship, Transform } from "../ECS/DefaultComponents";
 import { Transform2D } from "../ECS/Transform2D";
+import { Display2D } from "../ECS/Display2D";
 import { PixiNode } from "./PixiNode";
 import type {
   Renderable2D,
@@ -17,6 +18,8 @@ import { identityViewport, logicalToScreen, screenToLogical } from "./Viewport";
 import type { Viewport, ViewportPoint } from "./Viewport";
 
 type ObjKey = string;
+/** The layer name that mounts a `PixiNode` in `renderer.backdrop`. Declared layer names cannot start with `fenrir.`. */
+const BACKDROP = "fenrir.backdrop";
 const keyFor = (e: Entity, id: number): string => `${e}:${id}`;
 
 export interface PixiRendererOptions {
@@ -31,7 +34,7 @@ export interface PixiRendererOptions {
   readonly application?: PIXI.Application;
   /** Initialization options for an engine-owned application. */
   readonly applicationOptions?: Partial<Omit<PIXI.ApplicationOptions, "canvas" | "autoStart" | "sharedTicker">>;
-  /** Named layers under `root`, back to front. */
+  /** Named layers under `root`, back to front. Names starting with `fenrir.` are reserved. */
   readonly layers?: readonly string[];
 }
 
@@ -58,6 +61,8 @@ export class PixiRenderer {
   private readonly nodes = new Map<Entity, NodeEntry>();
   private readonly owners = new Map<PIXI.Container, Entity>();
   private readonly views = new WeakSet<PIXI.Container>();
+  /** The entities whose nodes are mounted; `render()` syncs them first. */
+  private scene: EntityList | undefined;
 
   /**
    * Game content, drawn in logical units. `pixi2d` scales and positions it to the design frame;
@@ -74,8 +79,8 @@ export class PixiRenderer {
     this.options = options;
     this.application = options.application ?? new PIXI.Application();
     for (const name of options.layers ?? []) {
-      if (typeof name !== "string" || name === "" || this.layerMap.has(name)) {
-        throw new Error(`pixi2d: layers must be unique, non-empty names, got ${JSON.stringify(options.layers)}.`);
+      if (typeof name !== "string" || name === "" || this.layerMap.has(name) || name.startsWith("fenrir.")) {
+        throw new Error(`pixi2d: layers must be unique, non-empty names not starting with "fenrir.", got ${JSON.stringify(options.layers)}.`);
       }
       const layer = new PIXI.Container({ label: `fenrir.layer.${name}`, sortableChildren: true });
       this.layerMap.set(name, layer);
@@ -85,9 +90,11 @@ export class PixiRenderer {
 
   /**
    * The container of a layer from `pixi2d({ layers })`: a child of `root`, in logical units,
-   * its children sorted by `zIndex`. Throws for an unknown name, listing the declared ones.
+   * its children sorted by `zIndex`. `"fenrir.backdrop"` returns `backdrop`. Throws for an
+   * unknown name, listing the declared ones.
    */
   public layer(name: string): PIXI.Container {
+    if (name === BACKDROP) return this.backdrop;
     const layer = this.layerMap.get(name);
     if (layer) return layer;
     const names = [...this.layerMap.keys()].map((n) => `"${n}"`);
@@ -158,10 +165,11 @@ export class PixiRenderer {
     }
   }
 
-  /** Writes the entity's `Transform2D` to its node and mounts it under its parent's view, its layer or `root`. */
+  /** Writes the entity's `Transform2D` and `Display2D` to its node and mounts it under its parent's view, its layer or `root`. */
   private syncNode(entities: EntityList, entity: Entity, entry: NodeEntry, primaryViews: Map<Entity, PIXI.Container>): void {
     const transform = entities.tryGet(entity, Transform2D);
     if (transform) applyTransform2D(entry.node, transform);
+    applyDisplay2D(entry.node, entities.tryGet(entity, Display2D));
     const parent = entities.tryGet(entity, Relationship)?.parent;
     const target = (parent !== undefined && this.viewOf(parent, primaryViews)) || entry.layer || this.root;
     if (entry.node.parent !== target) target.addChild(entry.node);
@@ -358,7 +366,18 @@ export class PixiRenderer {
     for (const [view, parent] of moves) parent.addChild(view);
   }
 
+  /** Sets the entities `render()` syncs. Internal: the renderer system binds the active scene. */
+  public bindScene(entities: EntityList | undefined): void {
+    this.scene = entities;
+  }
+
+  /**
+   * Syncs every node and view with its entity's `Transform2D` and `Display2D`, then renders.
+   * `fenrir.pixi.postUpdate` calls it each frame; game code may call it to draw outside a frame,
+   * for example from a startup system, and sees the same synced scene.
+   */
   public render(): void {
+    if (this.scene) this.syncTransforms(this.scene);
     this.app.render();
   }
 
@@ -371,6 +390,7 @@ export class PixiRenderer {
   }
 
   public dispose(): void {
+    this.scene = undefined;
     this.clearRenderables();
     this.backdrop.removeFromParent();
     this.root.removeFromParent();
@@ -481,8 +501,9 @@ export class PixiRenderer {
     if (flags.blendMode !== undefined) obj.blendMode = flags.blendMode as any;
   }
 
-  /** `Transform2D` when the entity has it, otherwise its `Transform`. */
+  /** `Display2D` when the entity has it, and `Transform2D` when it has it, otherwise its `Transform`. */
   private applyEntityTransform(view: PIXI.Container, entities: EntityList, entity: Entity): void {
+    applyDisplay2D(view, entities.tryGet(entity, Display2D));
     const transform2D = entities.tryGet(entity, Transform2D);
     if (transform2D) return applyTransform2D(view, transform2D);
     const transform = entities.tryGet(entity, Transform);
@@ -522,4 +543,10 @@ function applyTransform2D(view: PIXI.Container, { x, y, rotation, scaleX, scaleY
   view.position.set(x, y);
   view.scale.set(scaleX, scaleY);
   view.rotation = rotation;
+}
+
+function applyDisplay2D(view: PIXI.Container, display: Display2D | undefined): void {
+  if (!display) return;
+  view.alpha = display.alpha;
+  view.visible = display.visible;
 }

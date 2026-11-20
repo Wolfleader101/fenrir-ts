@@ -3,7 +3,7 @@
 // effects: the core EntityBuilder methods (transform, name), the 2D ones
 // (renderSprite), and the AssetStore 2D texture methods and default loader.
 import { AssetStore, EntityBuilder, EntityList, Name, Transform, assetKey } from "fenrir-ts";
-import { PixiNode, Renderable2D, Transform2D } from "fenrir-ts/2d";
+import { Display2D, PixiNode, Renderable2D, Transform2D } from "fenrir-ts/2d";
 import { Container, Texture } from "pixi.js";
 
 const check = (ok, message) => {
@@ -23,9 +23,10 @@ check(renderable.sprite?.kind === "sprite" && renderable.sprite.texture === "her
 
 check(typeof EntityBuilder.prototype.pixiNode === "function", "EntityBuilder has no pixiNode");
 const node = new Container();
-const card = EntityBuilder.create().transform2D(4, 5).pixiNode(node, { layer: "ui" }).spawn(entities);
+const card = EntityBuilder.create().transform2D(4, 5).display2D({ visible: false }).pixiNode(node, { layer: "ui" }).spawn(entities);
 check(entities.get(card, PixiNode).node === node && entities.get(card, PixiNode).layer === "ui", "pixiNode set no PixiNode");
 check(entities.get(card, Transform2D).y === 5, "transform2D() did not set Transform2D");
+check(entities.get(card, Display2D).visible === false, "display2D() did not set Display2D");
 
 const assets = new AssetStore();
 check(typeof assets.requestTexture2D === "function", "AssetStore has no requestTexture2D");
@@ -36,4 +37,4 @@ check(handle.state.status === "loading", "requestTexture2D did not start loading
 check((await handle.ready) === Texture.EMPTY, "requestTexture2D did not resolve to the loaded texture");
 check(handle.state.status === "ready", "the texture handle is not ready");
 
-console.log("side-effects-2d: transform, transform2D, name, renderSprite, pixiNode and requestTexture2D work after bundling");
+console.log("side-effects-2d: transform, transform2D, display2D, name, renderSprite, pixiNode and requestTexture2D work after bundling");

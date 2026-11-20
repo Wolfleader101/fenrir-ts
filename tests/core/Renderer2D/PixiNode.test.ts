@@ -3,10 +3,13 @@ import { Application, Container, Graphics } from "pixi.js";
 import { AssetStore } from "@/core/Assets/AssetStore";
 import { Transform } from "@/core/ECS/DefaultComponents";
 import { Transform2D } from "@/core/ECS/Transform2D";
+import { Display2D } from "@/core/ECS/Display2D";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
 import "@/core/EntityBuilder/extensions/coreExtensions";
 import "@/core/EntityBuilder/extensions/render2DExtensions";
 import { createGame } from "@/core/Game";
+import { createTestGame } from "@/core/TestGame";
+import { defineState } from "@/core/State";
 import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Scheduler";
 import { PixiNode, Renderable2D, createPixiRendererSystem, pixi2d } from "@/core/Renderer2D";
@@ -249,3 +252,185 @@ describe("PixiNode and Transform2D", () => {
 });
 
 const MOVING = [Transform2D] as const;
+
+describe("the first rendered frame", () => {
+  function startGame() {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", vi.fn((next: FrameRequestCallback) => frames.push(next)));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { app, canvas, render } = fakeApplication();
+    const pixi = pixi2d({ application: app });
+    return { frames, canvas, render, pixi };
+  }
+
+  it("draws nodes spawned at startup at their Transform2D when the game renders before the first frame", async () => {
+    const { frames, canvas, render, pixi } = startGame();
+    const game = await createGame({ canvas, logger, plugins: [pixi] });
+    const Phase = defineState("test.Phase", { values: ["ready"], initial: "ready" });
+    const deck = new Container();
+    const fromHook = new Container();
+    const drawn: number[][] = [];
+    render.mockImplementation(() => drawn.push([deck.x, deck.y, fromHook.x]));
+
+    game
+      .onEnter(Phase, "ready", ({ entities }) => {
+        // PixiNode before Transform2D: the node is mounted before the entity has a transform.
+        EntityBuilder.create().pixiNode(fromHook).transform2D(7, 0).spawn(entities);
+      })
+      .addSystem(Schedule.Init, function spawnDeck({ entities }: SystemCtx) {
+        EntityBuilder.create().pixiNode(deck).transform2D(30, 40).spawn(entities);
+      })
+      .addSystem(Schedule.PostInit, function drawNow({ entities }: SystemCtx) {
+        entities.each(MOVING, (_e, t) => { t.y += 1; });
+        pixi.renderer.render(); // the game shows its first frame while it keeps loading
+      });
+    await game.run();
+    expect(drawn).toEqual([[30, 41, 7]]);
+    frames.shift()?.(performance.now());
+    expect(drawn.at(-1)).toEqual([30, 41, 7]);
+    await game.stop();
+  });
+
+  it("draws an entity spawned mid-frame at its Transform2D in any render that follows", async () => {
+    const { canvas, render, pixi, frames } = startGame();
+    const game = await createGame({ canvas, logger, plugins: [pixi] });
+    const node = new Container();
+    const drawn: number[] = [];
+    render.mockImplementation(() => drawn.push(node.x));
+    game.addSystem(Schedule.Update, function spawnAndDraw({ entities }: SystemCtx) {
+      const entity = EntityBuilder.create().pixiNode(node).spawn(entities);
+      entities.set(entity, Transform2D, at(12, 0));
+      pixi.renderer.render();
+    }, { runIf: () => drawn.length === 0 });
+    await game.run();
+    frames.shift()?.(performance.now());
+    expect(drawn).toEqual([12, 12]);
+    await game.stop();
+  });
+});
+
+describe("the backdrop layer", () => {
+  it('mounts a node with layer "fenrir.backdrop" in renderer.backdrop, unscaled, with the same lifetime', async () => {
+    const { system, ctx, renderer, entities } = setup(["world"]);
+    await system.init(ctx);
+    expect(renderer.layer("fenrir.backdrop")).toBe(renderer.backdrop);
+    // A design frame scaled 2x and offset 20 px: root moves, the backdrop does not.
+    renderer.applyViewport({ offset: { x: 20, y: 0 }, scale: 2 } as Parameters<typeof renderer.applyViewport>[0]);
+
+    const sky = new Graphics();
+    const kept = new Container();
+    const removed = new Container();
+    const skyEntity = EntityBuilder.create().transform2D(0, -10).pixiNode(sky, { layer: "fenrir.backdrop" }).spawn(entities);
+    const keptEntity = EntityBuilder.create().transform2D(5, 6).pixiNode(kept, { layer: "fenrir.backdrop", keep: true }).spawn(entities);
+    const removedEntity = EntityBuilder.create().pixiNode(removed, { layer: "fenrir.backdrop" }).spawn(entities);
+    system.postUpdate(ctx);
+    expect(renderer.backdrop.children).toEqual([sky, kept, removed]);
+    // Transform2D means the backdrop's space: CSS pixels from the screen's corner, not design units.
+    expect([sky.x, sky.y]).toEqual([0, -10]);
+    expect([renderer.backdrop.scale.x, renderer.backdrop.x]).toEqual([1, 0]);
+    expect([renderer.root.scale.x, renderer.root.x]).toEqual([2, 20]);
+
+    entities.remove(removedEntity, PixiNode);
+    expect(removed.destroyed).toBe(true);
+
+    system.exit(ctx);
+    expect([sky.destroyed, kept.destroyed]).toEqual([true, false]);
+    expect(entities.has(skyEntity, PixiNode)).toBe(false);
+    expect(renderer.backdrop.children).toEqual([]);
+
+    await system.init(ctx);
+    system.postUpdate(ctx);
+    expect(renderer.backdrop.children).toEqual([kept]);
+    expect([kept.x, kept.y]).toEqual([5, 6]);
+    entities.destroyEntity(keptEntity);
+    expect([kept.destroyed, kept.parent]).toEqual([false, null]);
+    system.exit(ctx);
+  });
+
+  it("reserves layer names starting with fenrir., so no declared layer collides with the backdrop", () => {
+    expect(() => setup(["fenrir.backdrop"])).toThrow('layers must be unique, non-empty names not starting with "fenrir."');
+    expect(() => setup(["world", "fenrir.ui"])).toThrow('not starting with "fenrir."');
+    expect(() => setup(["backdrop"])).not.toThrow();
+    expect(setup(["backdrop"]).renderer.layer("backdrop")).not.toBe(setup().renderer.backdrop);
+  });
+});
+
+describe("Display2D", () => {
+  it("writes alpha and visible to a node and a Renderable2D view each frame, and leaves them alone without it", async () => {
+    const { system, ctx, renderer, entities } = setup();
+    await system.init(ctx);
+    const plain = new Container({ alpha: 0.3, visible: false });
+    const faded = new Container();
+    EntityBuilder.create().transform2D(1, 1).pixiNode(plain).spawn(entities);
+    const fadedEntity = EntityBuilder.create().display2D({ alpha: 0.5 }).pixiNode(faded).spawn(entities);
+    const dot = EntityBuilder.create().display2D({ alpha: 0.2, visible: false }).renderCircle(2, { flags: { alpha: 0.9, visible: true } }).spawn(entities);
+    const flagged = EntityBuilder.create().renderCircle(2, { flags: { alpha: 0.9 } }).spawn(entities);
+    system.postUpdate(ctx);
+
+    expect([plain.alpha, plain.visible]).toEqual([0.3, false]);
+    expect([faded.alpha, faded.visible]).toEqual([0.5, true]);
+    const dotView = renderer.getRenderedObject(dot, entities.get(dot, Renderable2D).id)!;
+    expect([dotView.alpha, dotView.visible]).toEqual([0.2, false]);
+    const flaggedView = renderer.getRenderedObject(flagged, entities.get(flagged, Renderable2D).id)!;
+    expect([flaggedView.alpha, flaggedView.visible]).toEqual([0.9, true]);
+
+    entities.get(fadedEntity, Display2D).visible = false;
+    entities.get(dot, Display2D).alpha = 1;
+    system.postUpdate(ctx);
+    expect(faded.visible).toBe(false);
+    expect(dotView.alpha).toBe(1);
+
+    // Removing it leaves the last values written.
+    entities.remove(fadedEntity, Display2D);
+    system.postUpdate(ctx);
+    expect([faded.alpha, faded.visible]).toEqual([0.5, false]);
+  });
+
+  it("is plain data in inspect() and in a headless test game", async () => {
+    const game = await createTestGame({ seed: 1 });
+    const FADING = [Display2D] as const;
+    game
+      .addSystem(Schedule.Init, function spawn({ entities }: SystemCtx) {
+        EntityBuilder.create().name("ghost").display2D().spawn(entities);
+      })
+      .addSystem(Schedule.Update, function fade({ entities, time }: SystemCtx) {
+        entities.each(FADING, (_e, display) => {
+          display.alpha = Math.max(0, display.alpha - time.delta);
+          display.visible = display.alpha > 0;
+        });
+      });
+    await game.start();
+    game.step(0.25, 4);
+    const ghost = game.inspect().entities.find((e) => e.name === "ghost")!;
+    expect(ghost.components["fenrir.Display2D"]).toEqual({ alpha: 0, visible: false });
+    await game.stop();
+  });
+});
+
+describe("child draw order", () => {
+  it("sorts a child entity's node by zIndex under its parent's node with no sortableChildren from the app", async () => {
+    const { system, ctx, entities } = setup();
+    await system.init(ctx);
+    const body = new Container();
+    const art = body.addChild(new Graphics());
+    const behind = new Container({ zIndex: -1 });
+    const front = new Container();
+    const parent = EntityBuilder.create().pixiNode(body).spawn(entities);
+    EntityBuilder.create().pixiNode(front).spawnInto(entities, parent);
+    EntityBuilder.create().pixiNode(behind).spawnInto(entities, parent);
+    system.postUpdate(ctx);
+    expect(body.children).toEqual([art, front, behind]);
+    // Pixi turns sorting on for a parent when a child with a non-zero zIndex is added, so the
+    // engine's addChild is enough. Pixi sorts in the render; sortChildren() is that same sort.
+    expect(body.sortableChildren).toBe(true);
+    body.sortChildren();
+    expect(body.children).toEqual([behind, art, front]);
+
+    // A zIndex set after mounting re-sorts too, and Pixi overrides an explicit sortableChildren = false.
+    body.sortableChildren = false;
+    front.zIndex = -2;
+    expect(body.sortableChildren).toBe(true);
+    body.sortChildren();
+    expect(body.children).toEqual([front, behind, art]);
+  });
+});

@@ -56,6 +56,14 @@ describe("fenrir-ts core public API", () => {
     expect(entities.get(entity, Transform2D)).toEqual({ x: 1, y: 2, rotation: 0.5, scaleX: 1, scaleY: 1 });
   });
 
+  it("exports Display2D as plain data, opt in per entity", () => {
+    const { Display2D, EntityBuilder, EntityList } = core;
+    const entities = new EntityList();
+    expect(entities.has(entities.createEntity(), Display2D)).toBe(false);
+    expect(entities.get(EntityBuilder.create().display2D().spawn(entities), Display2D)).toEqual({ alpha: 1, visible: true });
+    expect(entities.get(EntityBuilder.create().display2D({ alpha: 0.5 }).spawn(entities), Display2D)).toEqual({ alpha: 0.5, visible: true });
+  });
+
   it("gives entities a plain transform and an asset store with no renderer loaders", () => {
     const { AssetStore, EntityList, Transform } = core;
     const entities = new EntityList();
