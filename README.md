@@ -223,6 +223,57 @@ await game.run();
 - When the `PixiNode` or its entity is removed, the node is removed from its parent and destroyed with its children (textures are left alone). When the run stops, every node is destroyed and its `PixiNode` removed, so the next run starts clean. Nodes of child entities and `Renderable2D` views inside a destroyed node are moved out first and survive. With `keep: true` a node is only removed from its parent, and at stop its `PixiNode` stays, so the next run mounts it again. One node belongs to one entity: giving it to a second throws.
 - `game.inspect()` shows `fenrir.Transform2D` and `fenrir.Display2D` as their values and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name.
 
+### Timers and tweens
+
+Timers and tweens are plain data on entities, run by the opt-in `motion()` plugin from `fenrir-ts`. They advance with game time only (`time.delta`), so they pause with the game, run headless in `createTestGame` and give the same values for the same steps. A game that does not install `motion()` and import these names ships none of this code.
+
+```ts
+import { EntityBuilder, MotionSettings, Schedule, TimerFired, TweenDone, addTimer, addTween, createGame, defineState, motion, type SystemCtx } from "fenrir-ts";
+import { Display2D, Transform2D, pixi2d } from "fenrir-ts/2d";
+
+const Phase = defineState("myGame.Phase", { values: ["playing", "over"], initial: "playing" });
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [motion(), pixi2d({ design: { width: 390, minHeight: 520 } })] });
+const fired = game.events.createReader(TimerFired);
+const finished = game.events.createReader(TweenDone);
+
+// Respect the player's setting: every tween jumps to its end values and still sends TweenDone.
+game.resources.get(MotionSettings).reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function spawn(ctx: SystemCtx): void {
+  const fish = EntityBuilder.create().transform2D(40, 420).display2D({ alpha: 0 }).spawn(ctx.entities);
+  // A leap along an arc: three tweens on one entity, each driving its own fields.
+  addTween(ctx, fish, Display2D, { to: { alpha: 1 }, duration: 0.2 });
+  addTween(ctx, fish, Transform2D, { to: { x: 320, rotation: Math.PI }, duration: 0.8, ease: "sineInOut", name: "myGame.leap" });
+  addTween(ctx, fish, Transform2D, { to: { y: 260 }, duration: 0.4, ease: "quadOut", repeat: 1, yoyo: true });
+
+  // Ambient motion in a group, so an overlay can pause it while the rest of the game runs.
+  const buoy = EntityBuilder.create().transform2D(200, 300).spawn(ctx.entities);
+  addTween(ctx, buoy, Transform2D, { to: { y: 306 }, duration: 1.2, ease: "sineInOut", repeat: Infinity, yoyo: true, group: "ambient" });
+
+  // Fires once after 30 s of play; removed unfired if Phase leaves "playing" first.
+  addTimer(ctx, fish, "myGame.roundOver", { duration: 30, state: [Phase, "playing"] });
+}
+
+function react({ states, logger, resources }: SystemCtx): void {
+  for (const { name } of fired.read()) if (name === "myGame.roundOver") states.set(Phase, "over");
+  for (const { name } of finished.read()) if (name === "myGame.leap") logger.info("splash");
+  resources.get(MotionSettings).paused.ambient = document.body.classList.contains("menu-open");
+}
+
+game.addSystem(Schedule.Init, spawn).addSystem(Schedule.Update, react);
+await game.run();
+```
+
+- `addTween(ctx, entity, Component, options)` tweens numeric fields of a component on the same entity: `Transform2D`, `Display2D` or any game component of plain numbers. Fields are the keys of `to` (and `from`), checked by TypeScript against the component's number fields, so there are no string paths. Options: `duration` (seconds per play), `from` (default: the component's values when the delay ends), `delay`, `ease`, `repeat` (plays after the first; `Infinity` loops), `yoyo`, `name` and `group`. The entity must have the component when the tween is added.
+- `ease` is a name, so tween data stays JSON: `linear` (the default), `quadIn`, `quadOut`, `quadInOut`, `cubicIn`, `cubicOut`, `cubicInOut`, `sineIn`, `sineOut`, `sineInOut` and `backOut`, which overshoots and settles. The functions are on `easings`; `defineEasing("myGame.steps", fn)` adds one by name.
+- A tween is named after its component and fields unless given a `name`, such as `fenrir.Transform2D:x,y`. Adding a tween with a running one's name replaces it, and the newest tween of a field takes that field from any older tween, so tweening `x` again mid-move just works. A replaced or cancelled tween sends nothing.
+- `addTimer(ctx, entity, name, { duration, repeat?, group?, state? })` sends `TimerFired { entity, name, count, last }` each time it fires. `state: [Phase, "playing"]` removes it, unfired, once `Phase` leaves that value. For how long a state has had its value, use `states.timeIn`; a timer is for something that must happen at a time.
+- A tween ends exactly on its end values (on its start values after an even number of yoyo plays) and sends `TweenDone { entity, name }`. A frame that runs past the end of a play carries the rest into the next play, and a long frame fires a repeating timer as many times as it holds. Finished timers and tweens are removed, so a running one is one that is present.
+- Both live in components, `Timers` and `Tweens` (records by name), that `game.inspect()` shows as plain JSON with their `elapsed` time. Each entry has a `paused` field to pause and resume it; `MotionSettings.paused[group] = true` pauses a group of them; `cancelTimer` and `cancelTween` remove one; removing the component or destroying the entity removes them all. If the tweened component is removed, its tweens are dropped without `TweenDone`.
+- `motion()` registers `fenrir.motion.preUpdate`. Plugins install before the game adds systems, so it runs first in `PreUpdate`: `Update` systems and the renderer see this frame's values, and `TimerFired` and `TweenDone` are read in the same frame. Timers and tweens added in `Update` start moving the next frame.
+- Timers and tweens are entity data, so they stay across `stop()` and `run()` and carry on where they were, as entities do. A paused game moves none of them.
+
 ### Input
 
 Systems read actions, not DOM events. `defineAction(name, bindings)` names something the player does and binds it to keys by `KeyboardEvent.code` (`"KeyA"`, `"Space"`, `"ArrowLeft"`, `"Enter"`) and to `"pointer.primary"` (left mouse button, a finger or a pen) or `"pointer.secondary"` (right mouse button). An unknown binding such as `"space"` or `"A"` is a compile error. `createGame` installs input: there is nothing to register.

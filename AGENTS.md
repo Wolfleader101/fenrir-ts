@@ -54,7 +54,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), `inspect()`, `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), `inspect()`, `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin with named layers, Pixi renderer and its system, `PixiNode`, `Transform2D` and `Display2D` (re-exported from core), `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
@@ -285,6 +285,41 @@ it("lands after one second of ticks", async () => {
 });
 ```
 
+**Timers and tweens.** The `motion()` plugin (`src/core/Motion/Motion.ts`, easings in `Easing.ts`) runs both; `addTimer` and `addTween` throw without it. They are plain data in two components, `Timers` and `Tweens` (`fenrir.Timers`, `fenrir.Tweens`), each a record of entries by name, so `inspect()` shows them and tests assert on them. There are no closures in them: an easing is a name (`EasingName`, or one added with `defineEasing`), and a tween names its component by its `defineComponent` name.
+
+```ts
+import { EntityBuilder, MotionSettings, Schedule, TweenDone, addTimer, addTween, createTestGame, motion, type SystemCtx } from "fenrir-ts";
+import { Display2D, Transform2D } from "fenrir-ts/2d";
+
+const game = await createTestGame({ seed: 1, plugins: [motion()] });
+const finished: string[] = [];
+game.on(TweenDone, ({ name }) => void finished.push(name));
+
+function spawn(ctx: SystemCtx): void {
+  const card = EntityBuilder.create().transform2D(0, 600).display2D({ alpha: 0 }).spawn(ctx.entities);
+  addTween(ctx, card, Transform2D, { to: { y: 400 }, duration: 0.25, ease: "backOut", name: "myGame.settle" });
+  addTween(ctx, card, Display2D, { to: { alpha: 1 }, duration: 0.25, delay: 0.1 });
+  addTimer(ctx, card, "myGame.hint", { duration: 2, repeat: Infinity, group: "ambient" });
+}
+
+game.addSystem(Schedule.Init, spawn);
+await game.start();
+game.resources.get(MotionSettings).paused.ambient = true; // the hint timer waits
+game.step(1 / 60, 30);
+console.log(finished); // ["myGame.settle", "fenrir.Display2D:alpha"]
+// This example runs in tests/core/Motion/Motion.test.ts. Change both together.
+```
+
+- `addTween(ctx, entity, Component, { to, from?, duration, delay?, ease?, repeat?, yoyo?, name?, group? })` takes `ctx` as `{ entities, resources }` (`MotionCtx`). Fields are the keys of `to`, typed as the component's number fields (`NumericKeys<T>`); the entity must have the component. The default name is `<component>:<fields>`, such as `fenrir.Transform2D:x,y`. The same name replaces; the newest tween of a field takes it from older tweens of that component on the entity, which are dropped once they drive nothing. Replaced and cancelled tweens send nothing.
+- `from` fields not given are read when the delay ends. Values are `from * (1 - e) + to * e`, so a tween lands exactly on `to` (on `from` after an even number of yoyo plays), and overshoot past a play carries into the next. `repeat` is plays after the first, `Infinity` to loop; a repeat needs `duration > 0`. `duration: 0` ends at the next frame, even at `dt` 0.
+- `addTimer(ctx, entity, name, { duration, repeat?, group?, state? })` sends `TimerFired { entity, name, count, last }` once per firing, every firing a long frame holds. `remaining` is kept as `duration - elapsed`. `state: [StateType, value]` removes it unfired once that state has another value (a state nothing has read or set is at its initial value). It does not replace `states.timeIn`, which says how long a state has had its value.
+- Completion: `TweenDone { entity, name }` and the last `TimerFired`, sent after every timer and tween has moved. Finished entries are removed, and an empty `Timers` or `Tweens` component is removed, so "running" means "present".
+- `fenrir.motion.preUpdate` advances everything by `time.delta`. Plugins install before the game adds systems, so it runs before the game's `PreUpdate` systems and `Update` and the renderer see this frame's values. Entries added later in a frame start moving the next frame.
+- Pause: an entry's `paused` field, or a group with `MotionSettings.paused[group] = true` (the `fenrir.MotionSettings` resource, set by the plugin at install). Reduced motion: `MotionSettings.reducedMotion = true` ends every unpaused tween at its end values at the next frame, firing `TweenDone`; timers are unaffected.
+- Lifetime: entries are entity data, so they stay across `stop()` and `run()` and continue. Removing the tweened component drops its tweens silently; removing `Timers`, `Tweens` or the entity cancels everything on it; `cancelTimer` and `cancelTween` remove one.
+- Cost: none of this is reachable from code that does not import it. `game-2d` and `core-only` ship no motion code, and `check:consumer` fails if they do; `scripts/consumer/game-2d-motion.js` measures a game that uses it. Do not move it into `createServices` or the engine, and do not add a builder method for it: builder extensions run at import and every game would pay.
+- Tests: `tests/core/Motion/Motion.test.ts`, all with `createTestGame` and `step`.
+
 **Input.** `defineAction(name, bindings)` in `src/core/Input/Action.ts` returns an `ActionType`. Bindings are `KeyboardEvent.code` values (`"KeyA"`, `"Space"`, `"ArrowLeft"`), typed as `KeyCode`, or `"pointer.primary"` (left button, finger, pen) and `"pointer.secondary"` (right button). An unknown binding is a compile error, and a lowercase or one-letter string also throws at definition. `ctx.input` and `game.input` are one `Input` (`src/core/Input/Input.ts`): `pressed`, `released`, `held`, `pointer` (`x`, `y`, `down`, `inside`, `cancelled`), `focused`, `edges(actions)`, `consumePointer()`, `consume(action)`, and the setup calls `onDown(action, handler)` and `onGesture(handler)`. `createGame` installs it; a game registers no input systems.
 Read input in systems. Never add DOM listeners for gameplay input, and never read `KeyboardEvent`s yourself. What must happen inside the DOM event goes through `onDown` (decide a key's default) or `onGesture` (audio unlock and other gesture-only calls).
 
@@ -429,7 +464,7 @@ await game.run();
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
-System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
 Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
@@ -445,7 +480,7 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Window-level input for 3D: `src/core/InputSystem/`, exported from `fenrir-ts/3d`
 - Editor (Monaco): `src/editor/`
 
-New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, ECS, scheduling and events.
+New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, ECS, scheduling and events.
 
 ## Changing the engine
 
@@ -470,7 +505,7 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- Canvas UI, audio, timers and storage
+- Canvas UI, audio and storage
 
 A new service adds a field to `GameServices` in `src/core/SystemCtx.ts`, which puts it on both `game` and `ctx`, and builds it in `createServices` in `src/core/Game.ts`.
 
