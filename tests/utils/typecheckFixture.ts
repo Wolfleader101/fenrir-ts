@@ -37,6 +37,7 @@ export function typecheckFixture(name: string): FixtureResult {
       "fenrir-ts": ["./src/index.ts"],
       "fenrir-ts/2d": ["./src/2d.ts"],
       "fenrir-ts/3d": ["./src/3d.ts"],
+      "fenrir-ts/audio": ["./src/audio.ts"],
     },
   };
   const program = ts.createProgram([fromRoot(`tests/types/fixtures/${name}`)], options);

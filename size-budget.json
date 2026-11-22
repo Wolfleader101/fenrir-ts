@@ -4,7 +4,8 @@
     "2d.js": 41500,
     "3d.js": 60000,
     "physics.js": 25000,
-    "editor.js": 230500
+    "editor.js": 230500,
+    "audio.js": 24000
   },
   "consumers": {
     "game-2d": {
@@ -22,6 +23,10 @@
     "game-2d-assets": {
       "minified": 66000,
       "gzip": 21300
+    },
+    "game-2d-audio": {
+      "minified": 67300,
+      "gzip": 22100
     },
     "game-2d-storage": {
       "minified": 63600,

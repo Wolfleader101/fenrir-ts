@@ -64,6 +64,7 @@ export default defineConfig({
         "2d": resolve(__dirname, "src/2d.ts"),
         "3d": resolve(__dirname, "src/3d.ts"),
         physics: resolve(__dirname, "src/physics.ts"),
+        audio: resolve(__dirname, "src/audio.ts"),
         editor: resolve(__dirname, "src/editor/index.ts"),
       },
       formats: ["es"],

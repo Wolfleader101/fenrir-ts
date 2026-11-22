@@ -19,6 +19,10 @@
       "types": "./dist/3d.d.ts",
       "import": "./dist/3d.js"
     },
+    "./audio": {
+      "types": "./dist/audio.d.ts",
+      "import": "./dist/audio.js"
+    },
     "./physics": {
       "types": "./dist/physics.d.ts",
       "import": "./dist/physics.js"
