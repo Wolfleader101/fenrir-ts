@@ -1286,6 +1286,139 @@ export declare function cancelTween(ctx: MotionCtx, entity: Entity, name: string
  * const game = await createGame({ canvas, plugins: [motion(), pixi2d()] });
  */
 export declare function motion(): Plugin$1;
+/**
+ * Where stored values go. Synchronous, like `localStorage`, so systems can read every frame.
+ * Each method may throw: the storage functions catch it, keep the value in memory and report it.
+ */
+export interface StorageBackend {
+	/** Shown in `StorageStatus.backend`, such as `"localStorage"` or `"memory"`. */
+	readonly name: string;
+	getItem(key: string): string | null;
+	setItem(key: string, value: string): void;
+	removeItem(key: string): void;
+	/**
+	 * For a backend whose real store is asynchronous, such as a host app's bridge in a webview:
+	 * loads it into memory before the first run. The plugin awaits it in `PreInit`, so systems
+	 * read hydrated values; `getItem` and `setItem` then work on that copy, and the backend
+	 * writes it through on its own. If it rejects, the game carries on with memory only.
+	 */
+	hydrate?(): Promise<void>;
+}
+/** A typed storage key, made by `defineStorageKey`. Plain data apart from `parse` and `migrate`. */
+export interface StorageKey<T> {
+	/** Namespaced, such as `myGame.muted`. Also the key in the backend, after the plugin's `prefix`. */
+	readonly name: string;
+	readonly default: T;
+	/** The format version written with each value. */
+	readonly version: number;
+	/** Turns a stored JSON value into `T`, or returns `undefined` (or throws) if it is not one. */
+	readonly parse: (value: unknown) => T | undefined;
+	/** Turns a value written by an older `version` into this version's shape, before `parse`. */
+	readonly migrate?: (value: unknown, from: number) => unknown;
+}
+export interface StorageKeyOptions<T> {
+	/** What a read returns when nothing valid is stored. Objects are copied, so mutating one is safe. */
+	default: T;
+	/**
+	 * Checks a stored value and returns it as `T`, or `undefined` (or throws) if it is invalid.
+	 * Defaults to a check that the value has the default's `typeof` (and is an array when the
+	 * default is), which is enough for primitives. Pass one for objects.
+	 */
+	parse?: (value: unknown) => NoInfer<T> | undefined;
+	/** A whole number, 1 or more. Defaults to 1. Raise it when the shape changes, with `migrate`. */
+	version?: number;
+	/**
+	 * Upgrades a value written by an older version: `from` is its version, or 0 for a value not
+	 * written by Fenrir (a game's own `localStorage.setItem` from before), as JSON if it parses and
+	 * as the raw string if not. Its result goes through `parse`; throwing means "use the default".
+	 */
+	migrate?: (value: unknown, from: number) => unknown;
+}
+/** Where storage stands, as plain data: `game.inspect()` shows it under `fenrir.StorageStatus`. */
+export interface StorageStatus {
+	/** The backend in use: `"localStorage"`, `"memory"`, or an injected backend's name. */
+	backend: string;
+	/** False when values live only in memory for this session: storage was unavailable or failed to hydrate. */
+	persistent: boolean;
+	/** The latest failure: an unavailable store, a write that threw (quota), or a value that did not parse. */
+	lastError: {
+		key: string | null;
+		message: string;
+	} | null;
+}
+export declare const StorageStatus: ResourceType<StorageStatus>;
+/** What the storage functions need: a `SystemCtx`, or the `Game` or `TestGame` itself. */
+export type StorageCtx = {
+	readonly resources: Resources;
+	readonly logger: ILogger;
+};
+export interface StorageOptions {
+	/** Defaults to `localStorage`, or to memory when it is unavailable (private mode, blocked in a webview). */
+	backend?: StorageBackend;
+	/** Put before every key name in the backend, such as a player or save slot: `"slot2:"`. Defaults to none. */
+	prefix?: string;
+}
+/**
+ * A backend that keeps values in a `Map`: the fallback when `localStorage` is unavailable, and
+ * the backend for tests. `items` is the map, so a test can seed it or assert on what was written.
+ *
+ * @example
+ * const store = memoryStorage({ "myGame.muted": '{"v":1,"value":true}' });
+ * const game = await createTestGame({ seed: 1, plugins: [storage({ backend: store })] });
+ */
+export declare function memoryStorage(items?: Record<string, string>): StorageBackend & {
+	readonly items: Map<string, string>;
+};
+/**
+ * Defines a stored value: its key, its default and how to check what is read back. As with
+ * components, the name is the identity and is namespaced: `myGame.muted`. Values are stored as
+ * JSON with their version: `{"v":1,"value":true}`.
+ *
+ * @example
+ * const Muted = defineStorageKey("myGame.muted", { default: false });
+ * const Best = defineStorageKey("myGame.best", {
+ *   default: { score: 0, level: 1 },
+ *   version: 2,
+ *   parse: (v) => (isRecord(v) && typeof v.score === "number" && typeof v.level === "number" ? { score: v.score, level: v.level } : undefined),
+ *   migrate: (v, from) => (from < 2 && typeof v === "number" ? { score: v, level: 1 } : v), // v1 stored a bare number
+ * });
+ */
+export declare function defineStorageKey<T>(name: string, options: StorageKeyOptions<T>): StorageKey<T>;
+/**
+ * The stored value of `key`: what was set this session, else what the backend holds if it is
+ * valid, else the default. Never throws. A value that cannot be read, is not JSON, is from a
+ * newer version or does not parse gives the default, logged once per key. Cached after the first
+ * read, so reading every frame is cheap. Mutating a returned object changes the cached value
+ * only: call `setStored` to save it.
+ */
+export declare function getStored<T>(ctx: StorageCtx, key: StorageKey<T>): T;
+/**
+ * Stores `value` under `key`. Never throws: if the backend refuses it (quota, blocked, or a
+ * value JSON cannot hold), the value is kept in memory, so `getStored` returns it for the rest
+ * of the session, and the failure is logged once per key and set in `StorageStatus.lastError`.
+ * Returns whether the backend took it.
+ */
+export declare function setStored<T>(ctx: StorageCtx, key: StorageKey<T>, value: NoInfer<T>): boolean;
+/** Stores `update(current)` under `key` and returns it. As `setStored`, it never throws. */
+export declare function updateStored<T>(ctx: StorageCtx, key: StorageKey<T>, update: (current: T) => NoInfer<T>): T;
+/** Removes `key` from the backend and from memory, so the next read gives the default. Never throws. */
+export declare function removeStored(ctx: StorageCtx, key: StorageKey<unknown>): void;
+/**
+ * Stores typed values: `getStored`, `setStored`, `updateStored` and `removeStored` need it. It
+ * adds the `StorageStatus` resource and uses `localStorage` unless given a `backend`. When
+ * `localStorage` is unavailable (private mode, storage blocked in a webview or sandboxed frame),
+ * it falls back to memory, logs one warning and sets `StorageStatus.persistent` to false: the
+ * game keeps working, and values last for the session.
+ *
+ * A backend with `hydrate` is awaited once, in `fenrir.storage.preInit`, before the first run's
+ * other startup systems. Values are not tied to a run: they stay across `stop()` and `run()`.
+ * Changes made by another tab are not seen while a value is cached.
+ *
+ * @example
+ * const game = await createGame({ canvas, plugins: [storage(), pixi2d()] });
+ * const test = await createTestGame({ seed: 1, plugins: [storage({ backend: memoryStorage() })] });
+ */
+export declare function storage(options?: StorageOptions): Plugin$1;
 export declare class ConsoleLogger implements ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;

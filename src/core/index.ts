@@ -27,6 +27,10 @@ export type { Timer, Tween, TimerOptions, TweenOptions, MotionCtx, NumericKeys }
 export { easings, defineEasing } from "./Motion/Easing";
 export type { Easing, EasingName } from "./Motion/Easing";
 
+// Storage: the storage() plugin, typed keys with defaults, safe failure to memory
+export { storage, defineStorageKey, getStored, setStored, updateStored, removeStored, memoryStorage, StorageStatus } from "./Storage/Storage";
+export type { StorageKey, StorageKeyOptions, StorageBackend, StorageOptions, StorageCtx } from "./Storage/Storage";
+
 // Core engine
 export { Engine } from "./Engine";
 export type { EngineOptions } from "./Engine";

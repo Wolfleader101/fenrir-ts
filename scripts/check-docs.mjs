@@ -57,6 +57,7 @@ writeFileSync(
           "fenrir-ts/2d": ["./src/2d.ts"],
           "fenrir-ts/3d": ["./src/3d.ts"],
           "fenrir-ts/physics": ["./src/physics.ts"],
+          "fenrir-ts/audio": ["./src/audio.ts"],
           "fenrir-ts/editor": ["./src/editor/index.ts"],
         },
         // Examples show imports and declarations without always using them.

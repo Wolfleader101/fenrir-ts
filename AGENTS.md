@@ -54,13 +54,14 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), `inspect()`, `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache, asset manifests (`defineAssets`, `loadAssets`, `unloadAssets`, `getAsset`, `setAssetLoader`) | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), `inspect()`, `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache, asset manifests (`defineAssets`, `loadAssets`, `unloadAssets`, `getAsset`, `setAssetLoader`), storage (`storage()`, `defineStorageKey`, `getStored`, `setStored`, `updateStored`, `removeStored`, `memoryStorage`, `StorageStatus`) | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin with named layers, Pixi renderer and its system, `PixiNode`, `Transform2D` and `Display2D` (re-exported from core), `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
+| `fenrir-ts/audio` | `src/audio.ts` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound`, `unlockAudio`, `AudioState`, `AudioUnlocked`, the `audio` asset kind (`AudioClip`), `webAudio()` and `testAudio()` backends | none |
 | `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
 
-Consumers import only from these five paths. Never import from `fenrir-ts/dist/...` or a source file path.
+Consumers import only from these six paths. Never import from `fenrir-ts/dist/...` or a source file path.
 Anything not exported from one of the entry files is internal and can change without notice.
 There is no `fenrir-ts/core`: core is the root entry.
 
@@ -71,6 +72,7 @@ Each renderer entry adds to core types when it is imported, and to core classes 
 
 - `fenrir-ts/2d` adds `pixiNode`, `renderSprite` and the other 2D methods to `EntityBuilder`, and `requestTexture2D`, `loadTexture2D`, `getTexture2D` and the Pixi loader to `AssetStore`.
 - `fenrir-ts/3d` adds the 3D builder methods, `loadModel`, `loadTexture`, `getTexture` and the glTF loader to `AssetStore`, and `skybox`, `setSkybox`, `removeSkybox` and `hasSkybox` to `Scene` (`src/core/Skybox/SceneSkybox.ts`), and makes every default `Transform` out of Three `Vector3` and `Quaternion`. `pnpm check:consumer` fails if a 2D bundle ships the skybox members.
+- `fenrir-ts/audio` adds the `audio` asset kind to `AssetKinds`, so manifests declare `{ kind: "audio", src }`; the `audio()` plugin registers its loader when it installs. It patches no class.
 - `fenrir-ts/physics` adds the physics builder methods and `physics?: PhysicsHelpers` to `SystemCtx`, and also makes default transforms out of Three objects.
 
 So a method from an entry is typed and present only when that entry is imported.
@@ -330,6 +332,53 @@ console.log(finished); // ["myGame.settle", "fenrir.Display2D:alpha"]
 - Cost: none of it is reachable from code that does not import it. `check:consumer` fails if `game-2d` or `core-only` ship `fenrir.assets.*` or `defineAssets`; `scripts/consumer/game-2d-assets.js` measures a game that uses it.
 - Tests: `tests/core/Assets/Manifest.test.ts` (headless, `setAssetLoader` with deferred promises), `tests/core/Renderer2D/pixi2dAssets.test.ts` (`createGame` + `pixi2d`, Pixi's `Assets` stubbed), `tests/types/assetManifest.test.ts` (types).
 
+**Audio.** `fenrir-ts/audio` (`src/audio.ts`; code in `src/core/Audio/`: `Audio.ts`, the Web Audio backend in `WebAudio.ts`, the test backend in `TestAudio.ts`) is an entry of its own because it adds the `audio` asset kind (`AudioClip`), and core's `AssetKinds` stays empty. `audio({ buses?, backend? })` adds the `AudioState` resource (`fenrir.AudioState`), the `audio` loader (fetch, then `backend.decode`), an `input.onGesture` handler, `fenrir.audio.init` and `fenrir.audio.postUpdate`. `defineSound(name, { sample | synth, bus?, volume?, loop?, limit? })` returns a frozen `SoundType`; `playSound(ctx, sound, { volume?, rate? })`, `stopSound(ctx, sound, { fade? })` and `unlockAudio(ctx)` take `{ resources }` (`AudioCtx`).
+
+```ts
+import { Schedule, createTestGame } from "fenrir-ts";
+import { AudioState, audio, defineSound, playSound, testAudio, type Synth } from "fenrir-ts/audio";
+
+const blip: Synth = (context, output, { rate }) => {
+  const osc = context.createOscillator();
+  osc.frequency.value = 880 * rate;
+  osc.connect(output);
+  osc.start();
+  osc.stop(context.currentTime + 0.08);
+  return osc;
+};
+const Blip = defineSound("myGame.blip", { synth: blip, limit: 2 });
+const Theme = defineSound("myGame.theme", { sample: "theme", bus: "music", loop: true }); // an audio asset of a manifest
+
+const sounds = testAudio();
+const game = await createTestGame({ seed: 1, plugins: [audio({ backend: sounds })] });
+game.addSystem(Schedule.Init, (ctx) => void playSound(ctx, Theme), { name: "myGame.music" }); // queued: no gesture yet
+await game.start();
+game.input.pointerDown(10, 10); // the first gesture starts output
+playSound(game, Blip, { volume: 0.5 });
+game.resources.get(AudioState).buses.music!.volume = 0.4; // applied by the end of the frame
+game.step();
+console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's sample is not loaded, so it was dropped
+```
+
+This example runs in `tests/core/Audio/Audio.test.ts`. Change both together.
+
+- Unlock: output starts in `backend.start()`, called from `input.onGesture` (canvas keys and pointer presses and lifts), from `unlockAudio`, at `fenrir.audio.init` when `backend.canAutoplay()` or a previous run unlocked it, and when the page shows again. `start` returns a boolean or a promise of one; `settle` then sets `status: "running"`, sends `AudioUnlocked` the first time, and starts queued loops. A throwing `start` means `unavailable`, warned once.
+- Policy: while `status` is not `running`, one-shots are dropped (`dropped++`) and loops are queued (`queued`, by name). A loop plays once at a time. Over `limit` (default 4, loops 1) the oldest voice is stopped. A sample is read with `peekLoadedAsset` (`src/core/Assets/ManifestStore.ts`), so it plays only once a manifest has loaded it; otherwise it is dropped and warned once per sound.
+- Levels: the game writes `muted`, `volume` and `buses[name]`; `applyLevels` passes changed values to `backend.setVolume(bus | null, volume)` in `fenrir.audio.postUpdate` and before each play. The engine does not persist mute: games store it with `storage()`.
+- Lifetime: `fenrir.audio.init` listens for `visibilitychange` with `ctx.signal` (hidden: `suspend`, `status: "suspended"`; visible: start again). Its `onCleanup` stops every voice, clears the queue and suspends: `status` is `suspended` after a run that unlocked, else `locked`. The context is never closed, so a re-run needs no gesture.
+- Backends: `AudioBackend` (`canAutoplay`, `start`, `suspend`, `setVolume`, `play` returning an `AudioVoice` with `stop(fade)` and `onended`, `decode`). `webAudio()` creates its `AudioContext` inside the first `start` and decodes on an `OfflineAudioContext` before then. `testAudio({ autoplay?, unavailable? })` records `played` (sound, bus, volume, rate, loop, synth, ended, fade), `volumes` and `running`; `finish(sound?)` ends voices.
+- Cost: `game-2d`, `core-only` and the other fixtures ship none of it; `check:consumer` fails if they contain `fenrir.audio` or `fenrir.AudioState`. `scripts/consumer/game-2d-audio.js` measures a game that uses it.
+- Tests: `tests/core/Audio/Audio.test.ts` (`createTestGame` with `testAudio`), `tests/core/Audio/WebAudio.test.ts` (a fake `AudioContext`), `tests/publicApi.audio.test.ts`, `tests/types/assetKinds.audio.test.ts`, `tests/readmeAudioExample.test.ts`.
+
+**Storage.** `storage({ backend?, prefix? })` in `src/core/Storage/Storage.ts` (core) adds the `StorageStatus` resource (`fenrir.StorageStatus`: `backend`, `persistent`, `lastError`). `defineStorageKey(name, { default, parse?, version?, migrate? })` returns a frozen `StorageKey`; `getStored`, `setStored`, `updateStored` and `removeStored` take `{ resources, logger }` (`StorageCtx`). README "Storage" has the full example.
+
+- Format: the backend key is `prefix + name`; the value is `JSON.stringify({ v: version, value })`. Anything else stored under the key is version 0 (its JSON, or its raw text). Reads: older version with `migrate` → `migrate(value, from)`, then `parse` (default: same `typeof` as the default) → the value, written back if migrated; newer version, unparseable or a throwing backend → a copy of the default. Values are cached per key after the first read and on every write.
+- Failure: nothing throws. Each failure sets `lastError` and warns once per key (`null` for the store itself). `localStorage` is probed at install with a write and a remove; if that throws the backend becomes `memoryStorage()` and `persistent` is false. A refused write keeps the value in the cache and returns false.
+- Backends: `StorageBackend` is synchronous (`getItem`, `setItem`, `removeItem`) so systems read every frame. An asynchronous store implements `hydrate()`: the plugin registers `fenrir.storage.preInit` only then, awaits it once, clears the cache, and falls back to memory if it rejects. `memoryStorage(items?)` exposes `items`, the `Map` written to.
+- Lifetime: not tied to a run; the cache stays across `stop()` and `run()`. Other tabs' writes are not seen while a key is cached (no `storage` event). There is no helper binding a resource to a key: games read in `PreInit` or `Init` and write where they change the value.
+- Cost: `check:consumer` fails if a fixture other than `game-2d-storage` ships `fenrir.storage` or `fenrir.StorageStatus`.
+- Tests: `tests/core/Storage/Storage.test.ts` (`createTestGame` with `memoryStorage`, jsdom `localStorage` with `Storage.prototype.setItem` stubbed to throw), the storage case in `tests/publicApi.test.ts`.
+
 **Input.** `defineAction(name, bindings)` in `src/core/Input/Action.ts` returns an `ActionType`. Bindings are `KeyboardEvent.code` values (`"KeyA"`, `"Space"`, `"ArrowLeft"`), typed as `KeyCode`, or `"pointer.primary"` (left button, finger, pen) and `"pointer.secondary"` (right button). An unknown binding is a compile error, and a lowercase or one-letter string also throws at definition. `ctx.input` and `game.input` are one `Input` (`src/core/Input/Input.ts`): `pressed`, `released`, `held`, `pointer` (`x`, `y`, `down`, `inside`, `cancelled`), `focused`, `edges(actions)`, `consumePointer()`, `consume(action)`, and the setup calls `onDown(action, handler)` and `onGesture(handler)`. `createGame` installs it; a game registers no input systems.
 Read input in systems. Never add DOM listeners for gameplay input, and never read `KeyboardEvent`s yourself. What must happen inside the DOM event goes through `onDown` (decide a key's default) or `onGesture` (audio unlock and other gesture-only calls).
 
@@ -474,7 +523,7 @@ await game.run();
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
-System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.audio.init` and `fenrir.audio.postUpdate`, `fenrir.storage.preInit` (only with a backend that hydrates), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
 Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
@@ -490,7 +539,7 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Window-level input for 3D: `src/core/InputSystem/`, exported from `fenrir-ts/3d`
 - Editor (Monaco): `src/editor/`
 
-New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, ECS, scheduling and events.
+New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, `src/core/Audio/`, `src/core/Storage/`, ECS, scheduling and events.
 
 ## Changing the engine
 
@@ -515,7 +564,7 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- Canvas UI, audio and storage
+- Canvas UI, accessibility, music streaming and the rest of [#39](https://github.com/Wolfleader101/fenrir-ts/issues/39) (audio and storage exist: see above)
 
 A new service adds a field to `GameServices` in `src/core/SystemCtx.ts`, which puts it on both `game` and `ctx`, and builds it in `createServices` in `src/core/Game.ts`.
 

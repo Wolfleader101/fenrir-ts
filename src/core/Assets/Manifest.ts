@@ -8,6 +8,7 @@ import { defineEvent } from "../EventQueue";
 import type { ILogger } from "../ILogger";
 import { defineResource, type ResourceType, type Resources } from "../Resource";
 import { assetKey, type Asset, type AssetKind, type AssetKinds, type AssetStore, type LoaderConfig } from "./AssetStore";
+import { liveEntry, storeState, type BundleState, type Entry, type ManifestRuntime, type StoreState } from "./ManifestStore";
 
 /** One asset of a manifest: its kind, where it loads from, and optionally a fallback. */
 export interface AssetDeclaration<Name extends string = string> {
@@ -128,47 +129,6 @@ export interface ManifestLoader {
   unload?(asset: { readonly name: string; readonly kind: AssetKind; readonly src: string }, value: unknown): void;
 }
 
-type EntryStatus = "loading" | "loaded" | "fallback" | "failed";
-
-/** One asset loaded into a store, shared by every bundle (of any manifest) that holds it. */
-interface Entry {
-  readonly kind: AssetKind;
-  readonly src: string;
-  status: EntryStatus;
-  value: Asset | undefined;
-  /** What the loader threw, once it has. */
-  error?: unknown;
-  promise: Promise<Asset>;
-  /** `manifest/bundle` of each loading or loaded bundle that holds it. */
-  readonly users: Set<string>;
-  unload?: (value: Asset) => void;
-}
-
-interface BundleState {
-  status: "loading" | "loaded" | "failed";
-  promise: Promise<void>;
-}
-
-interface ManifestRuntime {
-  readonly manifest: AssetManifest;
-  readonly resources: Resources;
-  readonly bundles: Map<string, BundleState>;
-}
-
-interface StoreState {
-  readonly entries: Map<string, Entry>;
-  readonly manifests: Map<string, ManifestRuntime>;
-  loader?: ManifestLoader;
-}
-
-const stores = new WeakMap<AssetStore, StoreState>();
-
-function storeState(store: AssetStore): StoreState {
-  let state = stores.get(store);
-  if (!state) stores.set(store, (state = { entries: new Map(), manifests: new Map() }));
-  return state;
-}
-
 const noop = (): void => {};
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 const userOf = (manifest: AssetManifest, bundle: string): string => `${manifest.name}/${bundle}`;
@@ -243,16 +203,6 @@ function checkBundle(caller: string, manifest: AssetManifest, bundle: string): v
   if (!Object.prototype.hasOwnProperty.call(manifest.bundles, bundle)) {
     throw new Error(`${caller}: ${manifest.name} has no bundle "${bundle}". Its bundles: ${Object.keys(manifest.bundles).join(", ")}.`);
   }
-}
-
-/** The store's entry for `name`, while the store still holds its promise. `assets.clear()` ends it. */
-function liveEntry(store: AssetStore, state: StoreState, name: string): Entry | undefined {
-  const entry = state.entries.get(name);
-  if (entry && store.peek(assetKey(name), entry.kind) !== entry.promise) {
-    state.entries.delete(name);
-    return undefined;
-  }
-  return entry;
 }
 
 function startEntry(ctx: AssetCtx, state: StoreState, manifest: AssetManifest, name: string, users: Iterable<string>): Entry {
@@ -525,3 +475,4 @@ export function getAsset<A extends AssetDeclarations, N extends keyof A & string
 export function setAssetLoader(target: Pick<AssetCtx, "assets">, loader: ManifestLoader | null): void {
   storeState(target.assets).loader = loader ?? undefined;
 }
+

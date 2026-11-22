@@ -40,6 +40,7 @@ const ENTRIES = {
   "2d.js": { name: "fenrir-ts/2d", allow: ["pixi.js"], images: false },
   "3d.js": { name: "fenrir-ts/3d", allow: ["three"], images: true },
   "physics.js": { name: "fenrir-ts/physics", allow: ["jolt-physics", "three"], images: false },
+  "audio.js": { name: "fenrir-ts/audio", allow: [], images: false },
 };
 
 const peerOf = (specifier) =>

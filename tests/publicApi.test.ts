@@ -239,6 +239,35 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
+  it("stores typed values with defaults, migration and a memory fallback, as plain status (#39)", async () => {
+    const { StorageStatus, createTestGame, defineStorageKey, getStored, memoryStorage, removeStored, setStored, storage, updateStored, NullLogger } = core;
+    const Muted = defineStorageKey("publicApi.muted", { default: false });
+    const Best = defineStorageKey("publicApi.best", {
+      default: { score: 0 },
+      version: 2,
+      parse: (v) => (typeof v === "object" && v !== null && typeof (v as { score?: unknown }).score === "number" ? { score: (v as { score: number }).score } : undefined),
+      migrate: (v, from) => (from < 2 && typeof v === "number" ? { score: v } : v),
+    });
+    const backend = memoryStorage({ "slot1:publicApi.best": "12", "slot1:publicApi.muted": "{broken" });
+    const game = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [storage({ backend, prefix: "slot1:" })] });
+    expectTypeOf(getStored(game, Best)).toEqualTypeOf<{ score: number }>();
+    // @ts-expect-error a stored value has its key's type
+    void (() => setStored(game, Muted, "yes"));
+    expect(getStored(game, Muted)).toBe(false);
+    expect(getStored(game, Best)).toEqual({ score: 12 });
+    expect(backend.items.get("slot1:publicApi.best")).toBe('{"v":2,"value":{"score":12}}');
+    expect(setStored(game, Muted, true)).toBe(true);
+    expect(updateStored(game, Best, ({ score }) => ({ score: score + 1 }))).toEqual({ score: 13 });
+    removeStored(game, Muted);
+    expect(getStored(game, Muted)).toBe(false);
+    expect(game.inspect().resources["fenrir.StorageStatus"]).toEqual({
+      backend: "memory",
+      persistent: true,
+      lastError: { key: "publicApi.muted", message: expect.stringContaining("invalid value") },
+    });
+    expect(game.resources.get(StorageStatus).persistent).toBe(true);
+  });
+
   it("ships no skybox members on Scene: fenrir-ts/3d adds them (#66)", () => {
     const scene = new core.Scene("publicApi.scene");
     expect(["skybox", "setSkybox", "removeSkybox", "hasSkybox"].filter((member) => member in scene)).toEqual([]);

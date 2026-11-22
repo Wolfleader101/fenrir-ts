@@ -25,6 +25,7 @@ Each entry point needs its own peer dependency. Install the ones for the entries
 | `fenrir-ts/2d` | `pixi.js` |
 | `fenrir-ts/3d` | `three` |
 | `fenrir-ts/physics` | `jolt-physics` and `three` |
+| `fenrir-ts/audio` | none (Web Audio) |
 | `fenrir-ts/editor` | `monaco-editor` |
 
 The core entry, `fenrir-ts`, needs none of them.
@@ -367,6 +368,140 @@ await game.run();
 - `motion()` registers `fenrir.motion.preUpdate`. Plugins install before the game adds systems, so it runs first in `PreUpdate`: `Update` systems and the renderer see this frame's values, and `TimerFired` and `TweenDone` are read in the same frame. Timers and tweens added in `Update` start moving the next frame.
 - Timers and tweens are entity data, so they stay across `stop()` and `run()` and carry on where they were, as entities do. A paused game moves none of them.
 
+### Audio
+
+Sounds come from `fenrir-ts/audio`, which needs no peer package (Web Audio only). Declare each sound once with `defineSound`, as a sample (an `audio` asset of a manifest, so it preloads in a bundle with progress) or a synth (a function that builds nodes on the `AudioContext`), and play it by its handle from systems. The `audio()` plugin starts output inside the first user gesture on the canvas, with no game code. A game that does not import `fenrir-ts/audio` ships none of this code.
+
+```ts
+import { Schedule, createGame, defineAction, defineAssets, defineStorageKey, getStored, loadAssets, setStored, storage, type SystemCtx } from "fenrir-ts";
+import { AudioState, audio, defineSound, playSound, stopSound, type Synth } from "fenrir-ts/audio";
+import { pixi2d } from "fenrir-ts/2d";
+
+const Sounds = defineAssets("myGame.sounds", {
+  assets: { tap: { kind: "audio", src: "sfx/tap.mp3" }, theme: { kind: "audio", src: "music/theme.mp3" } },
+  bundles: { boot: ["tap", "theme"] },
+});
+
+// A synthesized sound: two quick notes. It returns the source that ends last.
+const coin: Synth = (context, output, { rate }) => {
+  const osc = context.createOscillator();
+  const env = context.createGain();
+  osc.frequency.setValueAtTime(988 * rate, context.currentTime);
+  osc.frequency.setValueAtTime(1319 * rate, context.currentTime + 0.06);
+  env.gain.setValueAtTime(0.3, context.currentTime);
+  env.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
+  osc.connect(env).connect(output);
+  osc.start();
+  osc.stop(context.currentTime + 0.3);
+  return osc;
+};
+
+const Tap = defineSound("myGame.tap", { sample: "tap", volume: 0.8 });
+const Coin = defineSound("myGame.coin", { synth: coin, limit: 3 });
+const Theme = defineSound("myGame.theme", { sample: "theme", bus: "music", loop: true });
+const Muted = defineStorageKey("myGame.muted", { default: false });
+const ToggleMute = defineAction("myGame.toggleMute", ["KeyM"]);
+const Jump = defineAction("myGame.jump", ["Space", "pointer.primary"]);
+const Quit = defineAction("myGame.quit", ["Escape"]);
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [audio(), storage(), pixi2d()] });
+
+async function loadSounds(ctx: SystemCtx): Promise<void> {
+  await loadAssets(ctx, Sounds, "boot");
+  ctx.resources.get(AudioState).muted = getStored(ctx, Muted); // the game keeps mute, not the engine
+  playSound(ctx, Theme); // a loop: queued until the first gesture, then it starts
+}
+
+function play(ctx: SystemCtx): void {
+  const { input, random, resources } = ctx;
+  if (input.pressed(ToggleMute)) {
+    const audioState = resources.get(AudioState);
+    audioState.muted = !audioState.muted; // applied by the end of the frame
+    setStored(ctx, Muted, audioState.muted);
+  }
+  if (input.pressed(Jump)) playSound(ctx, Tap); // a one-shot: dropped while output is locked
+  if (input.pressed(Jump) && random.next() < 0.2) playSound(ctx, Coin, { rate: 0.9 + random.next() * 0.2 });
+  if (input.pressed(Quit)) stopSound(ctx, Theme, { fade: 1 });
+}
+
+game.addSystem(Schedule.PreInit, loadSounds).addSystem(Schedule.Update, play);
+await game.run();
+```
+
+- **Unlock.** Browsers start audio only inside a user gesture. The plugin starts output from `input.onGesture`, so the first key press, tap or click on the canvas starts it (on `pointerup` too, which iOS Safari needs). Where autoplay is allowed it starts when the run starts. For a gesture outside the canvas, such as an HTML menu button, call `unlockAudio(ctx)` in its handler. `AudioState.status` is `locked`, `running`, `suspended` or `unavailable`, and `AudioUnlocked` is sent once, the first time output runs.
+- **Before unlock.** A one-shot played while output is not running is dropped and counted in `AudioState.dropped`: a tap sound played seconds late reads as a bug. A looping sound is queued in `AudioState.queued` and starts when output runs, so music asked for at startup begins at the first gesture. The same holds while the page is hidden.
+- **Playing.** `playSound(ctx, sound, { volume?, rate? })` returns whether it plays (for a loop: plays or is queued). A looping sound plays once at a time; playing it again does nothing. Each sound has a `limit` of instances (4 by default, 1 for a loop): one more stops the oldest. A sample whose asset is not loaded is dropped and logged once. `stopSound(ctx, sound, { fade? })` stops every instance, fading over `fade` seconds.
+- **Volume.** `AudioState` is plain data the game edits: `muted`, `volume` (master) and `buses[name].volume` and `.muted`. Buses are `sfx` (the default for a sound) and `music`, or whatever `audio({ buses })` names. Changes apply by the end of the frame and to every sound as it starts. The engine does not save mute: store it with `storage()`, as above, so the game decides the key and when to write it.
+- **Lifecycle.** Output is suspended while the page is hidden and resumed when it shows; a loop keeps its place. When the run stops, every sound stops and output is suspended; the next `run()` resumes it without a new gesture. A paused game keeps playing. `AudioState.playing` counts instances by sound name, and `game.inspect()` shows all of it under `fenrir.AudioState`.
+- **Samples.** `fenrir-ts/audio` adds the `audio` asset kind. The plugin registers its loader (fetch, then decode), so manifests load samples with progress, fallbacks and unload. Before output starts, samples decode on an `OfflineAudioContext`: no `AudioContext` is created outside a gesture.
+- **Backends.** The output is an `AudioBackend`: `webAudio()` by default, `testAudio()` in tests, or a host app's own (`audio({ backend })`). The engine decides what plays, when and how loud; a backend only does it.
+
+Tests pass `testAudio()` as the backend: nothing is heard, output stays locked until a gesture (`game.input.pointerDown`) unless `{ autoplay: true }`, and `played` lists each voice in order with its bus, volume and rate:
+
+```ts
+import { Schedule, createTestGame } from "fenrir-ts";
+import { AudioState, audio, defineSound, playSound, testAudio, type Synth } from "fenrir-ts/audio";
+import { expect, it } from "vitest";
+
+const blip: Synth = (context, output) => {
+  const osc = context.createOscillator();
+  osc.connect(output);
+  osc.start();
+  return osc;
+};
+const Blip = defineSound("myGame.blip", { synth: blip, volume: 0.5 });
+
+it("plays nothing until the first tap", async () => {
+  const sounds = testAudio();
+  const game = await createTestGame({ seed: 1, plugins: [audio({ backend: sounds })] });
+  game.addSystem(Schedule.Update, (ctx) => void playSound(ctx, Blip, { rate: 2 }), { name: "myGame.blip" });
+  await game.start();
+  game.step();
+  expect(game.resources.get(AudioState)).toMatchObject({ status: "locked", dropped: 1 });
+  game.input.pointerDown(10, 10);
+  game.step();
+  expect(sounds.played).toMatchObject([{ sound: "myGame.blip", bus: "sfx", volume: 0.5, rate: 2 }]);
+  await game.stop();
+});
+```
+
+### Storage
+
+Typed, versioned values in `localStorage`, from the opt-in `storage()` plugin in `fenrir-ts`. A key has a default and a parser, so a read never throws and never returns a value of the wrong shape. Nothing throws on write either: when storage is unavailable or full, values live in memory for the session and the game carries on. A game that does not install `storage()` and import these names ships none of this code.
+
+```ts
+import { createGame, defineStorageKey, getStored, setStored, storage, updateStored, type SystemCtx } from "fenrir-ts";
+
+const Muted = defineStorageKey("myGame.muted", { default: false });
+
+type Progress = { best: number; level: number };
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+const Progress = defineStorageKey<Progress>("myGame.progress", {
+  default: { best: 0, level: 1 },
+  version: 2,
+  parse: (v) => (isRecord(v) && typeof v.best === "number" && typeof v.level === "number" ? { best: v.best, level: v.level } : undefined),
+  // Version 1, and the game's own localStorage code before it (version 0), stored the best score as a number.
+  migrate: (v, from) => (from < 2 && typeof v === "number" ? { best: v, level: 1 } : v),
+});
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [storage()] });
+
+function finishRound(ctx: SystemCtx, score: number): void {
+  updateStored(ctx, Progress, (p) => ({ ...p, best: Math.max(p.best, score) }));
+  if (getStored(ctx, Muted)) setStored(ctx, Muted, false);
+}
+```
+
+- **Keys.** `defineStorageKey(name, { default, parse?, version?, migrate? })`. The name is namespaced, like a component's (`myGame.muted`), and is the key in `localStorage`, so two games on one origin do not collide; `storage({ prefix: "slot2:" })` adds a prefix for save slots or players. Values are stored as JSON with their version: `{"v":2,"value":{"best":40,"level":1}}`. Without `parse`, a stored value must have the default's `typeof`; pass `parse` for objects.
+- **Reads.** `getStored(ctx, key)` returns the value set this session, else the stored value if it parses, else the default (objects copied). A missing key, unreadable storage, text that is not JSON, a value from a newer version and a value that does not parse all give the default; all but the first log one warning per key. Reads are cached, so reading every frame is cheap; mutating a returned object changes the cache only, so call `setStored` to save it.
+- **Writes.** `setStored`, `updateStored` and `removeStored` never throw. A write the backend refuses (quota, storage blocked in a webview) keeps the value in memory for the session, logs once per key and returns false.
+- **Migration.** A value stored with an older `version` goes through `migrate(value, from)`, then `parse`, and is written back. A value not written by Fenrir is version 0: its JSON, or its raw text if it is not JSON, so a game can adopt the keys its own code wrote before.
+- **Status.** `StorageStatus` (`fenrir.StorageStatus`, shown by `game.inspect()`) is `{ backend, persistent, lastError }`: `persistent` is false when `localStorage` was unavailable at install (one warning, then memory), and `lastError` is the latest failure with its key.
+- **Backends.** `localStorage` by default. `storage({ backend: memoryStorage() })` in tests, where `backend.items` is the `Map` written to. A backend is synchronous (`getItem`, `setItem`, `removeItem`), so systems read without awaiting; one backed by an asynchronous store, such as a host app's bridge in a webview, adds `hydrate()`, which the plugin awaits once in `fenrir.storage.preInit` before the game's startup systems.
+- **Lifetime.** Values are not tied to a run: they stay across `stop()` and `run()`. Changes from another tab are not picked up while a value is cached. Binding a resource to a key is game code: read it in `PreInit` or `Init` and write it where the game changes it, as the audio example does with mute.
+
 ### Input
 
 Systems read actions, not DOM events. `defineAction(name, bindings)` names something the player does and binds it to keys by `KeyboardEvent.code` (`"KeyA"`, `"Space"`, `"ArrowLeft"`, `"Enter"`) and to `"pointer.primary"` (left mouse button, a finger or a pen) or `"pointer.secondary"` (right mouse button). An unknown binding such as `"space"` or `"A"` is a compile error. `createGame` installs input: there is nothing to register.
@@ -462,7 +597,7 @@ const audio = new AudioContext();
 
 // Tab moves between canvas controls, and leaves the canvas after the last one.
 game.input.onDown(FocusNext, (event) => ui.hasNextControl(event instanceof KeyboardEvent && event.shiftKey));
-// iOS Safari starts audio only inside a gesture.
+// iOS Safari starts audio only inside a gesture. The audio() plugin from fenrir-ts/audio does this for you.
 game.input.onGesture(() => {
   if (audio.state === "suspended") void audio.resume();
 });
