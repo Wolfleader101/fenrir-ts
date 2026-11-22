@@ -54,7 +54,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), `inspect()`, `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache, asset manifests (`defineAssets`, `loadAssets`, `unloadAssets`, `getAsset`, `setAssetLoader`) | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), `inspect()`, `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache, asset manifests (`defineAssets`, `loadAssets`, `unloadAssets`, `getAsset`, `setAssetLoader`), storage (`storage()`, `defineStorageKey`, `getStored`, `setStored`, `updateStored`, `removeStored`, `memoryStorage`, `StorageStatus`) | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin with named layers, Pixi renderer and its system, `PixiNode`, `Transform2D` and `Display2D` (re-exported from core), `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
@@ -330,6 +330,15 @@ console.log(finished); // ["myGame.settle", "fenrir.Display2D:alpha"]
 - Cost: none of it is reachable from code that does not import it. `check:consumer` fails if `game-2d` or `core-only` ship `fenrir.assets.*` or `defineAssets`; `scripts/consumer/game-2d-assets.js` measures a game that uses it.
 - Tests: `tests/core/Assets/Manifest.test.ts` (headless, `setAssetLoader` with deferred promises), `tests/core/Renderer2D/pixi2dAssets.test.ts` (`createGame` + `pixi2d`, Pixi's `Assets` stubbed), `tests/types/assetManifest.test.ts` (types).
 
+**Storage.** `storage({ backend?, prefix? })` in `src/core/Storage/Storage.ts` (core) adds the `StorageStatus` resource (`fenrir.StorageStatus`: `backend`, `persistent`, `lastError`). `defineStorageKey(name, { default, parse?, version?, migrate? })` returns a frozen `StorageKey`; `getStored`, `setStored`, `updateStored` and `removeStored` take `{ resources, logger }` (`StorageCtx`). README "Storage" has the full example.
+
+- Format: the backend key is `prefix + name`; the value is `JSON.stringify({ v: version, value })`. Anything else stored under the key is version 0 (its JSON, or its raw text). Reads: older version with `migrate` → `migrate(value, from)`, then `parse` (default: same `typeof` as the default) → the value, written back if migrated; newer version, unparseable or a throwing backend → a copy of the default. Values are cached per key after the first read and on every write.
+- Failure: nothing throws. Each failure sets `lastError` and warns once per key (`null` for the store itself). `localStorage` is probed at install with a write and a remove; if that throws the backend becomes `memoryStorage()` and `persistent` is false. A refused write keeps the value in the cache and returns false.
+- Backends: `StorageBackend` is synchronous (`getItem`, `setItem`, `removeItem`) so systems read every frame. An asynchronous store implements `hydrate()`: the plugin registers `fenrir.storage.preInit` only then, awaits it once, clears the cache, and falls back to memory if it rejects. `memoryStorage(items?)` exposes `items`, the `Map` written to.
+- Lifetime: not tied to a run; the cache stays across `stop()` and `run()`. Other tabs' writes are not seen while a key is cached (no `storage` event). There is no helper binding a resource to a key: games read in `PreInit` or `Init` and write where they change the value.
+- Cost: `check:consumer` fails if a fixture other than `game-2d-storage` ships `fenrir.storage` or `fenrir.StorageStatus`.
+- Tests: `tests/core/Storage/Storage.test.ts` (`createTestGame` with `memoryStorage`, jsdom `localStorage` with `Storage.prototype.setItem` stubbed to throw), the storage case in `tests/publicApi.test.ts`.
+
 **Input.** `defineAction(name, bindings)` in `src/core/Input/Action.ts` returns an `ActionType`. Bindings are `KeyboardEvent.code` values (`"KeyA"`, `"Space"`, `"ArrowLeft"`), typed as `KeyCode`, or `"pointer.primary"` (left button, finger, pen) and `"pointer.secondary"` (right button). An unknown binding is a compile error, and a lowercase or one-letter string also throws at definition. `ctx.input` and `game.input` are one `Input` (`src/core/Input/Input.ts`): `pressed`, `released`, `held`, `pointer` (`x`, `y`, `down`, `inside`, `cancelled`), `focused`, `edges(actions)`, `consumePointer()`, `consume(action)`, and the setup calls `onDown(action, handler)` and `onGesture(handler)`. `createGame` installs it; a game registers no input systems.
 Read input in systems. Never add DOM listeners for gameplay input, and never read `KeyboardEvent`s yourself. What must happen inside the DOM event goes through `onDown` (decide a key's default) or `onGesture` (audio unlock and other gesture-only calls).
 
@@ -474,7 +483,7 @@ await game.run();
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
-System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.storage.preInit` (only with a backend that hydrates), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
 Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
@@ -490,7 +499,7 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Window-level input for 3D: `src/core/InputSystem/`, exported from `fenrir-ts/3d`
 - Editor (Monaco): `src/editor/`
 
-New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, ECS, scheduling and events.
+New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, `src/core/Storage/`, ECS, scheduling and events.
 
 ## Changing the engine
 
@@ -515,7 +524,7 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
 - The `fenrir-ts/ui` entry point
-- Canvas UI, audio and storage
+- Canvas UI and audio
 
 A new service adds a field to `GameServices` in `src/core/SystemCtx.ts`, which puts it on both `game` and `ctx`, and builds it in `createServices` in `src/core/Game.ts`.
 

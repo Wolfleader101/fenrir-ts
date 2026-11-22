@@ -1,10 +1,10 @@
 {
   "entries": {
-    "index.js": 79000,
+    "index.js": 85000,
     "2d.js": 41500,
     "3d.js": 60000,
     "physics.js": 25000,
-    "editor.js": 229000
+    "editor.js": 230500
   },
   "consumers": {
     "game-2d": {
@@ -22,6 +22,10 @@
     "game-2d-assets": {
       "minified": 66000,
       "gzip": 21300
+    },
+    "game-2d-storage": {
+      "minified": 63600,
+      "gzip": 20600
     }
   }
 }
