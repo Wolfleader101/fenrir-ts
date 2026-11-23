@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 const members = (prototype: object): string[] => Object.getOwnPropertyNames(prototype).sort();
 
 describe("prototypes after importing fenrir-ts and fenrir-ts/2d", () => {
-  it("patches no AssetStore, Scene, Game or core EntityBuilder member", async () => {
+  // The first import of fenrir-ts/2d loads Pixi cold, which takes seconds on a busy machine.
+  it("patches no AssetStore, Scene, Game or core EntityBuilder member", { timeout: 60_000 }, async () => {
     const core = await import("@/index");
     const { GameImpl } = await import("@/core/Game");
     const before = {

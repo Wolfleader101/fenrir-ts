@@ -4,36 +4,36 @@
     "2d.js": 41000,
     "3d.js": 60000,
     "physics.js": 25000,
-    "editor.js": 236500,
+    "editor.js": 242500,
     "audio.js": 24000
   },
   "consumers": {
     "game-2d": {
-      "minified": 55800,
+      "minified": 55900,
       "gzip": 17700
     },
     "core-only": {
-      "minified": 39500,
+      "minified": 39600,
       "gzip": 12400
     },
     "game-2d-motion": {
-      "minified": 59700,
+      "minified": 59800,
       "gzip": 19400
     },
     "game-2d-assets": {
-      "minified": 61600,
+      "minified": 61700,
       "gzip": 19800
     },
     "game-2d-audio": {
-      "minified": 62900,
-      "gzip": 20400
+      "minified": 63300,
+      "gzip": 20600
     },
     "game-2d-storage": {
-      "minified": 59200,
-      "gzip": 19000
+      "minified": 60800,
+      "gzip": 19500
     },
     "game-2d-inspector": {
-      "minified": 59400,
+      "minified": 59500,
       "gzip": 19100
     }
   }

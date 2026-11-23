@@ -6,7 +6,7 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ### Smaller base build (part of #39)
 
-A base 2D game ships 4.2 kB less engine code (58.4 → 54.1 kB minified, 18.7 → 17.2 kB gzip); a core-only game 4.3 kB less (42.7 → 38.3 kB, 13.6 → 12.0 kB gzip).
+A base 2D game ships 4.2 kB less engine code (58.4 → 54.2 kB minified, 18.7 → 17.2 kB gzip); a core-only game 4.3 kB less (42.7 → 38.4 kB, 13.6 → 12.0 kB gzip).
 
 - **`inspector()` plugin.** `game.inspect()` and `window.__FENRIR__` come from `inspector()` in `fenrir-ts`. A game without it ships no snapshot or JSON-encoding code. Every `createTestGame` game has it with no plugin.
 - **No prototype patching on `AssetStore`.** 2D textures load with functions from `fenrir-ts/2d`; 3D assets through `AssetStore3D` from `fenrir-ts/3d`, which `bootstrapEngine` builds. `pixi2d` registers the default Pixi texture loader on `game.assets` when it installs. `AssetStore` gains `hasLoader(kind, name)`.

@@ -17,6 +17,8 @@ export interface TestGameOptions {
   plugins?: readonly Plugin[];
   /** Defaults to a ConsoleLogger, as in `createGame`. */
   logger?: ILogger;
+  /** The frame-delta clamp, as in `createGame`: `step(dt)` throws for a `dt` above it. Defaults to 0.25. */
+  maxFrameDelta?: number;
 }
 
 /** The test game's clock. It moves only when told to. */

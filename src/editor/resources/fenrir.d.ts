@@ -362,6 +362,16 @@ export declare class Resources {
 	private readonly creating;
 	/** Returns the resource's value, running its factory on first use. */
 	get<T>(resource: ResourceType<T>): T;
+	/**
+	 * Whether the resource has a value: set, or made by its factory on an earlier `get`. Never
+	 * runs the factory. A plugin's resource (`AudioState`, `MotionSettings`, `StorageStatus`)
+	 * has a value once the plugin is installed, so this is how game code and tests ask whether an
+	 * optional plugin is there before using it.
+	 *
+	 * @example
+	 * if (resources.has(AudioState)) resources.get(AudioState).muted = true;
+	 */
+	has<T>(resource: ResourceType<T>): boolean;
 	/** Replaces the resource's value. Works before `game.run()` and from any system. */
 	set<T>(resource: ResourceType<T>, value: NoInfer<T>): void;
 }
@@ -962,6 +972,13 @@ export interface GameOptions {
 	 * the sequence; it does not restart it.
 	 */
 	seed?: number;
+	/**
+	 * The longest frame the game simulates, in seconds: `time.delta` is clamped to it, so a frame
+	 * after a stall (a background tab, a debugger, a slow device) moves the game this much at most,
+	 * and `step(dt)` throws above it. Defaults to 0.25. A game whose motion must never jump far
+	 * sets a smaller cap, such as `1 / 20`. A positive finite number; anything else throws.
+	 */
+	maxFrameDelta?: number;
 }
 /**
  * What a `Game` and a `TestGame` share: registration, services, `stop`, `step` and `inspect`. Systems,
@@ -992,7 +1009,7 @@ export interface GameBase extends GameServices {
 	 * most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then
 	 * the event buffers advance. Fixed ticks accumulate from `dt` exactly.
 	 *
-	 * `dt` is at most 0.25 s, the frame-delta clamp; a longer `dt` throws rather than silently
+	 * `dt` is at most `maxFrameDelta` (0.25 s by default), the frame-delta clamp; a longer `dt` throws rather than silently
 	 * simulating less: write `step(1 / 60, 60)` for a second. On a `Game`, `step` runs only while
 	 * paused (`pause()` first) and advances by `dt` whatever the real time; the game's systems
 	 * all run, so a renderer draws each stepped frame. On a `TestGame`, it runs after `start()`.
@@ -1054,6 +1071,8 @@ export interface TestGameOptions {
 	plugins?: readonly Plugin$1[];
 	/** Defaults to a ConsoleLogger, as in `createGame`. */
 	logger?: ILogger;
+	/** The frame-delta clamp, as in `createGame`: `step(dt)` throws for a `dt` above it. Defaults to 0.25. */
+	maxFrameDelta?: number;
 }
 /** The test game's clock. It moves only when told to. */
 export interface TestClock {
@@ -1200,10 +1219,24 @@ export declare const TweenDone: EventType<{
 	entity: Entity;
 	name: string;
 }>;
-/** Settings for every timer and tween of a game. Set by the `motion()` plugin; edit the fields. */
+/**
+ * Settings for every timer and tween of a game. Set by the `motion()` plugin; edit the fields.
+ *
+ * They are read when `fenrir.motion.preUpdate` runs, first in `PreUpdate`. A change made by a
+ * game system that runs after it (any later `PreUpdate` system, or `Update`) takes effect at the
+ * next frame. To have a pause take effect in the frame that decides it, decide it in a system
+ * ordered before the motion system: `{ before: "fenrir.motion.preUpdate" }` in `PreUpdate`,
+ * where this frame's input is already latched.
+ */
 export interface MotionSettings {
 	/** Groups whose timers and tweens are paused: `paused.ambient = true`. Remove or set false to resume. */
 	paused: Record<string, boolean>;
+	/**
+	 * Pauses every timer and tween, grouped or not, as if each were paused: a pause menu. Set it
+	 * back to false to resume. Defaults to false. Optional so settings written by hand before it
+	 * existed still type-check.
+	 */
+	pausedAll?: boolean;
 	/**
 	 * When true, every tween jumps to its end values at the next frame and sends `TweenDone`,
 	 * including tweens added later and repeating ones (which end where their last play would).
@@ -1290,8 +1323,14 @@ export declare function cancelTween(ctx: MotionCtx, entity: Entity, name: string
  * before the game's `PreUpdate` systems, and the game's `Update` systems and the renderer see
  * this frame's values. A game without it ships none of this code.
  *
+ * A game system that pauses motion (`MotionSettings.pausedAll` or a group) and must stop this
+ * frame's advance too runs before it: `{ before: "fenrir.motion.preUpdate" }` in `PreUpdate`.
+ *
  * @example
  * const game = await createGame({ canvas, plugins: [motion(), pixi2d()] });
+ * game.addSystem(Schedule.PreUpdate, function pauseMenu({ input, resources }) {
+ *   if (input.pressed(Pause)) resources.get(MotionSettings).pausedAll = !resources.get(MotionSettings).pausedAll;
+ * }, { before: "fenrir.motion.preUpdate" });
  */
 export declare function motion(): Plugin$1;
 /**
@@ -1323,6 +1362,8 @@ export interface StorageKey<T> {
 	readonly parse: (value: unknown) => T | undefined;
 	/** Turns a value written by an older `version` into this version's shape, before `parse`. */
 	readonly migrate?: (value: unknown, from: number) => unknown;
+	/** False when a migrated value is written only by the next `setStored` or `updateStored`. Absent means true. */
+	readonly writeMigrated?: boolean;
 }
 export interface StorageKeyOptions<T> {
 	/** What a read returns when nothing valid is stored. Objects are copied, so mutating one is safe. */
@@ -1341,6 +1382,23 @@ export interface StorageKeyOptions<T> {
 	 * as the raw string if not. Its result goes through `parse`; throwing means "use the default".
 	 */
 	migrate?: (value: unknown, from: number) => unknown;
+	/**
+	 * Whether a migrated value is written back as soon as it is read. Defaults to true: the first
+	 * read stores it in this version's envelope, so later reads do not migrate again.
+	 *
+	 * False keeps the migrated value in memory and leaves the stored one as it was until the game
+	 * writes the key (`setStored` or `updateStored`). Until then an older build of the game can
+	 * still read it, so a release can be rolled back without losing the value. The cost: each
+	 * session migrates again on its first read.
+	 */
+	writeMigrated?: boolean;
+}
+/** Keys that share options and differ by a suffix, made by `defineStorageKeyFamily`. */
+export interface StorageKeyFamily<T> {
+	/** The key for `suffix`, named `prefix + suffix`. The same suffix returns the same key. */
+	(suffix: string): StorageKey<T>;
+	/** Put before each suffix, such as `myGame.best.`. */
+	readonly prefix: string;
 }
 /** Where storage stands, as plain data: `game.inspect()` shows it under `fenrir.StorageStatus`. */
 export interface StorageStatus {
@@ -1393,6 +1451,21 @@ export declare function memoryStorage(items?: Record<string, string>): StorageBa
  */
 export declare function defineStorageKey<T>(name: string, options: StorageKeyOptions<T>): StorageKey<T>;
 /**
+ * Defines keys that share a default, parser, version and migration and differ by a suffix: one
+ * per player, save slot or level. `family(suffix)` is the key named `prefix + suffix`, made on
+ * first use and the same object every time after, so it can be called in a system each frame.
+ * The prefix is used as given: end it with the separator, such as `myGame.best.`.
+ *
+ * Throws, as `defineStorageKey` does, for invalid options, and for a suffix that is not a
+ * non-empty string.
+ *
+ * @example
+ * const BestTime = defineStorageKeyFamily("myGame.best.", { default: 0 });
+ * setStored(ctx, BestTime(levelId), 42.5); // stored as "myGame.best.<levelId>"
+ * getStored(ctx, BestTime(levelId));
+ */
+export declare function defineStorageKeyFamily<T>(prefix: string, options: StorageKeyOptions<T>): StorageKeyFamily<T>;
+/**
  * The stored value of `key`: what was set this session, else what the backend holds if it is
  * valid, else the default. Never throws. A value that cannot be read, is not JSON, is from a
  * newer version or does not parse gives the default, logged once per key. Cached after the first
@@ -1411,6 +1484,31 @@ export declare function setStored<T>(ctx: StorageCtx, key: StorageKey<T>, value:
 export declare function updateStored<T>(ctx: StorageCtx, key: StorageKey<T>, update: (current: T) => NoInfer<T>): T;
 /** Removes `key` from the backend and from memory, so the next read gives the default. Never throws. */
 export declare function removeStored(ctx: StorageCtx, key: StorageKey<unknown>): void;
+/**
+ * Keeps `resource[field]` in the storage key `key`, so a setting such as `AudioState.muted` is
+ * saved with no hand-written sync. Setup, like `game.on`: call it once, after `createGame` (the
+ * resource must have a value, so after the plugin that adds it is installed).
+ *
+ * - Load: the field is set from the key at once or, with a backend that hydrates, as soon as
+ *   `fenrir.storage.preInit` has hydrated it, before the game's startup systems. With nothing
+ *   valid stored, the field gets the key's default, so give the key the resource's default.
+ * - Save: when the field's value has changed, it is written with `setStored` at the end of each
+ *   frame (`fenrir.storage.postUpdate`) and when a run stops (`fenrir.storage.exit`). Objects
+ *   are compared as JSON, so editing one in place counts as a change.
+ * - The binding owns the key: change the field, not the key, or the field will not follow.
+ *   Returns a function that ends the binding and leaves what is stored.
+ *
+ * Nothing is persisted unless the game asks: the engine binds no field of its own.
+ *
+ * Throws without the `storage()` plugin, when the resource has no value, or when the key is
+ * already bound.
+ *
+ * @example
+ * const Muted = defineStorageKey("myGame.muted", { default: false });
+ * const game = await createGame({ canvas, plugins: [storage(), audio(), pixi2d()] });
+ * persistResource(game, AudioState, "muted", Muted);
+ */
+export declare function persistResource<T extends object, K extends keyof T & string>(game: Pick<GameBase, "resources" | "logger" | "addSystem">, resource: ResourceType<T>, field: K, key: StorageKey<T[K]>): () => void;
 /**
  * Stores typed values: `getStored`, `setStored`, `updateStored` and `removeStored` need it. It
  * adds the `StorageStatus` resource and uses `localStorage` unless given a `backend`. When

@@ -1,5 +1,5 @@
-// game-2d.js plus audio: the audio() plugin, a synthesized one-shot played on each score, a
-// sample sound, looping music stopped with a fade at exit, and a mute toggle. Its size minus
+// game-2d.js plus audio: the audio() plugin, a synthesized one-shot with per-play params played
+// on each score, a sample sound, looping music stopped with a fade at exit, and a mute toggle. Its size minus
 // game-2d's is what audio costs a game. Bundled, never run.
 import { EntityBuilder, Schedule, createGame, defineAction, defineEvent } from "fenrir-ts";
 import { AudioState, audio, defineSound, playSound, stopSound } from "fenrir-ts/audio";
@@ -9,9 +9,10 @@ import { Graphics } from "pixi.js";
 const Scored = defineEvent("fixture.scored");
 const Mute = defineAction("fixture.mute", ["KeyM"]);
 const Blip = defineSound("fixture.blip", {
-  synth: (context, output, { rate }) => {
+  params: { hz: 660 },
+  synth: (context, output, { rate, params }) => {
     const osc = context.createOscillator();
-    osc.frequency.value = 660 * rate;
+    osc.frequency.value = params.hz * rate;
     osc.connect(output);
     osc.start();
     osc.stop(context.currentTime + 0.1);
@@ -41,7 +42,8 @@ game
   })
   .addSystem(Schedule.Update, function logScore(ctx) {
     for (const { points } of scored.read()) {
-      playSound(ctx, points > 1 ? Splash : Blip, { rate: 0.9 + ctx.random.next() * 0.2 });
+      if (points > 1) playSound(ctx, Splash, { rate: 0.9 + ctx.random.next() * 0.2 });
+      else playSound(ctx, Blip, { params: { hz: 660 + points * 20 } });
       ctx.logger.info("scored", { points });
     }
   }, { after: "score" })

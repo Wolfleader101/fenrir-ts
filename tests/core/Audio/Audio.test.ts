@@ -117,8 +117,8 @@ describe("audio() plugin", () => {
     playSound(s.ctx, Tap, { volume: 0.5, rate: 1.25 });
     playSound(s.ctx, Theme);
     expect(s.sounds.played).toEqual([
-      { sound: "test.tap", bus: "sfx", volume: 0.25, rate: 1.25, loop: false, synth: true, ended: false, fade: null },
-      { sound: "test.theme", bus: "music", volume: 1, rate: 1, loop: true, synth: true, ended: false, fade: null },
+      { sound: "test.tap", bus: "sfx", volume: 0.25, rate: 1.25, loop: false, synth: true, params: {}, ended: false, fade: null },
+      { sound: "test.theme", bus: "music", volume: 1, rate: 1, loop: true, synth: true, params: {}, ended: false, fade: null },
     ]);
     expect(state(s.game).playing).toEqual({ "test.tap": 1, "test.theme": 1 });
     s.sounds.finish("test.tap");
@@ -289,6 +289,84 @@ describe("audio() plugin", () => {
     // @ts-expect-error a sound is a sample or a synth, not both
     expect(() => defineSound("test.both", { synth: blip, sample: "x" })).toThrow(/either a sample/);
     expect(() => defineSound("test.limit", { synth: blip, limit: 0 })).toThrow(/limit must be a whole number/);
+  });
+
+  describe("synth parameters", () => {
+    const tone: Synth<{ hz: number; length: number }> = (context, output, { params }) => {
+      const osc = context.createOscillator();
+      osc.frequency.value = params.hz;
+      osc.connect(output);
+      osc.start();
+      osc.stop(context.currentTime + params.length);
+      return osc;
+    };
+    const Tone = defineSound("test.tone", { synth: tone, params: { hz: 440, length: 0.1 } });
+
+    it("passes each play's params to the synth, laid over the sound's", async () => {
+      const s = await setup({ autoplay: true });
+      playSound(s.ctx, Tone);
+      playSound(s.ctx, Tone, { params: { hz: 880 } });
+      playSound(s.ctx, Tone, { params: { hz: 660, length: 0.3 } });
+      expect(s.sounds.played.map((p) => p.params)).toEqual([
+        { hz: 440, length: 0.1 },
+        { hz: 880, length: 0.1 },
+        { hz: 660, length: 0.3 },
+      ]);
+      // One sound, so one limit and one count, whatever the variant.
+      expect(state(s.game).playing).toEqual({ "test.tone": 3 });
+      expect(Tone.params).toEqual({ hz: 440, length: 0.1 });
+      expect(Object.isFrozen(Tone.params)).toBe(true);
+    });
+
+    it("keeps a queued loop's params until it starts", async () => {
+      const Drone = defineSound("test.drone", { synth: tone, params: { hz: 110, length: 60 }, bus: "music", loop: true });
+      const s = await setup();
+      playSound(s.ctx, Drone, { params: { hz: 55 } });
+      s.game.input.pointerDown(10, 10);
+      expect(s.sounds.played.map((p) => p.params)).toEqual([{ hz: 55, length: 60 }]);
+      stopSound(s.ctx, Drone);
+      expect(state(s.game).playing).toEqual({});
+    });
+
+    it("gives synths and samples without params an empty object", async () => {
+      const s = await setup({ autoplay: true });
+      playSound(s.ctx, Tap);
+      expect(s.sounds.played[0]!.params).toEqual({});
+      expect(Tap.params).toEqual({});
+    });
+
+    it("rejects params for a sample sound, and checks them at compile time", async () => {
+      const s = await setup({ autoplay: true });
+      // @ts-expect-error a sample sound takes no params
+      expect(() => defineSound("test.sampled", { sample: "splash", params: { hz: 1 } })).toThrow(/params are for a synth/);
+      // @ts-expect-error a sample sound takes no params
+      expect(() => playSound(s.ctx, Splash, { params: { hz: 1 } })).toThrow(/params are for a synth/);
+      // @ts-expect-error a synth with params needs all of them on the sound
+      defineSound("test.partial", { synth: tone, params: { hz: 1 } });
+      // @ts-expect-error nor may it leave them out
+      defineSound("test.missing", { synth: tone });
+      // @ts-expect-error a play's params are the synth's fields
+      playSound(s.ctx, Tone, { params: { pitch: 2 } });
+      // @ts-expect-error of the synth's types
+      playSound(s.ctx, Tone, { params: { hz: "high" } });
+      // A synth without params takes none either.
+      // @ts-expect-error Tap's synth has no params
+      playSound(s.ctx, Tap, { params: { hz: 1 } });
+      // The engine does not check params at run time: the types do.
+      expect(names(s.sounds)).toEqual(["test.tone", "test.tone", "test.tap"]);
+    });
+
+    it("still takes a synth written before params, which ignores them", async () => {
+      const old = (context: AudioContext, output: AudioNode, { rate }: { readonly rate: number }) => {
+        const osc = context.createOscillator();
+        osc.frequency.value = 440 * rate;
+        osc.connect(output);
+        return osc;
+      };
+      const Old = defineSound("test.old", { synth: old });
+      const s = await setup({ autoplay: true });
+      expect(playSound(s.ctx, Old, { rate: 2 })).toBe(true);
+    });
   });
 
   it("throws a clear error without the plugin", async () => {

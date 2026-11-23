@@ -31,8 +31,19 @@ export { easings, defineEasing } from "./Motion/Easing";
 export type { Easing, EasingName } from "./Motion/Easing";
 
 // Storage: the storage() plugin, typed keys with defaults, safe failure to memory
-export { storage, defineStorageKey, getStored, setStored, updateStored, removeStored, memoryStorage, StorageStatus } from "./Storage/Storage";
-export type { StorageKey, StorageKeyOptions, StorageBackend, StorageOptions, StorageCtx } from "./Storage/Storage";
+export {
+  storage,
+  defineStorageKey,
+  defineStorageKeyFamily,
+  getStored,
+  setStored,
+  updateStored,
+  removeStored,
+  persistResource,
+  memoryStorage,
+  StorageStatus,
+} from "./Storage/Storage";
+export type { StorageKey, StorageKeyFamily, StorageKeyOptions, StorageBackend, StorageOptions, StorageCtx } from "./Storage/Storage";
 
 // Core engine
 export { Engine } from "./Engine";
