@@ -38,13 +38,13 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 
 | Import | Contents |
 | --- | --- |
-| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore`, asset manifests (`defineAssets`, `loadAssets`) |
-| `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading |
-| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
+| `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore`, asset manifests (`defineAssets`, `loadAssets`), the `inspector()` plugin |
+| `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading (`requestTexture2D`, `getTexture2D`) |
+| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading (`AssetStore3D`), `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/editor` | Monaco live code editor |
 
-Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder` and `AssetStore`, so `renderSprite` and `requestTexture2D` exist once you import `fenrir-ts/2d`.
+Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder`, so `renderSprite` exists once you import `fenrir-ts/2d`. Nothing adds methods to `AssetStore`: 2D textures load with functions from `fenrir-ts/2d`, and 3D assets through `AssetStore3D` from `fenrir-ts/3d`.
 
 ### Quick start (2D)
 
@@ -69,12 +69,12 @@ await game.run();
 
 `game.run()` resolves once `PreInit`, `Init` and `PostInit` have run and the first frame is scheduled. If any of them throws, the run rolls back: `Exit` systems and cleanups run, and `run()` rejects with the error. `game.stop()`, `game.pause()` and `game.resume()` control the loop, and `game.step(dt)` runs frames while paused. `game.isRunning()` is true from the end of startup until `stop()` is called, paused included. `run()` also resolves when a system calls `ctx.stop()` during startup, so check `isRunning()` after `await game.run()` to know whether gameplay started. Tests use `createTestGame` instead: see [Testing a game](#testing-a-game).
 
-`game.assets` is the asset store. The 2D texture methods come from `fenrir-ts/2d`:
+`game.assets` is the asset store. The 2D texture functions come from `fenrir-ts/2d` and take the store first; `pixi2d` registers the default Pixi loader on `game.assets` when it installs (`addPixiTextureLoader`), and the loading functions register it on any other store the first time they load into it:
 
 ```ts
-import "fenrir-ts/2d";
+import { requestTexture2D } from "fenrir-ts/2d";
 
-const hero = game.assets.requestTexture2D("hero", "/sprites/hero.png");
+const hero = requestTexture2D(game.assets, "hero", "/sprites/hero.png");
 hero.subscribe((state) => game.logger.info(`hero texture: ${state.status}`));
 ```
 
@@ -149,7 +149,7 @@ await game.run();
 - `ctx.resources.get(Viewport)` is plain data: logical `width` and `height`, `scale` (CSS pixels per logical unit), the frame's `offset` on the screen, the `insets` in use, the `screen` size and the `resolution`. Each change replaces the object.
 - `ViewportResized` carries the new `Viewport`. It is sent once at startup and then on each change, never twice for the same layout. A resize is applied in the next frame's `PreUpdate` (`fenrir.viewport.preUpdate`), before anything renders. While the game is paused no frame runs, so the plugin applies the layout and renders once on the next animation frame.
 - `ctx.input.pointer` is already in logical units: see [Input](#input). `pixi.renderer.clientToLogical(clientX, clientY)` converts a DOM event's position into logical units, and `logicalToClient` converts back. `screenToLogical(viewport, point)` and `logicalToScreen` do the same for points relative to the canvas.
-- `layoutViewport(design, screen, insets, resolution)` is the layout rule itself, as a pure function with no Pixi: it returns the `Viewport` that `pixi2d({ design })` would set for that screen. A browser test can turn design units into click positions without `debug: true` in the shipped build:
+- `layoutViewport(design, screen, insets, resolution)` is the layout rule itself, as a pure function with no Pixi: it returns the `Viewport` that `pixi2d({ design })` would set for that screen. A browser test can turn design units into click positions without the `inspector()` plugin in the shipped build:
 
   ```ts
   import { layoutViewport, logicalToScreen } from "fenrir-ts/2d";
@@ -222,7 +222,7 @@ await game.run();
 - `layer: "fenrir.backdrop"` mounts a node in `renderer.backdrop`, behind every layer, with the same lifetime rules. There `Transform2D` is in unscaled CSS pixels from the screen's top-left, the backdrop's own space; cover `Viewport.screen` to fill the screen. Declared layer names cannot start with `fenrir.`, so none collides with it: `pixi2d({ layers: ["fenrir.ui"] })` throws.
 - Child entities' nodes sort by `zIndex` under their parent's node with nothing set by the app: Pixi turns `sortableChildren` on for a container when a child with a non-zero `zIndex` is added to it or a child's `zIndex` changes, and it does that even over an explicit `sortableChildren = false`. Give a node that has child entities a plain `Container`, with its own art as a child of it: Pixi draws a `Graphics` or `Sprite` before all of its children, so no `zIndex` puts a child behind it.
 - When the `PixiNode` or its entity is removed, the node is removed from its parent and destroyed with its children (textures are left alone). When the run stops, every node is destroyed and its `PixiNode` removed, so the next run starts clean. Nodes of child entities and `Renderable2D` views inside a destroyed node are moved out first and survive. With `keep: true` a node is only removed from its parent, and at stop its `PixiNode` stays, so the next run mounts it again. One node belongs to one entity: giving it to a second throws.
-- `game.inspect()` shows `fenrir.Transform2D` and `fenrir.Display2D` as their values and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name.
+- `game.inspect()` shows `fenrir.Transform2D` and `fenrir.Display2D` as their values and `fenrir.PixiNode` as `{ node: { $type: "Container" }, layer, keep }`: the node's class name only, so no Pixi object reaches the snapshot. A minified build may shorten the class name, so give a node a `label` (`node.label = "myGame.ship"`) to identify it: the snapshot then shows `{ $type: "Container", label: "myGame.ship" }`. Needs the `inspector()` plugin (see [Inspecting a game](#inspecting-a-game)).
 
 ### Assets
 
@@ -282,7 +282,7 @@ game
 await game.run();
 ```
 
-- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
+- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D(game.assets, "logo")` and `renderSprite("logo")` see it too. `texture2d` assets load through the loader `pixi2d` registers; a store without `pixi2d` (a test game, say) has no 2D loader until `registerTexture2DLoader` or `addPixiTextureLoader` adds one, or `setAssetLoader` replaces them. Two manifests may share a name only for the same kind and source.
 - **Loading.** A loading or loaded bundle returns the same promise; an asset in two bundles loads once. Await `loadAssets` in a `PreInit` system to hold `run()` until a bundle is ready, or call it without awaiting and watch progress. Loads are not tied to a run: they finish after `stop()`, and loaded bundles stay loaded across `stop()` and `run()`, like entities.
 - **Progress.** `ctx.resources.get(manifest.progress)` is plain data updated as each asset settles: `loaded`, `failed`, `total` and `fraction` over every held asset, the same per bundle with its `status` (`unloaded`, `loading`, `loaded`, `failed`), and each asset's `status` (`unloaded`, `loading`, `loaded`, `fallback`, `failed`), `error` and the `bundles` holding it. `game.inspect()` shows it under the manifest's name. A bundle sends `AssetBundleLoaded { manifest, bundle, fallbacks }` or `AssetBundleFailed { manifest, bundle, failures }` when it settles.
 - **Failure.** Every asset of a bundle is tried. One that fails shows its declared `fallback` (another asset of the same kind, which every bundle listing it also loads) and the failure is logged as a warning. One that fails without a fallback fails the bundle: it is logged, `AssetBundleFailed` is sent and the promise rejects with an `AssetBundleError` whose `failures` name each asset, source and error. The assets that loaded stay loaded. Calling `loadAssets` again retries the failed assets; nothing retries on its own.
@@ -695,6 +695,7 @@ const engine = new Engine({
 });
 
 // Physics is optional; leave out `physics` and the fenrir-ts/physics import if you do not need it.
+// assets is an AssetStore3D: loadModel, loadTexture, getGeometry, getTexture, ...
 const { assets } = bootstrapEngine(engine, logger, { canvas, physics: createPhysicsSystem() });
 await assets.loadModel("ship", "/models/ship.glb");
 
@@ -925,16 +926,16 @@ it("lands the fish after one second of casting", async () => {
 
 ### Inspecting a game
 
-`game.inspect()` returns what the game is doing as plain JSON: the frame, time, the schedule, states, resources and the active scene's entities. It never throws and works before `run()`, while paused and after `stop()`. `createGame({ debug: true })` also puts the same function on `window.__FENRIR__.inspect`, for browser tests and agents.
+`game.inspect()` returns what the game is doing as plain JSON: the frame, time, the schedule, states, resources and the active scene's entities. It comes from the `inspector()` plugin, so a game that does not install it ships none of the snapshot code; without it, `inspect()` throws and names the plugin. A test game from `createTestGame` has it already. With the plugin, `inspect()` never throws and works before `run()`, while paused and after `stop()`. `inspector({ global: true })` also puts the same function on `window.__FENRIR__.inspect`, for browser tests and agents.
 
 ```ts
-import { Schedule, createGame, defineComponent, defineResource, type GameSnapshot, type SystemCtx } from "fenrir-ts";
+import { Schedule, createGame, defineComponent, defineResource, inspector, type GameSnapshot, type SystemCtx } from "fenrir-ts";
 
 const Health = defineComponent<{ current: number }>("myGame.Health");
 const Scores = defineResource("myGame.Scores", () => new Map<string, number>());
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
-const game = await createGame({ canvas, debug: true }); // debug: also on window.__FENRIR__
+const game = await createGame({ canvas, plugins: [inspector({ global: true })] }); // global: also on window.__FENRIR__
 
 game.addSystem(Schedule.Init, function spawn({ entities, resources }: SystemCtx) {
   entities.set(entities.createEntity(), Health, { current: 3 });
@@ -961,12 +962,13 @@ console.log(snapshot.resources["myGame.Scores"]); // { $type: "Map", entries: [[
 }
 ```
 
-- `inspect()` is on a `TestGame` too, so a test can `step` and then assert on the snapshot. Stepped frames count like browser frames.
+- `inspect()` works on every `TestGame` with no plugin, so a test can `step` and then assert on the snapshot. Stepped frames count like browser frames. Listing `inspector()` in a test game's plugins is allowed and changes nothing.
+- A shipped game that wants `inspect()` only in a debug build can install the plugin conditionally, for example `plugins: [pixi2d(), ...(import.meta.env.DEV ? [inspector({ global: true })] : [])]`; the bundler drops the inspector from the production build.
 - `frame` counts frames since the current run started: 0 during startup, kept after `stop()`, back to 0 at the next `run()` (or `start()` on a test game). `time.elapsed` and `time.delta` are as of the start of the latest frame, so two calls with no frame between them return equal snapshots.
 - `schedule` lists system names per stage in run order. `states` lists the states the game has used (read, set or hooked) with their value and seconds in it. `resources` lists the resources that have a value.
 - `entities` are the active scene's, by id. `id` and `parent` are entity handles, the values `entities.get` takes; `parent` is null for a root. The engine's `fenrir.Name` and `fenrir.Relationship` are folded into `name` and `parent`; `fenrir.Transform` stays in `components`.
 - Keys of `states`, `resources` and `components` are the names given to `defineState`, `defineResource` and `defineComponent`, sorted. A component keyed by a symbol `defineComponent` did not make appears as `Symbol(description)`.
-- With `debug: true` and two games on one page, the last one created owns `window.__FENRIR__`, with a warning. It stays after the game stops. Without a `window`, `debug` does nothing. `debug` is off by default.
+- With `inspector({ global: true })` on two games on one page, the last one installed owns `window.__FENRIR__`, with a warning. It stays after the game stops. Without a `window`, `global` does nothing. It is off by default.
 
 Values are encoded by these rules, so the snapshot always survives `JSON.parse(JSON.stringify(snapshot))` unchanged:
 
@@ -985,7 +987,7 @@ Values are encoded by these rules, so the snapshot always survives `JSON.parse(J
 | plain object (prototype `Object` or null) | an object with its own enumerable fields, in insertion order; a key starting with `$` gets one more `$` |
 | object with `toJSON` | what `toJSON` returns, encoded by these rules |
 | class instance whose own fields are all strings, numbers, booleans or null | `{ "$type": "Vector3", "x": 1, "y": 2, "z": 3 }` |
-| any other class instance, DOM node, `WeakMap`, `Promise`... | `{ "$type": "Container" }`: the constructor name, which a minifier may shorten |
+| any other class instance, DOM node, `WeakMap`, `Promise`... | `{ "$type": "Container" }`: the constructor name, which a minifier may shorten. One with a non-empty string `label` field (every Pixi display object has one) also gets it: `{ "$type": "Container", "label": "myGame.ship" }`, a name that survives minification |
 | a getter or `toJSON` that throws | `{ "$type": "Thrown", "message": "..." }` |
 
 So an object with a `$type` key is always a tag, and plain data never has one. Anything cut short has a `$truncated` key, so a truncated value is never mistaken for a complete one:
@@ -1000,7 +1002,7 @@ So an object with a `$type` key is always a tag, and plain data never has one. A
 
 The limits are fixed. Keep component and resource values plain data (objects, arrays, numbers, strings, `Map` and `Set`) to see them in full; a display object or texture shows only its class.
 
-**For agents and browser tests:** to check what a game is doing, assert on `inspect()` rather than on pixels. In a unit test call `game.inspect()`; in a Playwright test create the game with `debug: true` and read `await page.evaluate(() => window.__FENRIR__.inspect())`. Compare whole snapshots, or the entities, states and resources you care about: two snapshots of the same game state are identical, so they can be snapshot-tested.
+**For agents and browser tests:** to check what a game is doing, assert on `inspect()` rather than on pixels. In a unit test call `game.inspect()`; in a Playwright test create the game with `inspector({ global: true })` and read `await page.evaluate(() => window.__FENRIR__.inspect())`. Compare whole snapshots, or the entities, states and resources you care about: two snapshots of the same game state are identical, so they can be snapshot-tested.
 
 ### Live Code Editor Example
 

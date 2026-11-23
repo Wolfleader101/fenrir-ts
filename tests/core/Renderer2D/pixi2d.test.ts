@@ -4,6 +4,8 @@ import { createGame } from "@/core/Game";
 import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Scheduler";
 import { pixi2d } from "@/core/Renderer2D";
+import { inspector } from "@/core/Inspect";
+import { AssetStore } from "@/core/Assets/AssetStore";
 
 /** A Pixi application that looks initialized on `canvas`, without a GPU. */
 function adoptedApplication(canvas: HTMLCanvasElement) {
@@ -30,7 +32,7 @@ afterEach(() => {
 describe("pixi2d", () => {
   it("registers the renderer's systems under fenrir.pixi names", async () => {
     const canvas = document.createElement("canvas");
-    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: adoptedApplication(canvas).app })] });
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: adoptedApplication(canvas).app }), inspector()] });
     // The names are stable, so game systems can order against them.
     function movePlayer() {}
     game.addSystem(Schedule.PostUpdate, movePlayer, { before: "fenrir.pixi.postUpdate" });
@@ -41,6 +43,16 @@ describe("pixi2d", () => {
     }
   });
 
+  it("registers the default Pixi texture loader on the game's asset store when it installs, and only there", async () => {
+    const canvas = document.createElement("canvas");
+    const other = new AssetStore();
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: adoptedApplication(canvas).app })] });
+    expect(game.assets.hasLoader("texture2d", "pixi-texture")).toBe(true);
+    expect(game.assets.getSupportedExtensions("texture2d")).toEqual(["bmp", "gif", "jpeg", "jpg", "png", "webp"]);
+    expect(other.hasLoader("texture2d", "pixi-texture")).toBe(false);
+    expect(AssetStore.prototype).not.toHaveProperty("requestTexture2D");
+  });
+
   it("adopts an application the app owns, renders it each frame and leaves it alive at stop", async () => {
     const { frame } = stubFrames();
     const canvas = document.createElement("canvas");
@@ -48,7 +60,7 @@ describe("pixi2d", () => {
     const destroy = vi.spyOn(app, "destroy");
     const existing = app.stage.addChild(new Container());
     const pixi = pixi2d({ application: app });
-    const game = await createGame({ canvas, logger, plugins: [pixi] });
+    const game = await createGame({ canvas, logger, plugins: [pixi, inspector()] });
 
     await game.run();
     expect(pixi.renderer.app).toBe(app);
@@ -65,7 +77,7 @@ describe("pixi2d", () => {
     const { app } = adoptedApplication(canvas);
     Object.assign(app, { ticker: { started: true } });
     const exit = vi.fn();
-    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app })] });
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app }), inspector()] });
     game.addSystem(Schedule.Exit, exit, { name: "exit" });
     await expect(game.run()).rejects.toThrow("Stop the supplied Pixi application's ticker");
     expect(exit).toHaveBeenCalledOnce();
@@ -74,7 +86,7 @@ describe("pixi2d", () => {
   it("rejects an adopted application on a different canvas at startup", async () => {
     stubFrames();
     const { app } = adoptedApplication(document.createElement("canvas"));
-    const game = await createGame({ canvas: document.createElement("canvas"), logger, plugins: [pixi2d({ application: app })] });
+    const game = await createGame({ canvas: document.createElement("canvas"), logger, plugins: [pixi2d({ application: app }), inspector()] });
     await expect(game.run()).rejects.toThrow("must be initialized for the engine canvas");
   });
 
@@ -82,9 +94,9 @@ describe("pixi2d", () => {
     const canvas = document.createElement("canvas");
     const pixi = pixi2d({ application: adoptedApplication(canvas).app });
     expect(() => pixi.renderer).toThrow("pixi2d: the renderer exists once createGame has installed this plugin");
-    await createGame({ canvas, logger, plugins: [pixi] });
+    await createGame({ canvas, logger, plugins: [pixi, inspector()] });
     expect(pixi.renderer).toBeDefined();
-    await expect(createGame({ canvas, logger, plugins: [pixi] })).rejects.toThrow("already installed in a game");
+    await expect(createGame({ canvas, logger, plugins: [pixi, inspector()] })).rejects.toThrow("already installed in a game");
   });
 });
 
@@ -100,7 +112,7 @@ describe("pixi2d background with an adopted application (#66)", () => {
     stubFrames();
     const canvas = document.createElement("canvas");
     const { app, background } = withBackground(canvas);
-    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app, background: 0x092c36 })] });
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app, background: 0x092c36 }), inspector()] });
     expect(background.color).toBe(0x000000); // nothing changes at install
     await game.run();
     expect(background.color).toBe(0x092c36);
@@ -111,7 +123,7 @@ describe("pixi2d background with an adopted application (#66)", () => {
     stubFrames();
     const canvas = document.createElement("canvas");
     const { app, background } = withBackground(canvas);
-    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app })] });
+    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: app }), inspector()] });
     await game.run();
     expect(background.color).toBe(0x000000);
     await game.stop();

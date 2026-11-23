@@ -61,7 +61,7 @@ describe("Pixi ownership and renderable lifecycle", () => {
   it("drops stale sprite requests and detaches component listeners on exit", async () => {
     const { app, assets, opts } = setup();
     let load!: (texture: Texture) => void;
-    vi.spyOn(assets, "getTexture2D").mockImplementationOnce(() => new Promise((resolve) => { load = resolve; }))
+    vi.spyOn(assets, "get").mockImplementationOnce(() => new Promise((resolve) => { load = resolve; }))
       .mockResolvedValueOnce(Texture.EMPTY);
     const system = createPixiRendererSystem(opts);
     const ctx = createMockSystemCtx();
@@ -80,7 +80,7 @@ describe("Pixi ownership and renderable lifecycle", () => {
     expect((newer as Sprite).texture).toBe(Texture.EMPTY);
 
     let loadRemoved!: (texture: Texture) => void;
-    vi.spyOn(assets, "getTexture2D").mockImplementationOnce(() => new Promise((resolve) => { loadRemoved = resolve; }));
+    vi.spyOn(assets, "get").mockImplementationOnce(() => new Promise((resolve) => { loadRemoved = resolve; }));
     const removed = ctx.entities.createEntity();
     ctx.entities.set(removed, Renderable2D, def);
     ctx.entities.destroyEntity(removed);

@@ -4,7 +4,7 @@ import { nameEngineSystems } from "../SystemName";
 import * as THREE from "three";
 import type { AsyncSystemFn, SystemCtx } from "../SystemCtx";
 import type { Scene } from "../Scene";
-import type { IAssetStore } from "../Assets/AssetStore";
+import type { IAssetStore3D } from "../Assets/Assets3D";
 import {
   type SkyboxDescriptor,
   type SkyboxInstance,
@@ -14,7 +14,7 @@ import {
 } from "./SkyboxComponents";
 
 export type SkyboxSystemOptions = {
-  assets: IAssetStore;
+  assets: IAssetStore3D;
 };
 
 /**
@@ -22,7 +22,7 @@ export type SkyboxSystemOptions = {
  * Following the class + factory pattern like PhysicsSystem and CameraSystem
  */
 class SkyboxSystem {
-  private readonly assets: IAssetStore;
+  private readonly assets: IAssetStore3D;
   private skyboxInstances = new WeakMap<Scene, SkyboxInstance>();
 
   constructor(options: SkyboxSystemOptions) {

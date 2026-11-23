@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Schedule, createGame, defineAction, type Game } from "@/index";
 import { Viewport, identityViewport } from "@/core/Renderer2D/Viewport";
 import { NullLogger } from "@/core/NullLogger";
+import { inspector } from "@/core/Inspect";
 
 const Tap = defineAction("test.listen.tap", ["pointer.primary", "Space"]);
 const Left = defineAction("test.listen.left", ["ArrowLeft", "KeyA"]);
@@ -27,7 +28,7 @@ function canvasAt(left = 10, top = 20, width = 300, height = 600): HTMLCanvasEle
 async function running(canvas = canvasAt(), configure?: (game: Game) => void): Promise<Game> {
   vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
-  const game = await createGame({ canvas, logger: new NullLogger() });
+  const game = await createGame({ canvas, logger: new NullLogger(), plugins: [inspector()] });
   games.push(game);
   configure?.(game);
   await game.run();
@@ -282,7 +283,7 @@ describe("stuck input", () => {
     const canvas = canvasAt();
     const touchAction = canvas.style.touchAction;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
-    const game = await createGame({ canvas, logger: new NullLogger() });
+    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [inspector()] });
     game.addSystem(Schedule.Init, function failToStart() {
       throw new Error("no assets");
     });

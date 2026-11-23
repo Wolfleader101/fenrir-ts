@@ -2,7 +2,7 @@ import { Vector3 } from "three";
 
 import type { AsyncSystemFn } from "@/index";
 import { Spin } from "../shared/spinComponent.ts";
-import type { IAssetStore } from "@/index";
+import type { IAssetStore3D } from "@/3d";
 import { assetKey } from "@/index";
 import { EntityBuilder } from "@/index";
 import { SkyboxUtils } from "@/3d";
@@ -16,7 +16,7 @@ import { SkyboxUtils } from "@/3d";
  * - Custom spinning behavior
  * - Entity Builder pattern
  */
-export const createAnimationDemo = async (assetStore: IAssetStore) => {
+export const createAnimationDemo = async (assetStore: IAssetStore3D) => {
   const duckUrl = "/models/Duck.glb";
   const foxUrl = "/models/CesiumMan.glb";
   const duckKey = assetKey("duck");

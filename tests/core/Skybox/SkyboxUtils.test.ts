@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { SkyboxUtils } from "@/core/Skybox/SkyboxUtils";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
+import type { IAssetStore3D } from "@/core/Assets/Assets3D";
 import { Scene } from "@/core/Scene";
 
 describe("SkyboxUtils.setupDefaultSkybox", () => {
   it("loads the six embedded faces and sets a cubemap skybox on the scene", async () => {
     const loadTexture = vi.fn(async (_key: string, _url: string) => {});
-    const assets = { loadTexture } as unknown as IAssetStore;
+    const assets = { loadTexture } as unknown as IAssetStore3D;
     // A core Scene: SkyboxUtils works on it without the members fenrir-ts/3d adds.
     const scene = new Scene("test.skybox");
 

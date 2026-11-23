@@ -7,14 +7,15 @@
  * - adds the skybox members to `Scene` (`skybox`, `setSkybox`, `removeSkybox`, `hasSkybox`)
  * - adds the 3D EntityBuilder methods (`model`, `renderBox`, `renderSphere`,
  *   `animate`, the camera methods)
- * - adds the model and texture methods on AssetStore (`loadModel`, `loadTexture`,
- *   `getGeometry`, `getTexture`, ...) and the default glTF and texture loaders
+ *
+ * Models and 3D textures load through `AssetStore3D` (`loadModel`, `loadTexture`, `getGeometry`,
+ * `getTexture`, ...), the store `bootstrapEngine` builds, with the default glTF and texture
+ * loaders. Nothing patches `AssetStore`.
  */
 
-// Side effects: Three default transforms, the Scene skybox members, AssetStore and EntityBuilder patches.
+// Side effects: Three default transforms, the Scene skybox members and EntityBuilder patches.
 import "./core/Transform3D";
 import "./core/Skybox/SceneSkybox";
-import "./core/Assets/Assets3D";
 import "./core/EntityBuilder/extensions/renderExtensions";
 import "./core/EntityBuilder/extensions/animationExtensions";
 import "./core/EntityBuilder/extensions/cameraExtensions";
@@ -27,7 +28,8 @@ export { bootstrapEngine } from "./core/Bootstrap";
 export type { BootstrapConfig, BootstrapResult, BootstrapPhysicsSystem } from "./core/Bootstrap";
 
 // Asset store: models and textures
-export type { LoadedModel, ModelLoaderConfig, TextureLoaderConfig } from "./core/Assets/Assets3D";
+export { AssetStore3D } from "./core/Assets/Assets3D";
+export type { AssetStore3DOptions, IAssetStore3D, LoadedModel, ModelLoaderConfig, TextureLoaderConfig } from "./core/Assets/Assets3D";
 export { createGltfLoader } from "./core/Assets/loaders/gltfLoader";
 export { createObjLoader } from "./core/Assets/loaders/objLoader";
 export { createTextureLoader } from "./core/Assets/loaders/textureLoader";

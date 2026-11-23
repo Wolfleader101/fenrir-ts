@@ -1,13 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { assetKey, type AssetKey } from "@/core/Assets/AssetStore";
 import {
-  AssetStore,
-  assetKey,
-  type AssetStoreConfig,
-} from "@/core/Assets/AssetStore";
-// The 2D and 3D entries add these asset kinds to the core store when they load.
-// This file covers the store with both loaded; AssetStore.core.test.ts covers core alone.
-import "@/core/Assets/Assets2D";
-import "@/core/Assets/Assets3D";
+  addPixiTextureLoader,
+  getSupportedTexture2DExtensions,
+  getTexture2D,
+  loadTexture2D,
+  registerTexture2DLoader,
+  requestTexture2D,
+  type PixiTextureLoaderConfig,
+} from "@/core/Assets/Assets2D";
+import { AssetStore3D, type AssetStore3DOptions } from "@/core/Assets/Assets3D";
+
+// This file covers a store with the 2D and 3D kinds: AssetStore3D, with the Pixi loader the
+// pixi2d plugin registers and the 2D texture functions under their old method names.
+// AssetStore.core.test.ts covers core alone.
+type AssetStoreConfig = AssetStore3DOptions & { texture2DLoaders?: { [name: string]: PixiTextureLoaderConfig } };
+class AssetStore extends AssetStore3D {
+  constructor({ texture2DLoaders = {}, ...options }: AssetStoreConfig = {}) {
+    super(options);
+    addPixiTextureLoader(this);
+    for (const [name, config] of Object.entries(texture2DLoaders)) registerTexture2DLoader(this, name, config);
+  }
+  registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig) { registerTexture2DLoader(this, name, config); }
+  getSupportedTexture2DExtensions() { return getSupportedTexture2DExtensions(this); }
+  requestTexture2D(key: AssetKey, url: string) { return requestTexture2D(this, key, url); }
+  loadTexture2D(key: AssetKey, url: string) { return loadTexture2D(this, key, url); }
+  getTexture2D(key: AssetKey) { return getTexture2D(this, key); }
+}
 
 // Mock Three.js and loaders
 vi.mock("three", () => {

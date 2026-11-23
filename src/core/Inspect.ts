@@ -1,6 +1,7 @@
 import { Name, Relationship } from "./ECS/DefaultComponents";
 import type { Entity, EntityList } from "./ECS/EntityList";
 import type { Engine } from "./Engine";
+import type { GameImpl, Plugin } from "./Game";
 import { toJson, type JsonValue } from "./Json";
 import type { Resources } from "./Resource";
 import { Schedule, type ScheduleStage } from "./Schedule";
@@ -103,18 +104,45 @@ export function inspectGame(engine: Engine, states: GameStates, resources: Resou
   };
 }
 
-/** What `createGame({ debug: true })` puts on `window.__FENRIR__`. */
+/** What `inspector({ global: true })` puts on `window.__FENRIR__`. */
 export interface DebugGlobal {
   inspect(): GameSnapshot;
 }
 
+export interface InspectorOptions {
+  /**
+   * Puts `inspect` on `window.__FENRIR__` for browser tests and agents. Off by default. With two
+   * games on one page, the last one installed owns it. It stays after the game stops. Does
+   * nothing where there is no `window`.
+   */
+  readonly global?: boolean;
+}
+
+/** Internal. Makes `game.inspect()` work on `game`. `createTestGame` calls it for every test game. */
+export function enableInspect(game: GameImpl): void {
+  game.inspector = () => inspectGame(game["engine"], game.states as GameStates, game.resources);
+}
+
 /**
- * Puts `inspect` on `window.__FENRIR__`. The last game created with `debug: true` owns it;
- * it stays after the game stops. Does nothing where there is no `window`.
+ * The inspector plugin: makes `game.inspect()` return a `GameSnapshot`. Without it,
+ * `game.inspect()` throws, and a game ships none of the snapshot and JSON-encoding code.
+ * A test game from `createTestGame` has it already.
+ *
+ * ```ts
+ * const game = await createGame({ canvas, plugins: [pixi2d(), inspector({ global: true })] });
+ * ```
  */
-export function exposeDebugGlobal(inspect: () => GameSnapshot, warn: (message: string) => void): void {
-  if (typeof window === "undefined") return;
-  const target = window as { __FENRIR__?: DebugGlobal };
-  if (target.__FENRIR__) warn("window.__FENRIR__ now inspects the newest game created with debug: true.");
-  target.__FENRIR__ = { inspect };
+export function inspector(options: InspectorOptions = {}): Plugin {
+  return {
+    name: "fenrir.inspector",
+    install(game) {
+      const impl = game as GameImpl;
+      enableInspect(impl);
+      if (options.global && typeof window !== "undefined") {
+        const target = window as { __FENRIR__?: DebugGlobal };
+        if (target.__FENRIR__) game.logger.warn("window.__FENRIR__ now inspects the newest game with inspector({ global: true }).");
+        target.__FENRIR__ = { inspect: () => game.inspect() };
+      }
+    },
+  };
 }

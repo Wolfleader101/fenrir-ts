@@ -4,6 +4,7 @@ import { EntityBuilder, Schedule, createGame, defineAssets, getAsset, loadAssets
 import { pixi2d } from "@/2d";
 import { NullLogger } from "@/core/NullLogger";
 import type { Entity } from "@/core/ECS";
+import { inspector } from "@/core/Inspect";
 
 /** A Pixi application that looks initialized on `canvas`, without a GPU. */
 function adoptedApplication(canvas: HTMLCanvasElement) {
@@ -54,7 +55,7 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
 
     const canvas = document.createElement("canvas");
     const pixi = pixi2d({ application: adoptedApplication(canvas) });
-    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [pixi] });
+    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [pixi, inspector()] });
     const spawned: Entity[] = [];
     game
       .addSystem(Schedule.PreInit, async function loadBoot(ctx) {

@@ -63,6 +63,17 @@ describe("toJson", () => {
     expect(toJson(new ArrayBuffer(8))).toEqual({ $type: "ArrayBuffer" });
   });
 
+  it("adds a class instance's string label, a name that survives minification", () => {
+    class Node {
+      public children: Node[] = [];
+      public label: string | null = null;
+    }
+    const ship = Object.assign(new Node(), { label: "myGame.ship" });
+    expect(toJson(ship)).toEqual({ $type: "Node", label: "myGame.ship" });
+    expect(toJson(new Node())).toEqual({ $type: "Node" });
+    expect(toJson(Object.assign(new Node(), { label: "" }))).toEqual({ $type: "Node" });
+  });
+
   it("names DOM nodes by their class", () => {
     expect(toJson(document.createElement("canvas"))).toEqual({ $type: "HTMLCanvasElement" });
   });

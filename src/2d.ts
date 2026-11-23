@@ -1,17 +1,25 @@
 /**
  * Fenrir-TS 2D: the `fenrir-ts/2d` entry point. Peer: `pixi.js`.
  *
- * Importing it also adds, for this program:
- * - the 2D EntityBuilder methods (`pixiNode`, `renderSprite`, `renderCircle`, `renderRect`, `renderText`)
- * - the 2D texture methods on AssetStore (`requestTexture2D`, `loadTexture2D`,
- *   `getTexture2D`, `registerTexture2DLoader`) and the default Pixi texture loader
+ * Importing it also adds, for this program, the 2D EntityBuilder methods (`pixiNode`,
+ * `renderSprite`, `renderCircle`, `renderRect`, `renderText`) and the `texture2d` asset kind.
+ * 2D textures load with functions (`requestTexture2D(game.assets, key, url)`), not methods
+ * on AssetStore: nothing patches the store.
  */
 
-// Side effects: patch AssetStore and EntityBuilder.
-import "./core/Assets/Assets2D";
+// Side effects: patch EntityBuilder.
 import "./core/EntityBuilder/extensions/render2DExtensions";
 
 // Asset store: 2D textures
+export {
+  requestTexture2D,
+  loadTexture2D,
+  getTexture2D,
+  registerTexture2DLoader,
+  getSupportedTexture2DExtensions,
+  addPixiTextureLoader,
+  PIXI_TEXTURE_LOADER,
+} from "./core/Assets/Assets2D";
 export type { PixiTextureLoaderConfig, Texture2DHandle, Texture2DState } from "./core/Assets/Assets2D";
 export { createPixiTextureLoader } from "./core/Assets/loaders/pixiTextureLoader";
 

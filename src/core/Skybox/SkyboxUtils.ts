@@ -1,6 +1,7 @@
 // Types only: the Scene skybox members. Setting scene.skybox needs no runtime import of Scene.
 import type {} from "./SceneSkybox";
-import type { AssetKey, IAssetStore } from "../Assets/AssetStore";
+import type { AssetKey } from "../Assets/AssetStore";
+import type { IAssetStore3D } from "../Assets/Assets3D";
 import type { Scene } from "../Scene";
 import {
   type SkyboxDescriptor,
@@ -19,7 +20,7 @@ export class SkyboxUtils {
    */
   static async setupCubemapSkybox(
     scene: Scene,
-    assets: IAssetStore,
+    assets: IAssetStore3D,
     options: {
       basePath?: string;
       faces?: {
@@ -74,7 +75,7 @@ export class SkyboxUtils {
    */
   static async setupHdrSkybox(
     scene: Scene,
-    assets: IAssetStore,
+    assets: IAssetStore3D,
     texturePath: string,
     options: {
       enabled?: boolean;
@@ -99,7 +100,7 @@ export class SkyboxUtils {
    */
   static async setupDefaultSkybox(
     scene: Scene,
-    assets: IAssetStore,
+    assets: IAssetStore3D,
     options: {
       enabled?: boolean;
     } = {},

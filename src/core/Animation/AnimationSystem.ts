@@ -4,7 +4,7 @@ import type { Entity, EntityList } from "../ECS";
 import type { SystemCtx, SyncSystemFn } from "../SystemCtx";
 import { Animation } from "./AnimationComponent";
 import { Renderable } from "../Renderer/renderComponents";
-import type { IAssetStore } from "../Assets/AssetStore";
+import type { IAssetStore3D } from "../Assets/Assets3D";
 import type { ILogger } from "../ILogger";
 import type { ThreeRenderer } from "../Renderer/ThreeRenderer";
 
@@ -15,7 +15,7 @@ type AnimationMixerData = {
 };
 
 export function createAnimationSystem(opts: {
-  assets: IAssetStore;
+  assets: IAssetStore3D;
   logger: ILogger;
   renderer: ThreeRenderer;
 }) {

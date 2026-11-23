@@ -1,5 +1,5 @@
 import type { SandboxContext } from "@/editor/types";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
+import type { IAssetStore3D } from "@/core/Assets/Assets3D";
 import type { ISandboxProvider } from "./interfaces";
 import { Vector3, Quaternion, Color } from "three";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
@@ -7,7 +7,7 @@ import { SkyboxUtils } from "@/core/Skybox";
 
 export interface SandboxPlugin {
   readonly name: string;
-  provide(ctx: SandboxContext, assets: IAssetStore): Record<string, unknown>;
+  provide(ctx: SandboxContext, assets: IAssetStore3D): Record<string, unknown>;
 }
 
 export class SandboxProvider implements ISandboxProvider {
@@ -18,7 +18,7 @@ export class SandboxProvider implements ISandboxProvider {
     return this;
   }
 
-  build(ctx: SandboxContext, assets: IAssetStore): Record<string, unknown> {
+  build(ctx: SandboxContext, assets: IAssetStore3D): Record<string, unknown> {
     let sandbox: Record<string, unknown> = {};
 
     for (const plugin of this.plugins) {

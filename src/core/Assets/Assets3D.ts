@@ -1,10 +1,10 @@
 // 3D models and textures in the asset store. Part of fenrir-ts/3d.
 //
-// Loading this module adds the "model" and "texture3d" kinds to AssetStore: the
-// default glTF and texture loaders, the `modelLoaders` and `textureLoaders`
-// options and the typed methods below.
+// Adds the "model" and "texture3d" kinds to AssetKinds (types only) and AssetStore3D, the
+// store with the default glTF and texture loaders and the typed methods. Nothing here runs at
+// import or patches AssetStore.
 import type * as THREE from "three";
-import { AssetStore, type AssetKey, type AssetKind, type LoaderConfig } from "./AssetStore";
+import { AssetStore, type AssetKey, type AssetKind, type IAssetStore, type LoaderConfig } from "./AssetStore";
 import { createGltfLoader } from "./loaders/gltfLoader";
 import { createTextureLoader } from "./loaders/textureLoader";
 
@@ -25,37 +25,26 @@ declare module "./AssetStore" {
     model: LoadedModel;
     texture3d: THREE.Texture;
   }
+}
 
-  interface AssetStoreConfig {
-    modelLoaders?: { [name: string]: ModelLoaderConfig };
-    textureLoaders?: { [name: string]: TextureLoaderConfig };
-  }
+/** Options for `new AssetStore3D()`: loaders added after the default glTF and texture loaders. */
+export interface AssetStore3DOptions {
+  modelLoaders?: { [name: string]: ModelLoaderConfig };
+  textureLoaders?: { [name: string]: TextureLoaderConfig };
+}
 
-  interface IAssetStore {
-    loadModel(key: AssetKey, url: string): Promise<void>;
-    loadTexture(key: AssetKey, url: string): Promise<void>;
-    getGeometry(key: AssetKey): Promise<THREE.Object3D>;
-    getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
-    getMaterials(key: AssetKey): Promise<THREE.Material[]>;
-    getTexture(key: AssetKey): Promise<THREE.Texture>;
-    registerModelLoader(name: string, config: ModelLoaderConfig): void;
-    registerTextureLoader(name: string, config: TextureLoaderConfig): void;
-    getSupportedModelExtensions(): string[];
-    getSupportedTextureExtensions(): string[];
-  }
-
-  interface AssetStore {
-    loadModel(key: AssetKey, url: string): Promise<void>;
-    loadTexture(key: AssetKey, url: string): Promise<void>;
-    getGeometry(key: AssetKey): Promise<THREE.Object3D>;
-    getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
-    getMaterials(key: AssetKey): Promise<THREE.Material[]>;
-    getTexture(key: AssetKey): Promise<THREE.Texture>;
-    registerModelLoader(name: string, config: ModelLoaderConfig): void;
-    registerTextureLoader(name: string, config: TextureLoaderConfig): void;
-    getSupportedModelExtensions(): string[];
-    getSupportedTextureExtensions(): string[];
-  }
+/** The asset store as the 3D renderer, camera, skybox and animation systems see it. */
+export interface IAssetStore3D extends IAssetStore {
+  loadModel(key: AssetKey, url: string): Promise<void>;
+  loadTexture(key: AssetKey, url: string): Promise<void>;
+  getGeometry(key: AssetKey): Promise<THREE.Object3D>;
+  getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
+  getMaterials(key: AssetKey): Promise<THREE.Material[]>;
+  getTexture(key: AssetKey): Promise<THREE.Texture>;
+  registerModelLoader(name: string, config: ModelLoaderConfig): void;
+  registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+  getSupportedModelExtensions(): string[];
+  getSupportedTextureExtensions(): string[];
 }
 
 const MODEL = "model" satisfies AssetKind;
@@ -71,87 +60,79 @@ function isModel(asset: unknown): asset is LoadedModel {
   );
 }
 
-async function getModel(store: AssetStore, key: AssetKey): Promise<LoadedModel> {
-  const asset = await store.get(key);
-  if (isModel(asset)) return asset;
-  throw new Error(`Asset "${key}" is not a model`);
-}
+/**
+ * An asset store with the 3D kinds: the default glTF model loader and texture loader, then the
+ * loaders in `options`, are registered when it is constructed. `bootstrapEngine` builds one.
+ * A subclass rather than methods added to `AssetStore`, so a 2D or core game ships none of it.
+ */
+export class AssetStore3D extends AssetStore implements IAssetStore3D {
+  constructor(options: AssetStore3DOptions = {}) {
+    super();
+    this.registerModelLoader("gltf", {
+      loader: createGltfLoader(),
+      extensions: ["glb", "gltf"],
+    });
+    this.registerTextureLoader("texture", {
+      loader: createTextureLoader(),
+      extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
+    });
+    for (const [name, loaderConfig] of Object.entries(options.modelLoaders ?? {})) {
+      this.registerModelLoader(name, loaderConfig);
+    }
+    for (const [name, loaderConfig] of Object.entries(options.textureLoaders ?? {})) {
+      this.registerTextureLoader(name, loaderConfig);
+    }
+  }
 
-const methods: Pick<
-  AssetStore,
-  | "loadModel"
-  | "loadTexture"
-  | "getGeometry"
-  | "getAnimations"
-  | "getMaterials"
-  | "getTexture"
-  | "registerModelLoader"
-  | "registerTextureLoader"
-  | "getSupportedModelExtensions"
-  | "getSupportedTextureExtensions"
-> = {
-  registerModelLoader(this: AssetStore, name, config) {
+  registerModelLoader(name: string, config: ModelLoaderConfig): void {
     this.registerLoader(MODEL, name, config, "model");
-  },
+  }
 
-  registerTextureLoader(this: AssetStore, name, config) {
+  registerTextureLoader(name: string, config: TextureLoaderConfig): void {
     this.registerLoader(TEXTURE, name, config, "texture");
-  },
+  }
 
-  getSupportedModelExtensions(this: AssetStore) {
+  getSupportedModelExtensions(): string[] {
     return this.getSupportedExtensions(MODEL);
-  },
+  }
 
-  getSupportedTextureExtensions(this: AssetStore) {
+  getSupportedTextureExtensions(): string[] {
     return this.getSupportedExtensions(TEXTURE);
-  },
+  }
 
-  async loadModel(this: AssetStore, key, url) {
+  async loadModel(key: AssetKey, url: string): Promise<void> {
     const loader = this.resolveLoader(MODEL, url, "model");
     const promise = loader({ url });
     this.setAsset(key, MODEL, promise);
     await promise;
-  },
+  }
 
-  async loadTexture(this: AssetStore, key, url) {
+  async loadTexture(key: AssetKey, url: string): Promise<void> {
     const loader = this.resolveLoader(TEXTURE, url, "texture");
     const promise = loader({ url });
     this.setAsset(key, TEXTURE, promise);
     await promise;
-  },
+  }
 
-  async getGeometry(this: AssetStore, key) {
-    return (await getModel(this, key)).geometry;
-  },
+  async getGeometry(key: AssetKey): Promise<THREE.Object3D> {
+    return (await this.getModel(key)).geometry;
+  }
 
-  async getAnimations(this: AssetStore, key) {
-    return [...(await getModel(this, key)).animations]; // Return copy of array
-  },
+  async getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]> {
+    return [...(await this.getModel(key)).animations]; // Return copy of array
+  }
 
-  async getMaterials(this: AssetStore, key) {
-    return [...(await getModel(this, key)).materials]; // Return copy of array
-  },
+  async getMaterials(key: AssetKey): Promise<THREE.Material[]> {
+    return [...(await this.getModel(key)).materials]; // Return copy of array
+  }
 
-  getTexture(this: AssetStore, key) {
+  getTexture(key: AssetKey): Promise<THREE.Texture> {
     return this.get(key, TEXTURE, "texture");
-  },
-};
-
-Object.assign(AssetStore.prototype, methods);
-
-AssetStore.addInstaller((store, config) => {
-  store.registerModelLoader("gltf", {
-    loader: createGltfLoader(),
-    extensions: ["glb", "gltf"],
-  });
-  store.registerTextureLoader("texture", {
-    loader: createTextureLoader(),
-    extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
-  });
-  for (const [name, loaderConfig] of Object.entries(config.modelLoaders ?? {})) {
-    store.registerModelLoader(name, loaderConfig);
   }
-  for (const [name, loaderConfig] of Object.entries(config.textureLoaders ?? {})) {
-    store.registerTextureLoader(name, loaderConfig);
+
+  private async getModel(key: AssetKey): Promise<LoadedModel> {
+    const asset = await this.get(key);
+    if (isModel(asset)) return asset;
+    throw new Error(`Asset "${key}" is not a model`);
   }
-});
+}

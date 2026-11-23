@@ -468,14 +468,14 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
-  it("inspects a game as JSON and exposes it on window.__FENRIR__ with debug", async () => {
-    const { createGame, defineComponent, defineResource, NullLogger, Schedule } = core;
+  it("inspects a game as JSON and exposes it on window.__FENRIR__ with inspector({ global: true })", async () => {
+    const { createGame, defineComponent, defineResource, inspector, NullLogger, Schedule } = core;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const Score = defineResource("publicApi.inspect.Score", () => new Map([["ana", 3]]));
     const Speed = defineComponent<{ value: number }>("publicApi.inspect.Speed");
 
-    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger(), debug: true });
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger(), plugins: [inspector({ global: true })] });
     game.addSystem(Schedule.Init, function spawn({ entities, resources }) {
       entities.set(entities.createEntity(), Speed, { value: 2 });
       resources.get(Score);
@@ -495,6 +495,12 @@ describe("fenrir-ts core public API", () => {
     expect((window as { __FENRIR__?: { inspect(): unknown } }).__FENRIR__!.inspect()).toEqual(snapshot);
     await game.stop();
     delete (window as { __FENRIR__?: unknown }).__FENRIR__;
+  });
+
+  it("throws from inspect() on a game without inspector(), naming the plugin", async () => {
+    const { createGame, NullLogger } = core;
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
+    expect(() => game.inspect()).toThrow(/inspector\(\)/);
   });
 });
 

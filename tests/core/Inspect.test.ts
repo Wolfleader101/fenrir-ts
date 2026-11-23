@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGame, type Game } from "@/core/Game";
 import { createTestGame } from "@/core/TestGame";
-import type { GameSnapshot } from "@/core/Inspect";
+import { inspector, type GameSnapshot } from "@/core/Inspect";
 import { defineComponent } from "@/core/ECS/Component";
 import { Name } from "@/core/ECS/DefaultComponents";
 import { NullLogger } from "@/core/NullLogger";
@@ -37,8 +37,8 @@ function runFrames(count: number): void {
 }
 
 const roundTrip = (snapshot: GameSnapshot): unknown => JSON.parse(JSON.stringify(snapshot));
-const newGame = (options: { debug?: boolean; logger?: ILogger } = {}): Promise<Game> =>
-  createGame({ canvas: document.createElement("canvas"), logger: new NullLogger(), ...options });
+const newGame = ({ global, logger = new NullLogger() }: { global?: boolean; logger?: ILogger } = {}): Promise<Game> =>
+  createGame({ canvas: document.createElement("canvas"), logger, plugins: [inspector({ global })] });
 
 // A Pixi-like display object: a class whose fields are not all primitives.
 class Container {
@@ -303,10 +303,10 @@ describe("inspect on a test game", () => {
   });
 });
 
-describe("createGame({ debug })", () => {
-  it("puts inspect on window.__FENRIR__ with debug: true", async () => {
+describe("inspector({ global })", () => {
+  it("puts inspect on window.__FENRIR__ with global: true", async () => {
     const game = await smallGame();
-    const debugGame = await newGame({ debug: true });
+    const debugGame = await newGame({ global: true });
     debugGame.resources.set(Level, 9);
     expect(window.__FENRIR__!.inspect()).toEqual(debugGame.inspect());
     expect(window.__FENRIR__!.inspect().resources).toEqual({ "test.inspect.Level": 9 });
@@ -318,11 +318,11 @@ describe("createGame({ debug })", () => {
     expect(window.__FENRIR__).toBeUndefined();
   });
 
-  it("gives window.__FENRIR__ to the last debug game created, with a warning, and keeps it after stop", async () => {
+  it("gives window.__FENRIR__ to the last game installed with global: true, with a warning, and keeps it after stop", async () => {
     const logger = { ...new NullLogger(), warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as ILogger;
-    const first = await newGame({ debug: true });
+    const first = await newGame({ global: true });
     first.resources.set(Level, 1);
-    const second = await newGame({ debug: true, logger });
+    const second = await newGame({ global: true, logger });
     second.resources.set(Level, 2);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("window.__FENRIR__"));
     expect(window.__FENRIR__!.inspect().resources["test.inspect.Level"]).toBe(2);
@@ -341,9 +341,20 @@ describe("createGame({ debug })", () => {
     expect(two.inspect().resources).toEqual({ "test.inspect.Level": 2 });
   });
 
+  it("makes inspect() throw, naming the plugin, on a game without it", async () => {
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
+    expect(() => game.inspect()).toThrow("game.inspect() needs the inspector() plugin");
+  });
+
+  it("installs in a test game, which has inspect() already", async () => {
+    const plain = await createTestGame({ seed: 1 });
+    const withPlugin = await createTestGame({ seed: 1, plugins: [inspector()] });
+    expect(withPlugin.inspect()).toEqual(plain.inspect());
+  });
+
   it("does nothing where there is no window", async () => {
     vi.stubGlobal("window", undefined);
-    const game = await newGame({ debug: true });
+    const game = await newGame({ global: true });
     expect(game.inspect().frame).toBe(0);
     vi.unstubAllGlobals();
     expect(window.__FENRIR__).toBeUndefined();

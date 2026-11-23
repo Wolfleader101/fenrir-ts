@@ -3,8 +3,7 @@
 import { expectTypeOf } from "vitest";
 import type { Texture } from "pixi.js";
 import { AssetStore, assetKey, type Asset, type AssetKind, type AssetLoader, type IAssetStore } from "fenrir-ts";
-import type { Texture2DHandle } from "fenrir-ts/2d";
-import "fenrir-ts/2d";
+import { getTexture2D, requestTexture2D, type Texture2DHandle } from "fenrir-ts/2d";
 
 const store = new AssetStore();
 const key = assetKey("hero");
@@ -16,9 +15,11 @@ expectTypeOf(store.get(key, "texture2d")).toEqualTypeOf<Promise<Texture>>();
 expectTypeOf(store.peek(key, "texture2d")).toEqualTypeOf<Promise<Texture> | undefined>();
 expectTypeOf(store.kindOf(key)).toEqualTypeOf<"texture2d" | undefined>();
 expectTypeOf(store.resolveLoader("texture2d", "hero.png")).toEqualTypeOf<AssetLoader<Texture>>();
-expectTypeOf(store.getTexture2D(key)).toEqualTypeOf<Promise<Texture>>();
-expectTypeOf(store.requestTexture2D(key, "hero.png")).toEqualTypeOf<Texture2DHandle>();
-expectTypeOf<ReturnType<IAssetStore["getTexture2D"]>>().toEqualTypeOf<Promise<Texture>>();
+expectTypeOf(getTexture2D(store, key)).toEqualTypeOf<Promise<Texture>>();
+expectTypeOf(requestTexture2D(store, key, "hero.png")).toEqualTypeOf<Texture2DHandle>();
+expectTypeOf<ReturnType<IAssetStore["get"]>>().toEqualTypeOf<Promise<Texture>>();
+// @ts-expect-error 2D textures load with functions: nothing adds methods to AssetStore
+void store.requestTexture2D(key, "hero.png");
 
 declare const texture: Texture;
 store.setAsset(key, "texture2d", Promise.resolve(texture));

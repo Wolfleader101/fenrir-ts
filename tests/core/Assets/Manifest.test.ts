@@ -16,6 +16,7 @@ import { Schedule } from "@/core/Scheduler";
 import { createTestGame, type TestGame } from "@/core/TestGame";
 import type { SystemCtx } from "@/core/SystemCtx";
 import "@/core/Assets/Assets2D";
+import { addPixiTextureLoader, getTexture2D, registerTexture2DLoader } from "@/core/Assets/Assets2D";
 
 /** A stand-in texture: the manifest only passes values through. */
 const texture = (label: string) => ({ label }) as unknown as Texture;
@@ -198,7 +199,7 @@ describe("loading a bundle", () => {
     await fake.resolve("logo");
     await fake.resolve("rock");
     await loading;
-    await expect(game.assets.getTexture2D("logo")).resolves.toEqual(texture("logo"));
+    await expect(getTexture2D(game.assets, "logo")).resolves.toEqual(texture("logo"));
     expect(game.assets.kindOf("logo")).toBe("texture2d");
   });
 
@@ -326,7 +327,7 @@ describe("failures", () => {
     await loading;
 
     expect(getAsset(game, GameAssets, "reef")).toEqual(texture("missing"));
-    await expect(game.assets.getTexture2D("reef")).resolves.toEqual(texture("missing"));
+    await expect(getTexture2D(game.assets, "reef")).resolves.toEqual(texture("missing"));
     expect(progressOf(game).assets.reef).toEqual({ status: "fallback", error: "404 Not Found", bundles: ["reef"] });
     expect(progressOf(game).bundles.reef).toEqual({ status: "loaded", loaded: 3, failed: 0, total: 3, fraction: 1 });
     expect(loadedEvents).toEqual([{ manifest: "test.assets", bundle: "reef", fallbacks: ["reef"] }]);
@@ -351,10 +352,18 @@ describe("failures", () => {
 
   it("fails an asset whose kind has no loader for its extension, naming the supported ones", async () => {
     const game = await createTestGame({ seed: 1, logger: new NullLogger() });
+    // pixi2d registers this loader when it installs; a test game has no pixi2d.
+    addPixiTextureLoader(game.assets);
     const Odd = defineAssets("test.odd", { assets: { sheet: { kind: "texture2d", src: "sheet.tga" } }, bundles: { boot: ["sheet"] } });
     await expect(loadAssets(game, Odd, "boot")).rejects.toThrow(
       'asset "sheet" from "sheet.tga": Unsupported texture2d format: .tga. Supported extensions: bmp, gif, jpeg, jpg, png, webp',
     );
+  });
+
+  it("fails a texture2d asset in a store no 2D loader is registered on, since nothing adds one at import", async () => {
+    const game = await createTestGame({ seed: 1, logger: new NullLogger() });
+    const Plain = defineAssets("test.plain", { assets: { logo: { kind: "texture2d", src: "logo.png" } }, bundles: { boot: ["logo"] } });
+    await expect(loadAssets(game, Plain, "boot")).rejects.toThrow("Unsupported texture2d format: .png. Supported extensions: ");
   });
 });
 
@@ -375,7 +384,7 @@ describe("unloading", () => {
     expect(fake.unloaded.sort()).toEqual(["missing", "reef"]);
     expect(getAsset(game, GameAssets, "logo")).toEqual(texture("logo"));
     expect(() => getAsset(game, GameAssets, "reef")).toThrow('getAsset: "reef" of test.assets is not loaded. Load a bundle that lists it: reef.');
-    await expect(game.assets.getTexture2D("reef")).rejects.toThrow("Asset not loaded: reef");
+    await expect(getTexture2D(game.assets, "reef")).rejects.toThrow("Asset not loaded: reef");
     expect(progressOf(game).bundles.reef.status).toBe("unloaded");
     expect(progressOf(game).assets.logo.bundles).toEqual(["boot"]);
     expect(progressOf(game)).toMatchObject({ loaded: 2, total: 2 });
@@ -427,7 +436,7 @@ describe("unloading", () => {
     const game = await createTestGame({ seed: 1, logger: new NullLogger() });
     const unload = vi.fn();
     const sheet = texture("sheet");
-    game.assets.registerTexture2DLoader("test-sheet", { loader: async () => sheet, extensions: ["sheet"], unload });
+    registerTexture2DLoader(game.assets, "test-sheet", { loader: async () => sheet, extensions: ["sheet"], unload });
     const Sheets = defineAssets("test.sheets", { assets: { hud: { kind: "texture2d", src: "hud.sheet" } }, bundles: { hud: ["hud"] } });
     await loadAssets(game, Sheets, "hud");
     expect(getAsset(game, Sheets, "hud")).toBe(sheet);

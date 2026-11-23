@@ -1,5 +1,5 @@
 import type { Engine } from "./Engine.ts";
-import { AssetStore } from "./Assets/AssetStore.ts";
+import { AssetStore3D } from "./Assets/Assets3D.ts";
 import "./Assets/Assets3D.ts";
 import { createObjLoader } from "./Assets/loaders/objLoader.ts";
 import { createHdrTextureLoader } from "./Assets/loaders/hdrTextureLoader.ts";
@@ -39,7 +39,7 @@ export type BootstrapConfig = {
 };
 
 export type BootstrapResult = {
-  assets: AssetStore;
+  assets: AssetStore3D;
   systems: {
     input: ReturnType<typeof createInputStateSystem>;
     renderer: ReturnType<typeof createThreeRendererSystem>;
@@ -81,7 +81,7 @@ export function bootstrapEngine(
   logger.info("🚀 Bootstrapping engine systems...");
 
   // Create AssetStore with enhanced loaders
-  const assets = new AssetStore({
+  const assets = new AssetStore3D({
     modelLoaders: {
       obj: {
         loader: createObjLoader(),

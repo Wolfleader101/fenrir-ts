@@ -12,7 +12,7 @@ import { SceneManager } from "./SceneManager";
 import { Scheduler } from "./Scheduler";
 import { GameStates } from "./State";
 import { InputImpl } from "./Input/Input";
-import { exposeDebugGlobal, inspectGame, type GameSnapshot } from "./Inspect";
+import type { GameSnapshot } from "./Inspect";
 import type { StateType, States } from "./State";
 import type { AsyncStage, ScheduleStage, SyncStage, SystemOptions } from "./Scheduler";
 import type { AsyncSystemFn, GameServices, SyncSystemFn } from "./SystemCtx";
@@ -48,11 +48,6 @@ export interface GameOptions {
    * the sequence; it does not restart it.
    */
   seed?: number;
-  /**
-   * Puts `inspect` on `window.__FENRIR__` for browser tests and agents. Off by default. With two
-   * debug games on one page, the last one created owns it. It stays after the game stops.
-   */
-  debug?: boolean;
 }
 
 /**
@@ -114,7 +109,8 @@ export interface GameBase extends GameServices {
 
   /**
    * What the game is doing, as plain JSON: frame, time, schedule, states, resources and the active
-   * scene's entities. Works before the game runs, while paused and after `stop()`; never throws.
+   * scene's entities. Needs the `inspector()` plugin, and throws without it; a test game has it
+   * already. Works before the game runs, while paused and after `stop()`, and then never throws.
    * The serialisation rules are in README.md under "Inspecting a game".
    */
   inspect(): GameSnapshot;
@@ -141,6 +137,8 @@ export class GameImpl implements Game {
   declare public readonly states: States;
   declare public readonly input: GameServices["input"];
   protected readonly engine: Engine;
+  /** Set by the `inspector()` plugin. Without it `inspect()` throws, and no snapshot code ships. */
+  public inspector?: () => GameSnapshot;
   private readonly target?: HTMLCanvasElement;
 
   constructor(
@@ -225,7 +223,8 @@ export class GameImpl implements Game {
   }
 
   public inspect(): GameSnapshot {
-    return inspectGame(this.engine, gameStates(this), this.resources);
+    if (!this.inspector) throw new Error("game.inspect() needs the inspector() plugin: add inspector() from fenrir-ts to plugins.");
+    return this.inspector();
   }
 }
 
@@ -254,7 +253,6 @@ export async function createGame(options: GameOptions): Promise<Game> {
   (services.input as InputImpl).canvas = options.canvas;
 
   const game = new GameImpl(options, services, { clock });
-  if (options.debug) exposeDebugGlobal(() => game.inspect(), (message) => game.logger.warn(message));
   await installPlugins(game, options.plugins, "createGame");
   return game;
 }
