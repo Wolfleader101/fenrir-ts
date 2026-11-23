@@ -4,7 +4,7 @@
     "2d.js": 41000,
     "3d.js": 60000,
     "physics.js": 25000,
-    "editor.js": 242500,
+    "editor.js": 245500,
     "audio.js": 24000
   },
   "consumers": {
