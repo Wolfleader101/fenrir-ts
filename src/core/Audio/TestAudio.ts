@@ -10,6 +10,8 @@ export interface PlayedSound {
   loop: boolean;
   /** True for a synthesized sound. Its synth is not run: there is no context. */
   synth: boolean;
+  /** The synth's parameters for this play: the sound's `params` with the play's laid over them. `{}` for a sample. */
+  params: Record<string, unknown>;
   /** True once it ended on its own (`finish`) or was stopped. */
   ended: boolean;
   /** The fade it was stopped with, or null while it plays or when it ended on its own. */
@@ -71,8 +73,8 @@ export function testAudio(options: TestAudioOptions = {}): TestAudio {
     setVolume(bus, volume) {
       volumes[bus ?? "master"] = volume;
     },
-    play({ sound, bus, synth, volume, rate, loop }) {
-      const entry: PlayedSound = { sound, bus, volume, rate, loop, synth: synth !== null, ended: false, fade: null };
+    play({ sound, bus, synth, params, volume, rate, loop }) {
+      const entry: PlayedSound = { sound, bus, volume, rate, loop, synth: synth !== null, params: { ...params }, ended: false, fade: null };
       played.push(entry);
       const voice = {
         onended: null as (() => void) | null,

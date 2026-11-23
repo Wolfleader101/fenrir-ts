@@ -1,7 +1,19 @@
-// game-2d.js plus storage: the storage() plugin, a setting read at startup and a best score
-// with a parser, updated as the game scores. Its size minus game-2d's is what storage costs a
+// game-2d.js plus storage: the storage() plugin, a setting read at startup, a best score
+// with a parser, updated as the game scores, a key family and a resource field bound to a key. Its size minus game-2d's is what storage costs a
 // game. Bundled, never run.
-import { EntityBuilder, Schedule, createGame, defineEvent, defineStorageKey, getStored, storage, updateStored } from "fenrir-ts";
+import {
+  EntityBuilder,
+  Schedule,
+  createGame,
+  defineEvent,
+  defineResource,
+  defineStorageKey,
+  defineStorageKeyFamily,
+  getStored,
+  persistResource,
+  storage,
+  updateStored,
+} from "fenrir-ts";
 import { Transform2D, pixi2d } from "fenrir-ts/2d";
 import { Graphics } from "pixi.js";
 
@@ -12,8 +24,13 @@ const Best = defineStorageKey("fixture.best", {
   parse: (value) => (typeof value === "object" && value !== null && typeof value.score === "number" ? { score: value.score } : undefined),
 });
 
+const Plays = defineStorageKeyFamily("fixture.plays.", { default: 0 });
+const Settings = defineResource("fixture.Settings", () => ({ hints: true }));
+const Hints = defineStorageKey("fixture.hints", { default: true });
+
 const canvas = document.querySelector("canvas");
 const game = await createGame({ canvas, plugins: [storage(), pixi2d({ layers: ["world", "ui"] })] });
+persistResource(game, Settings, "hints", Hints);
 const scored = game.events.createReader(Scored);
 const MOVING = [Transform2D];
 
@@ -31,7 +48,8 @@ game
   .addSystem(Schedule.Update, function logScore(ctx) {
     for (const { points } of scored.read()) {
       const best = updateStored(ctx, Best, ({ score }) => ({ score: score + points }));
-      ctx.logger.info("scored", { points, best: best.score });
+      const plays = updateStored(ctx, Plays(String(points)), (n) => n + 1);
+      ctx.logger.info("scored", { points, best: best.score, plays });
     }
   }, { after: "score" });
 

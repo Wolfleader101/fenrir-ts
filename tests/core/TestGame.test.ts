@@ -153,6 +153,16 @@ describe("TestGame.step", () => {
     await game.stop();
   });
 
+  it("takes maxFrameDelta, clamping step(dt) to it, and rejects one that is not a positive finite number", async () => {
+    const game = await createTestGame({ seed: 1, logger, maxFrameDelta: 1 / 20 });
+    await game.start();
+    game.step(1 / 20);
+    expect(() => game.step(0.1)).toThrow("step(dt) runs one frame of 0 to 0.05 s (the frame-delta clamp), got 0.1.");
+    await game.stop();
+    await expect(createTestGame({ seed: 1, logger, maxFrameDelta: 0 })).rejects.toThrow(/maxFrameDelta must be a positive finite number/);
+    await expect(createTestGame({ seed: 1, logger, maxFrameDelta: Infinity })).rejects.toThrow(/maxFrameDelta must be a positive finite number/);
+  });
+
   it("throws before start and after stop, saying to start", async () => {
     const game = await createTestGame({ seed: 1, logger });
     expect(() => game.step()).toThrow("step(dt) needs a started game. Await start() first");
@@ -267,6 +277,30 @@ describe("Game.step", () => {
     await game.run();
     expect(() => game.step()).toThrow("step(dt) runs only while the game is paused. Call pause() first");
     await game.stop();
+  });
+
+  it("clamps a long browser frame to createGame's maxFrameDelta, 0.25 s by default", async () => {
+    const frame = stubFrames();
+    const now = vi.spyOn(performance, "now").mockReturnValue(1_000);
+    const deltas: number[] = [];
+    const record = function record({ time }: { time: { delta: number } }) { deltas.push(time.delta); };
+    const capped = await createGame({ canvas: document.createElement("canvas"), logger, maxFrameDelta: 1 / 20 });
+    capped.addSystem(Schedule.Update, record);
+    await capped.run();
+    // The regression: a stall of a second moved the game 0.25 s, with no way to ask for less.
+    now.mockReturnValue(2_000);
+    frame();
+    expect(deltas).toEqual([1 / 20]);
+    await capped.stop();
+
+    const plain = await createGame({ canvas: document.createElement("canvas"), logger });
+    plain.addSystem(Schedule.Update, record);
+    await plain.run();
+    now.mockReturnValue(4_000);
+    frame();
+    expect(deltas).toEqual([1 / 20, 0.25]);
+    await plain.stop();
+    await expect(createGame({ canvas: document.createElement("canvas"), logger, maxFrameDelta: -1 })).rejects.toThrow(/maxFrameDelta must be a positive finite number/);
   });
 
   it("advances a paused game by dt whatever the real time, rendering each frame, and resumes cleanly", async () => {

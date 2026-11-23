@@ -49,6 +49,13 @@ export interface GameOptions {
    */
   seed?: number;
   /**
+   * The longest frame the game simulates, in seconds: `time.delta` is clamped to it, so a frame
+   * after a stall (a background tab, a debugger, a slow device) moves the game this much at most,
+   * and `step(dt)` throws above it. Defaults to 0.25. A game whose motion must never jump far
+   * sets a smaller cap, such as `1 / 20`. A positive finite number; anything else throws.
+   */
+  maxFrameDelta?: number;
+  /**
    * Puts `inspect` on `window.__FENRIR__` for browser tests and agents. Off by default. With two
    * debug games on one page, the last one created owns it. It stays after the game stops.
    */
@@ -88,7 +95,7 @@ export interface GameBase extends GameServices {
    * most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then
    * the event buffers advance. Fixed ticks accumulate from `dt` exactly.
    *
-   * `dt` is at most 0.25 s, the frame-delta clamp; a longer `dt` throws rather than silently
+   * `dt` is at most `maxFrameDelta` (0.25 s by default), the frame-delta clamp; a longer `dt` throws rather than silently
    * simulating less: write `step(1 / 60, 60)` for a second. On a `Game`, `step` runs only while
    * paused (`pause()` first) and advances by `dt` whatever the real time; the game's systems
    * all run, so a renderer draws each stepped frame. On a `TestGame`, it runs after `start()`.
@@ -144,7 +151,7 @@ export class GameImpl implements Game {
   private readonly target?: HTMLCanvasElement;
 
   constructor(
-    options: Omit<GameOptions, "canvas"> & { canvas?: HTMLCanvasElement },
+    options: Omit<GameOptions, "canvas" | "seed"> & { canvas?: HTMLCanvasElement },
     services: GameServices,
     engineOptions: Pick<EngineOptions, "clock" | "loop" | "beforeStep">,
   ) {
@@ -158,6 +165,7 @@ export class GameImpl implements Game {
       events: this.events,
       logger: this.logger,
       services,
+      maxFrameDelta: options.maxFrameDelta,
       ...engineOptions,
     });
   }

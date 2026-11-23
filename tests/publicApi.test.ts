@@ -199,7 +199,7 @@ describe("fenrir-ts core public API", () => {
     expect(ctx.entities.get(entity, Transform2D).x).toBe(2.5);
     const tween: Tween = ctx.entities.get(entity, Tweens)["fenrir.Transform2D:x"]!;
     expect(tween).toMatchObject({ component: "fenrir.Transform2D", ease: "publicApi.half", elapsed: 0.25 });
-    expect(game.inspect().resources["fenrir.MotionSettings"]).toEqual({ paused: {}, reducedMotion: false });
+    expect(game.inspect().resources["fenrir.MotionSettings"]).toEqual({ paused: {}, pausedAll: false, reducedMotion: false });
     expect(game.inspect().schedule.preUpdate).toEqual(["fenrir.motion.preUpdate"]);
     game.resources.get(MotionSettings).reducedMotion = true;
     game.step(0);
@@ -266,6 +266,34 @@ describe("fenrir-ts core public API", () => {
       lastError: { key: "publicApi.muted", message: expect.stringContaining("invalid value") },
     });
     expect(game.resources.get(StorageStatus).persistent).toBe(true);
+  });
+
+  it("closes the gaps a first consumer found: key families, lazy migration, resource binding, has, pausedAll, maxFrameDelta", async () => {
+    const { MotionSettings, Schedule, createTestGame, defineResource, defineStorageKey, defineStorageKeyFamily, getStored, memoryStorage, motion, persistResource, setStored, storage, NullLogger } = core;
+    const Best = defineStorageKeyFamily("publicApi.best.", { default: 0, version: 2, migrate: (v) => v, writeMigrated: false });
+    expectTypeOf(Best("reef")).toEqualTypeOf<import("@/index").StorageKey<number>>();
+    expect(Best("reef")).toBe(Best("reef"));
+    const Settings = defineResource("publicApi.Settings", () => ({ hints: true }));
+    const Hints = defineStorageKey("publicApi.hints", { default: true });
+    const backend = memoryStorage({ "publicApi.best.reef": "7", "publicApi.hints": '{"v":1,"value":false}' });
+    const game = await createTestGame({ seed: 1, logger: new NullLogger(), maxFrameDelta: 0.1, plugins: [storage({ backend }), motion()] });
+    expect(game.resources.has(Settings)).toBe(false);
+    persistResource(game, Settings, "hints", Hints);
+    expect(game.resources.get(Settings).hints).toBe(false);
+    expect(getStored(game, Best("reef"))).toBe(7);
+    expect(backend.items.get("publicApi.best.reef")).toBe("7");
+    setStored(game, Best("reef"), 6);
+    expect(backend.items.get("publicApi.best.reef")).toBe('{"v":2,"value":6}');
+    game.addSystem(Schedule.PreUpdate, function pause({ resources }) {
+      resources.get(MotionSettings).pausedAll = true;
+    }, { before: "fenrir.motion.preUpdate" });
+    await game.start();
+    game.resources.get(Settings).hints = true;
+    game.step(0.1);
+    expect(() => game.step(0.2)).toThrow(/0 to 0.1 s/);
+    expect(backend.items.get("publicApi.hints")).toBe('{"v":1,"value":true}');
+    expect(game.inspect().resources["fenrir.MotionSettings"]).toMatchObject({ pausedAll: true });
+    await game.stop();
   });
 
   it("ships no skybox members on Scene: fenrir-ts/3d adds them (#66)", () => {

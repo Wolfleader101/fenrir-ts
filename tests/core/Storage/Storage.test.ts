@@ -3,11 +3,16 @@ import { createTestGame } from "@/core/TestGame";
 import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Schedule";
 import type { ILogger } from "@/core/ILogger";
+import { defineResource } from "@/core/Resource";
+import { AudioState, audio } from "@/core/Audio/Audio";
+import { testAudio } from "@/core/Audio/TestAudio";
 import {
   StorageStatus,
   defineStorageKey,
+  defineStorageKeyFamily,
   getStored,
   memoryStorage,
+  persistResource,
   removeStored,
   setStored,
   storage,
@@ -245,5 +250,196 @@ describe("storage() plugin", () => {
 
   it("rejects a version that is not a whole number above 0", () => {
     expect(() => defineStorageKey("test.bad", { default: 1, version: 0 })).toThrow(/whole number, 1 or more/);
+  });
+
+  describe("writeMigrated: false", () => {
+    const LazyBest = defineStorageKey<Best>("test.best", {
+      default: { score: 0, level: 1 },
+      version: 2,
+      parse: (v) => (isRecord(v) && typeof v.score === "number" && typeof v.level === "number" ? { score: v.score, level: v.level } : undefined),
+      migrate: (v, from) => (from < 2 && typeof v === "number" ? { score: v, level: 1 } : v),
+      writeMigrated: false,
+    });
+
+    it("keeps the migrated value in memory and the old one stored until the game writes", async () => {
+      const backend = memoryStorage({ "test.best": envelope(1, 40) });
+      const game = await gameWith(backend);
+      expect(getStored(game, LazyBest)).toEqual({ score: 40, level: 1 });
+      // The regression: an eager key has already overwritten version 1 here, so an older build could no longer read it.
+      expect(backend.items.get("test.best")).toBe(envelope(1, 40));
+      expect(updateStored(game, LazyBest, (best) => ({ ...best, score: best.score + 1 }))).toEqual({ score: 41, level: 1 });
+      expect(backend.items.get("test.best")).toBe(envelope(2, { score: 41, level: 1 }));
+    });
+
+    it("migrates again in each session until then", async () => {
+      const backend = memoryStorage({ "test.best": "75" });
+      expect(getStored(await gameWith(backend), LazyBest)).toEqual({ score: 75, level: 1 });
+      expect(getStored(await gameWith(backend), LazyBest)).toEqual({ score: 75, level: 1 });
+      expect(backend.items.get("test.best")).toBe("75");
+    });
+
+    it("is off by default, and only set on keys that ask for it", () => {
+      expect(Best).not.toHaveProperty("writeMigrated");
+      expect(LazyBest.writeMigrated).toBe(false);
+      expect(defineStorageKey("test.eager", { default: 0, writeMigrated: true })).not.toHaveProperty("writeMigrated");
+    });
+  });
+});
+
+describe("defineStorageKeyFamily", () => {
+  const BestTime = defineStorageKeyFamily("test.bestTime.", { default: 0 });
+
+  it("makes one key per suffix, named prefix + suffix, the same object each time", async () => {
+    const backend = memoryStorage();
+    const game = await gameWith(backend);
+    expect(BestTime("reef")).toBe(BestTime("reef"));
+    expect(BestTime("reef")).not.toBe(BestTime("deep"));
+    expect(BestTime("reef").name).toBe("test.bestTime.reef");
+    expect(BestTime.prefix).toBe("test.bestTime.");
+    setStored(game, BestTime("reef"), 42.5);
+    expect(getStored(game, BestTime("deep"))).toBe(0);
+    expect([...backend.items]).toEqual([["test.bestTime.reef", envelope(1, 42.5)]]);
+  });
+
+  it("shares parse, version and migrate across the family", async () => {
+    const Scores = defineStorageKeyFamily<number[]>("test.scores.", {
+      default: [],
+      version: 2,
+      parse: (v) => (Array.isArray(v) && v.every((n) => typeof n === "number") ? v : undefined),
+      migrate: (v, from) => (from < 2 && typeof v === "number" ? [v] : v),
+    });
+    const game = await gameWith(memoryStorage({ "test.scores.a": envelope(1, 3), "test.scores.b": envelope(2, ["x"]) }));
+    expect(getStored(game, Scores("a"))).toEqual([3]);
+    expect(getStored(game, Scores("b"))).toEqual([]);
+  });
+
+  it("is a key like any other: two families with one prefix share values, as keys with one name do", async () => {
+    const game = await gameWith();
+    setStored(game, BestTime("reef"), 9);
+    expect(getStored(game, defineStorageKey("test.bestTime.reef", { default: 0 }))).toBe(9);
+  });
+
+  it("checks options when defined and suffixes when used", () => {
+    expect(() => defineStorageKeyFamily("test.bad.", { default: 1, version: 1.5 })).toThrow(/whole number, 1 or more/);
+    expect(() => BestTime("")).toThrow(/defineStorageKeyFamily\("test.bestTime."\): a key needs a suffix, a non-empty string, got ""/);
+  });
+});
+
+describe("persistResource", () => {
+  type Settings = { muted: boolean; volume: number; seen: string[] };
+  const Settings = defineResource<Settings>("test.Settings", () => ({ muted: false, volume: 1, seen: [] }));
+  const MutedKey = defineStorageKey("test.settings.muted", { default: false });
+  const SeenKey = defineStorageKey<string[]>("test.settings.seen", { default: [] });
+
+  it("loads the field at once and saves it at the end of the frame it changed in", async () => {
+    const backend = memoryStorage({ "test.settings.muted": envelope(1, true) });
+    const game = await gameWith(backend);
+    persistResource(game, Settings, "muted", MutedKey);
+    expect(game.resources.get(Settings).muted).toBe(true);
+    game.addSystem(Schedule.Update, function unmute({ resources }) {
+      resources.get(Settings).muted = false;
+    });
+    await game.start();
+    expect(game.inspect().schedule.postUpdate).toEqual(["fenrir.storage.postUpdate"]);
+    game.step();
+    expect(backend.items.get("test.settings.muted")).toBe(envelope(1, false));
+    await game.stop();
+  });
+
+  it("writes only when the value changed, and sees an object edited in place", async () => {
+    const backend = memoryStorage();
+    const setItem = vi.spyOn(backend, "setItem");
+    const game = await gameWith(backend);
+    persistResource(game, Settings, "seen", SeenKey);
+    await game.start();
+    game.step(1 / 60, 3);
+    expect(setItem).not.toHaveBeenCalled();
+    game.resources.get(Settings).seen.push("intro");
+    game.step(1 / 60, 3);
+    expect(setItem).toHaveBeenCalledOnce();
+    expect(backend.items.get("test.settings.seen")).toBe(envelope(1, ["intro"]));
+    await game.stop();
+  });
+
+  it("saves a change made after the last frame when the run stops", async () => {
+    const backend = memoryStorage();
+    const game = await gameWith(backend);
+    persistResource(game, Settings, "muted", MutedKey);
+    await game.start();
+    game.resources.get(Settings).muted = true;
+    await game.stop();
+    expect(backend.items.get("test.settings.muted")).toBe(envelope(1, true));
+  });
+
+  it("loads after a backend hydrates, before the game's startup systems", async () => {
+    const items = memoryStorage();
+    const backend: StorageBackend = {
+      ...items,
+      name: "host",
+      hydrate: async () => items.setItem("test.settings.muted", envelope(1, true)),
+    };
+    const game = await gameWith(backend);
+    persistResource(game, Settings, "muted", MutedKey);
+    // Not yet: the store is empty until hydrate, so loading now would read the default.
+    expect(game.resources.get(Settings).muted).toBe(false);
+    let seen: boolean | undefined;
+    game.addSystem(Schedule.PreInit, function readSetting({ resources }) {
+      seen = resources.get(Settings).muted;
+    });
+    await game.start();
+    expect(seen).toBe(true);
+    await game.stop();
+  });
+
+  it("keeps AudioState.muted across sessions, with audio installed after storage", async () => {
+    const backend = memoryStorage();
+    const Muted = defineStorageKey("test.muted", { default: false });
+    const first = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [storage({ backend }), audio({ backend: testAudio() })] });
+    persistResource(first, AudioState, "muted", Muted);
+    await first.start();
+    first.resources.get(AudioState).muted = true;
+    first.step();
+    await first.stop();
+
+    const second = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [storage({ backend }), audio({ backend: testAudio() })] });
+    persistResource(second, AudioState, "muted", Muted);
+    expect(second.resources.get(AudioState).muted).toBe(true);
+  });
+
+  it("stops saving once the returned function is called", async () => {
+    const backend = memoryStorage();
+    const game = await gameWith(backend);
+    const unbind = persistResource(game, Settings, "muted", MutedKey);
+    await game.start();
+    unbind();
+    game.resources.get(Settings).muted = true;
+    game.step();
+    expect(backend.items.size).toBe(0);
+    await game.stop();
+  });
+
+  it("persists nothing by default", async () => {
+    const backend = memoryStorage();
+    const game = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [storage({ backend }), audio({ backend: testAudio() })] });
+    expect(game.inspect().schedule.postUpdate).toEqual(["fenrir.audio.postUpdate"]);
+    await game.start();
+    game.resources.get(AudioState).muted = true;
+    game.step();
+    await game.stop();
+    expect(backend.items.size).toBe(0);
+  });
+
+  it("throws without storage, without the resource, and for a key bound twice", async () => {
+    const plain = await createTestGame({ seed: 1, logger: new NullLogger() });
+    expect(() => persistResource(plain, Settings, "muted", MutedKey)).toThrow(/needs the storage\(\) plugin/);
+    const game = await gameWith();
+    // AudioState comes from the audio() plugin, which this game does not have.
+    expect(() => persistResource(game, AudioState, "muted", MutedKey)).toThrow(
+      /persistResource\(fenrir.AudioState.muted\): the resource has no value. Install the plugin that adds it/,
+    );
+    persistResource(game, Settings, "muted", MutedKey);
+    expect(() => persistResource(game, Settings, "muted", MutedKey)).toThrow(/storage key "test.settings.muted" is already bound/);
+    // @ts-expect-error the key's type must match the field's
+    expect(() => persistResource(game, Settings, "volume", MutedKey)).toThrow(/already bound/);
   });
 });

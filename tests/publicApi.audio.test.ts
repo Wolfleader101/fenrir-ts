@@ -68,4 +68,25 @@ describe("fenrir-ts/audio public API", () => {
     await game.stop();
     expect(game.resources.get(AudioState)).toMatchObject({ status: "suspended", playing: {} });
   });
+
+  it("passes typed per-play params to a synth, laid over the sound's", async () => {
+    const { createTestGame, NullLogger } = core;
+    const { audio, defineSound, playSound, testAudio } = sound;
+    const tone: import("@/audio").Synth<{ hz: number; length: number }> = (context, output, { params }) => {
+      const osc = context.createOscillator();
+      osc.frequency.value = params.hz;
+      osc.connect(output);
+      osc.start();
+      osc.stop(context.currentTime + params.length);
+      return osc;
+    };
+    const Tone = defineSound("publicApi.tone", { synth: tone, params: { hz: 440, length: 0.1 } });
+    expectTypeOf(Tone).toEqualTypeOf<import("@/audio").SoundType<{ hz: number; length: number }>>();
+    const backend = testAudio({ autoplay: true });
+    const game = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [audio({ backend })] });
+    await game.start();
+    playSound(game, Tone, { params: { hz: 880 } });
+    expect(backend.played[0]!.params).toEqual({ hz: 880, length: 0.1 });
+    await game.stop();
+  });
 });

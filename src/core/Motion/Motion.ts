@@ -75,10 +75,24 @@ export const TimerFired = defineEvent<{ entity: Entity; name: string; count: num
 /** Sent when a tween ends on its end values, in the frame it ends. Not sent when it is cancelled or replaced. */
 export const TweenDone = defineEvent<{ entity: Entity; name: string }>("fenrir.motion.tweenDone");
 
-/** Settings for every timer and tween of a game. Set by the `motion()` plugin; edit the fields. */
+/**
+ * Settings for every timer and tween of a game. Set by the `motion()` plugin; edit the fields.
+ *
+ * They are read when `fenrir.motion.preUpdate` runs, first in `PreUpdate`. A change made by a
+ * game system that runs after it (any later `PreUpdate` system, or `Update`) takes effect at the
+ * next frame. To have a pause take effect in the frame that decides it, decide it in a system
+ * ordered before the motion system: `{ before: "fenrir.motion.preUpdate" }` in `PreUpdate`,
+ * where this frame's input is already latched.
+ */
 export interface MotionSettings {
   /** Groups whose timers and tweens are paused: `paused.ambient = true`. Remove or set false to resume. */
   paused: Record<string, boolean>;
+  /**
+   * Pauses every timer and tween, grouped or not, as if each were paused: a pause menu. Set it
+   * back to false to resume. Defaults to false. Optional so settings written by hand before it
+   * existed still type-check.
+   */
+  pausedAll?: boolean;
   /**
    * When true, every tween jumps to its end values at the next frame and sends `TweenDone`,
    * including tweens added later and repeating ones (which end where their last play would).
@@ -273,7 +287,8 @@ function advance(tween: Tween, target: Record<string, number>, dt: number, reduc
   return ended;
 }
 
-const held = (settings: MotionSettings, entry: Timer | Tween): boolean => entry.paused || (entry.group !== null && settings.paused[entry.group] === true);
+const held = (settings: MotionSettings, entry: Timer | Tween): boolean =>
+  settings.pausedAll === true || entry.paused || (entry.group !== null && settings.paused[entry.group] === true);
 
 /** The engine system: advances every timer and tween of the active scene by `time.delta`. */
 function update({ entities, time, resources, states, events }: SystemCtx): void {
@@ -330,14 +345,20 @@ function update({ entities, time, resources, states, events }: SystemCtx): void 
  * before the game's `PreUpdate` systems, and the game's `Update` systems and the renderer see
  * this frame's values. A game without it ships none of this code.
  *
+ * A game system that pauses motion (`MotionSettings.pausedAll` or a group) and must stop this
+ * frame's advance too runs before it: `{ before: "fenrir.motion.preUpdate" }` in `PreUpdate`.
+ *
  * @example
  * const game = await createGame({ canvas, plugins: [motion(), pixi2d()] });
+ * game.addSystem(Schedule.PreUpdate, function pauseMenu({ input, resources }) {
+ *   if (input.pressed(Pause)) resources.get(MotionSettings).pausedAll = !resources.get(MotionSettings).pausedAll;
+ * }, { before: "fenrir.motion.preUpdate" });
  */
 export function motion(): Plugin {
   return {
     name: "fenrir.motion",
     install(game) {
-      game.resources.set(MotionSettings, { paused: {}, reducedMotion: false });
+      game.resources.set(MotionSettings, { paused: {}, pausedAll: false, reducedMotion: false });
       // Named by option, not nameEngineSystems: SystemName.ts would pull its stage list into every core bundle.
       game.addSystem(Schedule.PreUpdate, update, { name: "fenrir.motion.preUpdate" });
     },
