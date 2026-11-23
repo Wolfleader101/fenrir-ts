@@ -5,7 +5,7 @@ import type { ITranspiler } from "../../interfaces";
 import type { ICodeExecutor } from "../../interfaces";
 import type { ISandboxProvider } from "../../interfaces";
 import type { SandboxContext } from "@/editor/types";
-import type { IAssetStore3D } from "@/core/Assets/Assets3D";
+import type { IAssetStore } from "@/core/Assets/AssetStore";
 import type { ILogger } from "@/core/ILogger";
 import type { ErrorBus } from "../../events";
 import {
@@ -28,7 +28,7 @@ export class MainEditorPresenter {
   private readonly sandboxProvider: ISandboxProvider;
   private readonly errorBus: ErrorBus;
   private readonly buildContext: () => SandboxContext;
-  private readonly assets: IAssetStore3D;
+  private readonly assets: IAssetStore;
   private readonly logger: ILogger;
 
   // Sub-presenters for UI concerns
@@ -44,7 +44,7 @@ export class MainEditorPresenter {
     readonly sandboxProvider: ISandboxProvider;
     readonly errorBus: ErrorBus;
     readonly buildContext: () => SandboxContext;
-    readonly assets: IAssetStore3D;
+    readonly assets: IAssetStore;
     readonly logger: ILogger;
   }) {
     this.store = options.store;

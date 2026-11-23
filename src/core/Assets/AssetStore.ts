@@ -32,8 +32,14 @@ export type AssetKind = keyof AssetKinds & string;
 export type Asset = AssetKinds[AssetKind];
 
 /**
- * The asset store as systems see it: the cache. `fenrir-ts/3d` extends it as `IAssetStore3D`;
- * `fenrir-ts/2d` reads and loads 2D textures with functions (`requestTexture2D`, `getTexture2D`).
+ * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
+ * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
+ */
+export interface AssetStoreConfig {}
+
+/**
+ * The asset store as systems see it. Core has the cache only. The 2D and 3D
+ * entries add their typed loading and getter methods to this interface.
  */
 export interface IAssetStore {
   /** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
@@ -47,23 +53,33 @@ export interface IAssetStore {
   clear(): void;
 }
 
+/** Registers an entry's default loaders and reads its options from the config. */
+type AssetStoreInstaller = (store: AssetStore, config: AssetStoreConfig) => void;
+
+const installers: AssetStoreInstaller[] = [];
+
 /**
  * Caches loaded assets by key and picks a loader by file extension.
  *
- * Core knows nothing about textures or models, and nothing adds methods to this class. Each
- * asset kind ("texture2d", "model", "texture3d", "audio") is added by the code that renders or
- * plays it, which registers its loaders on a store with `registerLoader`: the `pixi2d` and
- * `audio` plugins when they install, `AssetStore3D` when it is constructed, and the 2D texture
- * functions on first use.
+ * Core knows nothing about textures or models. Each asset kind ("model",
+ * "texture3d", "texture2d") is added by the entry point that renders it, which
+ * registers its default loaders and typed methods when it loads.
  */
 export class AssetStore implements IAssetStore {
   private cache = new Map<string, Promise<Asset>>();
   private assetKinds = new Map<string, AssetKind>();
   private loaders = new Map<string, Map<string, LoaderConfig<Asset>>>();
 
-  /** Whether a loader called `name` is registered for `kind`. */
-  hasLoader(kind: AssetKind, name: string): boolean {
-    return this.loaders.get(kind)?.has(name) ?? false;
+  /**
+   * Adds default loaders to every store constructed from now on. The 2D and 3D
+   * entries call this when they load.
+   */
+  static addInstaller(installer: AssetStoreInstaller): void {
+    installers.push(installer);
+  }
+
+  constructor(config: AssetStoreConfig = {}) {
+    for (const install of installers) install(this, config);
   }
 
   /**

@@ -5,7 +5,6 @@ import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Scheduler";
 import { pixi2d } from "@/core/Renderer2D";
 import { inspector } from "@/core/Inspect";
-import { AssetStore } from "@/core/Assets/AssetStore";
 
 /** A Pixi application that looks initialized on `canvas`, without a GPU. */
 function adoptedApplication(canvas: HTMLCanvasElement) {
@@ -41,16 +40,6 @@ describe("pixi2d", () => {
     for (const name of ["fenrir.pixi.init", "fenrir.pixi.exit"]) {
       expect(() => game.replaceSystem(name, () => {})).not.toThrow();
     }
-  });
-
-  it("registers the default Pixi texture loader on the game's asset store when it installs, and only there", async () => {
-    const canvas = document.createElement("canvas");
-    const other = new AssetStore();
-    const game = await createGame({ canvas, logger, plugins: [pixi2d({ application: adoptedApplication(canvas).app })] });
-    expect(game.assets.hasLoader("texture2d", "pixi-texture")).toBe(true);
-    expect(game.assets.getSupportedExtensions("texture2d")).toEqual(["bmp", "gif", "jpeg", "jpg", "png", "webp"]);
-    expect(other.hasLoader("texture2d", "pixi-texture")).toBe(false);
-    expect(AssetStore.prototype).not.toHaveProperty("requestTexture2D");
   });
 
   it("adopts an application the app owns, renders it each frame and leaves it alive at stop", async () => {

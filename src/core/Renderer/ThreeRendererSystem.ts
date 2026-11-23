@@ -1,5 +1,5 @@
 import { nameEngineSystems } from "../SystemName";
-import type { IAssetStore3D } from "../Assets/Assets3D";
+import type { IAssetStore } from "../Assets/AssetStore";
 import type { ILogger } from "../ILogger";
 import type { SyncSystemFn, AsyncSystemFn } from "../SystemCtx";
 import { Renderable } from "./renderComponents";
@@ -15,7 +15,7 @@ export function createThreeRendererSystem(opts: {
   logger: ILogger;
   canvas?: HTMLCanvasElement;
   clearColor?: number;
-  assets: IAssetStore3D;
+  assets: IAssetStore;
   cameraSystem: CameraSystemInstance | undefined;
   skyboxSystem: SkyboxSystemInstance | undefined;
   rendererType: RendererType | undefined;

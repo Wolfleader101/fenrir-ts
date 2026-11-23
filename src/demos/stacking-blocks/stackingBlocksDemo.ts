@@ -1,7 +1,7 @@
 import { Vector3 } from "three";
 import type { AsyncSystemFn, SyncSystemFn } from "@/index";
 import { EntityBuilder } from "@/index";
-import type { IAssetStore3D } from "@/3d";
+import type { IAssetStore } from "@/index";
 import { SkyboxUtils } from "@/3d";
 
 /**
@@ -13,7 +13,7 @@ import { SkyboxUtils } from "@/3d";
  * - Interactive spawning
  * - Material variety
  */
-export function createStackingBlocksDemo(assetStore?: IAssetStore3D) {
+export function createStackingBlocksDemo(assetStore?: IAssetStore) {
   let spawnTimer = 0;
 
   const init: AsyncSystemFn = async (ctx) => {

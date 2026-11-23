@@ -85,7 +85,7 @@ export type { ComponentType } from "./ECS/Component";
 export { EntityBuilder } from "./EntityBuilder/EntityBuilder";
 
 // Assets
-export type { IAssetStore, Asset, AssetKey, AssetKind, AssetKinds, LoaderConfig } from "./Assets/AssetStore";
+export type { IAssetStore, Asset, AssetKey, AssetKind, AssetKinds, AssetStoreConfig, LoaderConfig } from "./Assets/AssetStore";
 export { AssetStore, assetKey } from "./Assets/AssetStore";
 export type { AssetLoader, AssetSource } from "./Assets/AssetLoader";
 // Asset manifests: opt-in, so a game that declares none ships none of it.

@@ -11,7 +11,7 @@ import { Renderable } from "@/core/Renderer/renderComponents";
 import { Transform } from "@/core/ECS/DefaultComponents";
 import { NullLogger } from "@/core/NullLogger";
 import { EntityList } from "@/core/ECS";
-import type { IAssetStore3D } from "@/core/Assets/Assets3D";
+import type { IAssetStore } from "@/core/Assets/AssetStore";
 import * as THREE from "three";
 
 // three/webgpu is only loaded by init() when WebGPU is available. The mock
@@ -217,7 +217,7 @@ describe("ThreeRenderer", () => {
   let logger: NullLogger;
   let mockCanvas: HTMLCanvasElement;
   let entities: EntityList;
-  let mockAssets: IAssetStore3D;
+  let mockAssets: IAssetStore;
 
   beforeEach(() => {
     logger = new NullLogger();
@@ -242,7 +242,7 @@ describe("ThreeRenderer", () => {
       getSupportedTextureExtensions: vi.fn(),
       getSupportedTexture2DExtensions: vi.fn(),
       clear: vi.fn(),
-    } as IAssetStore3D;
+    } as IAssetStore;
 
     // Mock window properties
     Object.defineProperty(window, "innerWidth", {

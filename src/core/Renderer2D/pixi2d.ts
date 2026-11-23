@@ -1,5 +1,4 @@
 import type * as PIXI from "pixi.js";
-import { addPixiTextureLoader } from "../Assets/Assets2D";
 import type { Game, Plugin } from "../Game";
 import { Schedule } from "../Schedule";
 import type { PixiRenderer } from "./PixiRenderer";
@@ -92,8 +91,6 @@ export function pixi2d(options: Pixi2DOptions = {}): Pixi2DPlugin {
     },
     install(game: Game): void {
       if (renderer) throw new Error("pixi2d: this plugin is already installed in a game. Call pixi2d() again for another game.");
-      // texture2d manifest assets and requestTexture2D load through Pixi's Assets by default.
-      addPixiTextureLoader(game.assets);
       const system = createPixiRendererSystem({
         canvas: game.canvas,
         logger: game.logger,

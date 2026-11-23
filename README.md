@@ -39,12 +39,12 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 | Import | Contents |
 | --- | --- |
 | `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore`, asset manifests (`defineAssets`, `loadAssets`), the `inspector()` plugin |
-| `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading (`requestTexture2D`, `getTexture2D`) |
-| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading (`AssetStore3D`), `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
+| `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading |
+| `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/editor` | Monaco live code editor |
 
-Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder`, so `renderSprite` exists once you import `fenrir-ts/2d`. Nothing adds methods to `AssetStore`: 2D textures load with functions from `fenrir-ts/2d`, and 3D assets through `AssetStore3D` from `fenrir-ts/3d`.
+Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder` and `AssetStore`, so `renderSprite` and `requestTexture2D` exist once you import `fenrir-ts/2d`.
 
 ### Quick start (2D)
 
@@ -69,12 +69,12 @@ await game.run();
 
 `game.run()` resolves once `PreInit`, `Init` and `PostInit` have run and the first frame is scheduled. If any of them throws, the run rolls back: `Exit` systems and cleanups run, and `run()` rejects with the error. `game.stop()`, `game.pause()` and `game.resume()` control the loop, and `game.step(dt)` runs frames while paused. `game.isRunning()` is true from the end of startup until `stop()` is called, paused included. `run()` also resolves when a system calls `ctx.stop()` during startup, so check `isRunning()` after `await game.run()` to know whether gameplay started. Tests use `createTestGame` instead: see [Testing a game](#testing-a-game).
 
-`game.assets` is the asset store. The 2D texture functions come from `fenrir-ts/2d` and take the store first; `pixi2d` registers the default Pixi loader on `game.assets` when it installs (`addPixiTextureLoader`), and the loading functions register it on any other store the first time they load into it:
+`game.assets` is the asset store. The 2D texture methods come from `fenrir-ts/2d`:
 
 ```ts
-import { requestTexture2D } from "fenrir-ts/2d";
+import "fenrir-ts/2d";
 
-const hero = requestTexture2D(game.assets, "hero", "/sprites/hero.png");
+const hero = game.assets.requestTexture2D("hero", "/sprites/hero.png");
 hero.subscribe((state) => game.logger.info(`hero texture: ${state.status}`));
 ```
 
@@ -282,7 +282,7 @@ game
 await game.run();
 ```
 
-- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D(game.assets, "logo")` and `renderSprite("logo")` see it too. `texture2d` assets load through the loader `pixi2d` registers; a store without `pixi2d` (a test game, say) has no 2D loader until `registerTexture2DLoader` or `addPixiTextureLoader` adds one, or `setAssetLoader` replaces them. Two manifests may share a name only for the same kind and source.
+- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
 - **Loading.** A loading or loaded bundle returns the same promise; an asset in two bundles loads once. Await `loadAssets` in a `PreInit` system to hold `run()` until a bundle is ready, or call it without awaiting and watch progress. Loads are not tied to a run: they finish after `stop()`, and loaded bundles stay loaded across `stop()` and `run()`, like entities.
 - **Progress.** `ctx.resources.get(manifest.progress)` is plain data updated as each asset settles: `loaded`, `failed`, `total` and `fraction` over every held asset, the same per bundle with its `status` (`unloaded`, `loading`, `loaded`, `failed`), and each asset's `status` (`unloaded`, `loading`, `loaded`, `fallback`, `failed`), `error` and the `bundles` holding it. `game.inspect()` shows it under the manifest's name. A bundle sends `AssetBundleLoaded { manifest, bundle, fallbacks }` or `AssetBundleFailed { manifest, bundle, failures }` when it settles.
 - **Failure.** Every asset of a bundle is tried. One that fails shows its declared `fallback` (another asset of the same kind, which every bundle listing it also loads) and the failure is logged as a warning. One that fails without a fallback fails the bundle: it is logged, `AssetBundleFailed` is sent and the promise rejects with an `AssetBundleError` whose `failures` name each asset, source and error. The assets that loaded stay loaded. Calling `loadAssets` again retries the failed assets; nothing retries on its own.
@@ -735,7 +735,6 @@ const engine = new Engine({
 });
 
 // Physics is optional; leave out `physics` and the fenrir-ts/physics import if you do not need it.
-// assets is an AssetStore3D: loadModel, loadTexture, getGeometry, getTexture, ...
 const { assets } = bootstrapEngine(engine, logger, { canvas, physics: createPhysicsSystem() });
 await assets.loadModel("ship", "/models/ship.glb");
 

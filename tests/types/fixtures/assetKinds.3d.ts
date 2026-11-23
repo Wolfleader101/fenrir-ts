@@ -3,7 +3,8 @@
 import { expectTypeOf } from "vitest";
 import type { Texture } from "three";
 import { AssetStore, assetKey, type Asset, type AssetKind } from "fenrir-ts";
-import { AssetStore3D, type LoadedModel } from "fenrir-ts/3d";
+import type { LoadedModel } from "fenrir-ts/3d";
+import "fenrir-ts/3d";
 
 const store = new AssetStore();
 const key = assetKey("hero");
@@ -14,9 +15,7 @@ expectTypeOf(store.get(key)).toEqualTypeOf<Promise<LoadedModel | Texture>>();
 expectTypeOf(store.get(key, "model")).toEqualTypeOf<Promise<LoadedModel>>();
 expectTypeOf(store.get(key, "texture3d")).toEqualTypeOf<Promise<Texture>>();
 expectTypeOf(store.peek(key, "model")).toEqualTypeOf<Promise<LoadedModel> | undefined>();
-expectTypeOf(new AssetStore3D().getTexture(key)).toEqualTypeOf<Promise<Texture>>();
-// @ts-expect-error the 3D methods are on AssetStore3D, not on every AssetStore
-void store.getTexture(key);
+expectTypeOf(store.getTexture(key)).toEqualTypeOf<Promise<Texture>>();
 
 // @ts-expect-error the 2D kind needs fenrir-ts/2d
 void store.get(key, "texture2d");

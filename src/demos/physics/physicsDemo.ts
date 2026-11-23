@@ -3,7 +3,7 @@ import type { AsyncSystemFn, SyncSystemFn } from "@/index";
 import { EntityBuilder } from "@/index";
 import { MotionType } from "@/physics";
 import { SkyboxUtils } from "@/3d";
-import type { IAssetStore3D } from "@/3d";
+import type { IAssetStore } from "@/index";
 
 /**
  * Creates a physics demo scene with falling objects and a static ground
@@ -14,7 +14,7 @@ import type { IAssetStore3D } from "@/3d";
  * - Different material types (rubber, metal, wood)
  * - Physics simulation and transform synchronization
  */
-export function createPhysicsDemo(assetStore?: IAssetStore3D) {
+export function createPhysicsDemo(assetStore?: IAssetStore) {
   const init: AsyncSystemFn = async (ctx) => {
     const entities = ctx.scene.entityList;
 

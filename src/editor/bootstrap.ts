@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
 import { typescript } from "monaco-editor";
 import type { Engine } from "@/core/Engine";
-import type { IAssetStore3D } from "@/core/Assets/Assets3D";
+import type { IAssetStore } from "@/core/Assets/AssetStore";
 import type { ILogger } from "@/core/ILogger";
 import type { SandboxContext } from "@/editor/types";
 import {
@@ -53,7 +53,7 @@ export interface MonacoWorkerLoaders {
 
 export interface EditorBootstrapOptions {
   readonly engine: Engine;
-  readonly assets: IAssetStore3D;
+  readonly assets: IAssetStore;
   readonly logger: ILogger;
   readonly buildContext: () => SandboxContext;
   readonly monacoWorkers: MonacoWorkerLoaders;

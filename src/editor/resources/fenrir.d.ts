@@ -44,8 +44,14 @@ export type AssetKind = keyof AssetKinds & string;
  */
 export type Asset = AssetKinds[AssetKind];
 /**
- * The asset store as systems see it: the cache. `fenrir-ts/3d` extends it as `IAssetStore3D`;
- * `fenrir-ts/2d` reads and loads 2D textures with functions (`requestTexture2D`, `getTexture2D`).
+ * Constructor options. Empty in core: `fenrir-ts/2d` adds `texture2DLoaders`,
+ * and `fenrir-ts/3d` adds `modelLoaders` and `textureLoaders`.
+ */
+export interface AssetStoreConfig {
+}
+/**
+ * The asset store as systems see it. Core has the cache only. The 2D and 3D
+ * entries add their typed loading and getter methods to this interface.
  */
 export interface IAssetStore {
 	/** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
@@ -57,21 +63,25 @@ export interface IAssetStore {
 	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 	clear(): void;
 }
+/** Registers an entry's default loaders and reads its options from the config. */
+export type AssetStoreInstaller = (store: AssetStore, config: AssetStoreConfig) => void;
 /**
  * Caches loaded assets by key and picks a loader by file extension.
  *
- * Core knows nothing about textures or models, and nothing adds methods to this class. Each
- * asset kind ("texture2d", "model", "texture3d", "audio") is added by the code that renders or
- * plays it, which registers its loaders on a store with `registerLoader`: the `pixi2d` and
- * `audio` plugins when they install, `AssetStore3D` when it is constructed, and the 2D texture
- * functions on first use.
+ * Core knows nothing about textures or models. Each asset kind ("model",
+ * "texture3d", "texture2d") is added by the entry point that renders it, which
+ * registers its default loaders and typed methods when it loads.
  */
 export declare class AssetStore implements IAssetStore {
 	private cache;
 	private assetKinds;
 	private loaders;
-	/** Whether a loader called `name` is registered for `kind`. */
-	hasLoader(kind: AssetKind, name: string): boolean;
+	/**
+	 * Adds default loaders to every store constructed from now on. The 2D and 3D
+	 * entries call this when they load.
+	 */
+	static addInstaller(installer: AssetStoreInstaller): void;
+	constructor(config?: AssetStoreConfig);
 	/**
 	 * Registers a loader for one asset kind. `label` names the kind in messages,
 	 * for example "2D texture".
@@ -1876,6 +1886,49 @@ export interface Scene {
 	/** Whether this scene has a skybox that is not disabled. */
 	hasSkybox(): boolean;
 }
+export type LoadedModel = {
+	geometry: THREE.Object3D;
+	animations: THREE.AnimationClip[];
+	materials: THREE.Material[];
+};
+export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
+export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
+export interface AssetKinds {
+	model: LoadedModel;
+	texture3d: THREE.Texture;
+}
+export interface AssetStoreConfig {
+	modelLoaders?: {
+		[name: string]: ModelLoaderConfig;
+	};
+	textureLoaders?: {
+		[name: string]: TextureLoaderConfig;
+	};
+}
+export interface IAssetStore {
+	loadModel(key: AssetKey, url: string): Promise<void>;
+	loadTexture(key: AssetKey, url: string): Promise<void>;
+	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
+	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
+	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
+	getTexture(key: AssetKey): Promise<THREE.Texture>;
+	registerModelLoader(name: string, config: ModelLoaderConfig): void;
+	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+	getSupportedModelExtensions(): string[];
+	getSupportedTextureExtensions(): string[];
+}
+export interface AssetStore {
+	loadModel(key: AssetKey, url: string): Promise<void>;
+	loadTexture(key: AssetKey, url: string): Promise<void>;
+	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
+	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
+	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
+	getTexture(key: AssetKey): Promise<THREE.Texture>;
+	registerModelLoader(name: string, config: ModelLoaderConfig): void;
+	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
+	getSupportedModelExtensions(): string[];
+	getSupportedTextureExtensions(): string[];
+}
 export type GeometryDesc = {
 	kind: "box";
 	size?: [
@@ -2098,58 +2151,6 @@ export interface EntityBuilder {
 	mainCamera(options?: PerspectiveCameraOptions): EntityBuilder;
 	uiCamera(options?: OrthographicCameraOptions): EntityBuilder;
 }
-export type LoadedModel = {
-	geometry: THREE.Object3D;
-	animations: THREE.AnimationClip[];
-	materials: THREE.Material[];
-};
-export type ModelLoaderConfig = LoaderConfig<LoadedModel>;
-export type TextureLoaderConfig = LoaderConfig<THREE.Texture>;
-export interface AssetKinds {
-	model: LoadedModel;
-	texture3d: THREE.Texture;
-}
-/** Options for `new AssetStore3D()`: loaders added after the default glTF and texture loaders. */
-export interface AssetStore3DOptions {
-	modelLoaders?: {
-		[name: string]: ModelLoaderConfig;
-	};
-	textureLoaders?: {
-		[name: string]: TextureLoaderConfig;
-	};
-}
-/** The asset store as the 3D renderer, camera, skybox and animation systems see it. */
-export interface IAssetStore3D extends IAssetStore {
-	loadModel(key: AssetKey, url: string): Promise<void>;
-	loadTexture(key: AssetKey, url: string): Promise<void>;
-	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
-	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
-	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
-	getTexture(key: AssetKey): Promise<THREE.Texture>;
-	registerModelLoader(name: string, config: ModelLoaderConfig): void;
-	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
-	getSupportedModelExtensions(): string[];
-	getSupportedTextureExtensions(): string[];
-}
-/**
- * An asset store with the 3D kinds: the default glTF model loader and texture loader, then the
- * loaders in `options`, are registered when it is constructed. `bootstrapEngine` builds one.
- * A subclass rather than methods added to `AssetStore`, so a 2D or core game ships none of it.
- */
-export declare class AssetStore3D extends AssetStore implements IAssetStore3D {
-	constructor(options?: AssetStore3DOptions);
-	registerModelLoader(name: string, config: ModelLoaderConfig): void;
-	registerTextureLoader(name: string, config: TextureLoaderConfig): void;
-	getSupportedModelExtensions(): string[];
-	getSupportedTextureExtensions(): string[];
-	loadModel(key: AssetKey, url: string): Promise<void>;
-	loadTexture(key: AssetKey, url: string): Promise<void>;
-	getGeometry(key: AssetKey): Promise<THREE.Object3D>;
-	getAnimations(key: AssetKey): Promise<THREE.AnimationClip[]>;
-	getMaterials(key: AssetKey): Promise<THREE.Material[]>;
-	getTexture(key: AssetKey): Promise<THREE.Texture>;
-	private getModel;
-}
 export type DomInputOptions = {
 	target?: Window | HTMLElement;
 	preventDefaults?: boolean;
@@ -2237,7 +2238,7 @@ export interface ThreeRendererOptions {
 	width?: number;
 	height?: number;
 	clearColor?: number;
-	assets: IAssetStore3D;
+	assets: IAssetStore;
 	rendererType?: RendererType;
 }
 export type AnyRenderer = THREE.WebGLRenderer | THREE_WEBGPU.WebGPURenderer;
@@ -2354,7 +2355,7 @@ export declare function createCameraSystem(options?: CameraSystemOptions): {
 	};
 };
 export type SkyboxSystemOptions = {
-	assets: IAssetStore3D;
+	assets: IAssetStore;
 };
 /**
  * Factory function that creates a skybox system using the class + factory pattern
@@ -2372,7 +2373,7 @@ export declare function createThreeRendererSystem(opts: {
 	logger: ILogger;
 	canvas?: HTMLCanvasElement;
 	clearColor?: number;
-	assets: IAssetStore3D;
+	assets: IAssetStore;
 	cameraSystem: CameraSystemInstance | undefined;
 	skyboxSystem: SkyboxSystemInstance | undefined;
 	rendererType: RendererType | undefined;
@@ -2407,7 +2408,7 @@ type Animation$1 = {
 };
 declare const Animation$1: ComponentType<Animation$1>;
 export declare function createAnimationSystem(opts: {
-	assets: IAssetStore3D;
+	assets: IAssetStore;
 	logger: ILogger;
 	renderer: ThreeRenderer;
 }): {
@@ -2440,7 +2441,7 @@ export type BootstrapConfig = {
 	clearColor?: number;
 };
 export type BootstrapResult = {
-	assets: AssetStore3D;
+	assets: AssetStore;
 	systems: {
 		input: ReturnType<typeof createInputStateSystem>;
 		renderer: ReturnType<typeof createThreeRendererSystem>;
@@ -2484,7 +2485,7 @@ export declare class SkyboxUtils {
 	/**
 	 * Load and set up a cube map skybox for a scene using individual face textures
 	 */
-	static setupCubemapSkybox(scene: Scene, assets: IAssetStore3D, options?: {
+	static setupCubemapSkybox(scene: Scene, assets: IAssetStore, options?: {
 		basePath?: string;
 		faces?: {
 			posX?: string;
@@ -2499,13 +2500,13 @@ export declare class SkyboxUtils {
 	/**
 	 * Load and set up an HDR equirectangular skybox for a scene
 	 */
-	static setupHdrSkybox(scene: Scene, assets: IAssetStore3D, texturePath: string, options?: {
+	static setupHdrSkybox(scene: Scene, assets: IAssetStore, texturePath: string, options?: {
 		enabled?: boolean;
 	}): Promise<void>;
 	/**
 	 * Set up the default skybox using embedded asset textures
 	 */
-	static setupDefaultSkybox(scene: Scene, assets: IAssetStore3D, options?: {
+	static setupDefaultSkybox(scene: Scene, assets: IAssetStore, options?: {
 		enabled?: boolean;
 	}): Promise<void>;
 	/**

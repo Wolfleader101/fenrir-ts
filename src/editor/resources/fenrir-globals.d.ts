@@ -16,7 +16,7 @@ declare global {
   const entities: Fenrir.EntityList;
   const time: Fenrir.Time;
   const logger: Fenrir.ILogger;
-  const assets: Fenrir.IAssetStore3D;
+  const assets: Fenrir.IAssetStore;
 
   // types that don’t exist at runtime
   type Entity = Fenrir.Entity;

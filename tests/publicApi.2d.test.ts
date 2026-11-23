@@ -83,17 +83,13 @@ describe("fenrir-ts/2d public API", () => {
     expect(card.destroyed).toBe(true);
   });
 
-  it("loads 2D textures into a core asset store with functions, without patching it", async () => {
+  it("adds 2D texture requests to the core asset store", async () => {
     const { AssetStore, assetKey } = core;
-    const { getSupportedTexture2DExtensions, registerTexture2DLoader, requestTexture2D, getTexture2D } = twoD;
     const assets = new AssetStore();
-    expect(AssetStore.prototype).not.toHaveProperty("requestTexture2D");
-    expect(getSupportedTexture2DExtensions(assets)).toEqual([]);
+    expect(assets.getSupportedTexture2DExtensions()).toContain("png");
 
-    registerTexture2DLoader(assets, "test", { loader: async () => Texture.EMPTY, extensions: ["test"] });
-    const handle = requestTexture2D(assets, assetKey("hero"), "hero.test");
-    // The first request registers the default Pixi loader too.
-    expect(getSupportedTexture2DExtensions(assets)).toContain("png");
+    assets.registerTexture2DLoader("test", { loader: async () => Texture.EMPTY, extensions: ["test"] });
+    const handle = assets.requestTexture2D(assetKey("hero"), "hero.test");
     expectTypeOf(handle).toEqualTypeOf<import("@/2d").Texture2DHandle>();
     expect(handle.state).toEqual({ status: "loading" });
     await expect(handle.ready).resolves.toBe(Texture.EMPTY);
@@ -101,7 +97,6 @@ describe("fenrir-ts/2d public API", () => {
 
     // The 2D entry adds the "texture2d" kind; tests/types/ checks the types per entry.
     await expect(assets.get(assetKey("hero"), "texture2d")).resolves.toBe(Texture.EMPTY);
-    await expect(getTexture2D(assets, assetKey("hero"))).resolves.toBe(Texture.EMPTY);
     expect(assets.kindOf(assetKey("hero"))).toBe("texture2d");
   });
 

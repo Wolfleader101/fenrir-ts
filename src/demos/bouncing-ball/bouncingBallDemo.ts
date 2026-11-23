@@ -1,7 +1,7 @@
 import { Vector3 } from "three";
 import type { AsyncSystemFn, SyncSystemFn } from "@/index";
 import { EntityBuilder } from "@/index";
-import type { IAssetStore3D } from "@/3d";
+import type { IAssetStore } from "@/index";
 import { SkyboxUtils } from "@/3d";
 import { PhysicsBody } from "@/physics";
 import { InputEvent } from "@/3d";
@@ -16,7 +16,7 @@ import { InputEvent } from "@/3d";
  * - Material properties (rubber for bounce)
  * - Physics impulses (press SPACE to push balls up)
  */
-export function createBouncingBallDemo(assetStore: IAssetStore3D) {
+export function createBouncingBallDemo(assetStore: IAssetStore) {
   const init: AsyncSystemFn = async (ctx) => {
     const entities = ctx.scene.entityList;
 

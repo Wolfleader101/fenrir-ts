@@ -12,7 +12,8 @@ import type {
 } from "./render2DComponents";
 import type { ILogger } from "../ILogger";
 import type { IAssetStore } from "../Assets/AssetStore";
-import { getTexture2D } from "../Assets/Assets2D";
+// Adds getTexture2D and the Pixi texture loader to the asset store.
+import "../Assets/Assets2D";
 import { identityViewport, logicalToScreen, screenToLogical } from "./Viewport";
 import type { Viewport, ViewportPoint } from "./Viewport";
 
@@ -265,7 +266,7 @@ export class PixiRenderer {
     this.pending.set(key, request);
     try {
       const texture = renderable.sprite
-        ? await getTexture2D(this.options.assets, renderable.sprite.texture)
+        ? await this.options.assets.getTexture2D(renderable.sprite.texture)
         : undefined;
       if (this.pending.get(key) !== request || !entities.isAlive(entity)) return;
 

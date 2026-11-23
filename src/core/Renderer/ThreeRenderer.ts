@@ -14,7 +14,7 @@ import {
   type MaterialDesc,
   Renderable,
 } from "./renderComponents";
-import type { IAssetStore3D } from "../Assets/Assets3D";
+import type { IAssetStore } from "../Assets/AssetStore";
 // Adds the model and texture methods and loaders to the asset store.
 import "../Assets/Assets3D";
 import type { CameraInstance } from "../Camera/CameraComponents";
@@ -65,7 +65,7 @@ export interface ThreeRendererOptions {
   width?: number;
   height?: number;
   clearColor?: number;
-  assets: IAssetStore3D;
+  assets: IAssetStore;
   rendererType?: RendererType;
 }
 
@@ -91,7 +91,7 @@ export class ThreeRenderer {
   private readonly geomCache = new Map<string, THREE.BufferGeometry>();
   private readonly matCache = new Map<string, THREE.Material>();
 
-  private readonly assets: IAssetStore3D;
+  private readonly assets: IAssetStore;
   private readonly logger: ILogger;
   private readonly canvas: HTMLCanvasElement | undefined;
   private readonly clearColor: number | undefined;

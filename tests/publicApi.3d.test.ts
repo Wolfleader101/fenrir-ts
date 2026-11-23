@@ -96,14 +96,12 @@ describe("fenrir-ts/3d public API", () => {
     expect(entities.get(box, Transform).scale).toBeInstanceOf(Vector3);
   });
 
-  it("loads models and textures through AssetStore3D, leaving the core asset store alone", async () => {
+  it("adds model and texture loading to the core asset store", async () => {
     const { AssetStore } = await import("@/index");
-    const { AssetStore3D } = await import("@/3d");
-    const assets = new AssetStore3D();
-    expect(assets).toBeInstanceOf(AssetStore);
+    await import("@/3d");
+    const assets = new AssetStore();
     expect(assets.getSupportedModelExtensions()).toEqual(["glb", "gltf"]);
     expect(assets.getSupportedTextureExtensions()).toContain("png");
-    expect(AssetStore.prototype).not.toHaveProperty("loadModel");
     expect((assets as unknown as Record<string, unknown>).requestTexture2D).toBeUndefined();
   });
 });

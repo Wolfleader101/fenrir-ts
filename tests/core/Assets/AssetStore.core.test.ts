@@ -59,17 +59,15 @@ describe("AssetStore without a renderer entry", () => {
     warn.mockRestore();
   });
 
-  it("adds nothing to the class: loaders are registered per store", () => {
-    const first = new AssetStore();
-    first.registerLoader("test.installed", "default", { loader: vi.fn(), extensions: ["inst"] });
-    const second = new AssetStore();
+  it("runs installers for stores constructed after they are added", () => {
+    const before = new AssetStore();
+    AssetStore.addInstaller((store) => {
+      store.registerLoader("test.installed", "default", { loader: vi.fn(), extensions: ["inst"] });
+    });
+    const after = new AssetStore();
 
-    expect(first.hasLoader("test.installed", "default")).toBe(true);
-    expect(second.hasLoader("test.installed", "default")).toBe(false);
-    expect(second.getSupportedExtensions("test.installed")).toEqual([]);
-    expect(Object.getOwnPropertyNames(AssetStore.prototype).sort()).toEqual(
-      ["constructor", "hasLoader", "registerLoader", "getSupportedExtensions", "resolveLoader", "setAsset", "kindOf", "peek", "getFileExtension", "get", "clear"].sort(),
-    );
+    expect(before.getSupportedExtensions("test.installed")).toEqual([]);
+    expect(after.getSupportedExtensions("test.installed")).toEqual(["inst"]);
   });
 
   it("returns an asset by kind and rejects one of another kind", async () => {
