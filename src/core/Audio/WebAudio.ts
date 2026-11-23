@@ -61,12 +61,12 @@ export function webAudio(): AudioBackend {
       node?.gain.setTargetAtTime(volume, context!.currentTime, 0.015);
     },
 
-    play({ bus: busName, clip, synth, volume, rate, loop }) {
+    play({ bus: busName, clip, synth, params, volume, rate, loop }) {
       const audio = context!;
       const output = gain(bus(busName), volume);
       let source: AudioScheduledSourceNode;
       if (synth) {
-        source = synth(audio, output, { rate });
+        source = synth(audio, output, { rate, params: params ?? {} });
       } else {
         const buffer = audio.createBufferSource();
         buffer.buffer = clip as AudioBuffer;

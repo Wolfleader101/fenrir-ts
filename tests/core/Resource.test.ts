@@ -1,6 +1,8 @@
 import { AssetStore } from "@/core/Assets/AssetStore";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { Resources, defineResource } from "@/core/Resource";
+import { createTestGame } from "@/core/TestGame";
+import { MotionSettings, motion } from "@/core/Motion/Motion";
 import type { ResourceType } from "@/core/Resource";
 import { createGame } from "@/core/Game";
 import { Engine } from "@/core/Engine";
@@ -263,5 +265,30 @@ describe("resources on an engine", () => {
     expect(factory).toHaveBeenCalledTimes(2);
     expect(() => resources.get(Seed)).toThrow('Resource "test.resource.resetSeed" has no value');
     await e.stop();
+  });
+});
+
+describe("Resources.has", () => {
+  it("is true once a resource has a value, and never runs the factory", () => {
+    const factory = vi.fn(() => 1);
+    const Counted = defineResource("test.has.counted", factory);
+    const Unset = defineResource<number>("test.has.unset");
+    const resources = new Resources();
+    expect(resources.has(Counted)).toBe(false);
+    expect(resources.has(Unset)).toBe(false);
+    expect(factory).not.toHaveBeenCalled();
+    resources.get(Counted);
+    resources.set(Unset, 2);
+    expect(resources.has(Counted)).toBe(true);
+    expect(resources.has(Unset)).toBe(true);
+  });
+
+  it("tells whether an optional plugin is installed", async () => {
+    const without = await createTestGame({ seed: 1, logger: new NullLogger() });
+    const withMotion = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [motion()] });
+    expect(without.resources.has(MotionSettings)).toBe(false);
+    expect(withMotion.resources.has(MotionSettings)).toBe(true);
+    // The handle has no factory: before has() existed, the only check was a get inside try/catch.
+    expect(() => without.resources.get(MotionSettings)).toThrow(/has no value/);
   });
 });

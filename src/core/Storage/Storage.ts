@@ -3,9 +3,9 @@
 // Opt-in, like motion(): nothing here is reachable from code that does not import it, so a game
 // without the storage() plugin ships none of it. Reads never throw and never return a value of the
 // wrong shape; writes never throw. Failures fall back to memory and are logged once per key.
-import type { Plugin } from "../Game";
+import type { GameBase, Plugin } from "../Game";
 import type { ILogger } from "../ILogger";
-import { defineResource, peekResource, type Resources } from "../Resource";
+import { defineResource, peekResource, type ResourceType, type Resources } from "../Resource";
 import { Schedule } from "../Schedule";
 
 /**
@@ -38,6 +38,8 @@ export interface StorageKey<T> {
   readonly parse: (value: unknown) => T | undefined;
   /** Turns a value written by an older `version` into this version's shape, before `parse`. */
   readonly migrate?: (value: unknown, from: number) => unknown;
+  /** False when a migrated value is written only by the next `setStored` or `updateStored`. Absent means true. */
+  readonly writeMigrated?: boolean;
 }
 
 export interface StorageKeyOptions<T> {
@@ -57,6 +59,24 @@ export interface StorageKeyOptions<T> {
    * as the raw string if not. Its result goes through `parse`; throwing means "use the default".
    */
   migrate?: (value: unknown, from: number) => unknown;
+  /**
+   * Whether a migrated value is written back as soon as it is read. Defaults to true: the first
+   * read stores it in this version's envelope, so later reads do not migrate again.
+   *
+   * False keeps the migrated value in memory and leaves the stored one as it was until the game
+   * writes the key (`setStored` or `updateStored`). Until then an older build of the game can
+   * still read it, so a release can be rolled back without losing the value. The cost: each
+   * session migrates again on its first read.
+   */
+  writeMigrated?: boolean;
+}
+
+/** Keys that share options and differ by a suffix, made by `defineStorageKeyFamily`. */
+export interface StorageKeyFamily<T> {
+  /** The key for `suffix`, named `prefix + suffix`. The same suffix returns the same key. */
+  (suffix: string): StorageKey<T>;
+  /** Put before each suffix, such as `myGame.best.`. */
+  readonly prefix: string;
 }
 
 /** Where storage stands, as plain data: `game.inspect()` shows it under `fenrir.StorageStatus`. */
@@ -89,6 +109,21 @@ interface Runtime {
   readonly cache: Map<string, unknown>;
   /** Keys already warned about, so a failing key logs once, not once per call. */
   readonly warned: Set<string | null>;
+  /** Resource fields kept in keys by `persistResource`. Absent until the first one. */
+  bindings?: Binding[];
+  /** True until a backend's `hydrate` has finished: bindings load after it. */
+  hydrating: boolean;
+  /** Set by the first `persistResource`, so a game that binds nothing ships none of its code. */
+  hydrated?: () => void;
+}
+
+/** One `persistResource`: a resource field and the key it is kept in. */
+interface Binding {
+  readonly resource: ResourceType<Record<string, unknown>>;
+  readonly field: string;
+  readonly key: StorageKey<unknown>;
+  /** The value last loaded or saved, JSON for an object, to tell when the field changed. */
+  last: unknown;
 }
 
 const runtimes = new WeakMap<Resources, Runtime>();
@@ -178,8 +213,9 @@ function load<T>(runtime: Runtime, key: StorageKey<T>): T {
     report(runtime, name, `holds an invalid value (${text.length > 60 ? `${text.slice(0, 60)}...` : text}); using the default`);
     return copy(key.default);
   }
-  // Migrated: written back in this version's envelope, so the next read does not migrate again.
-  if (version < key.version && key.migrate) write(runtime, key, value);
+  // Migrated: written back in this version's envelope, so the next read does not migrate again,
+  // unless the key asks to keep the old value stored until the game writes it.
+  if (version < key.version && key.migrate && key.writeMigrated !== false) write(runtime, key, value);
   return value;
 }
 
@@ -210,7 +246,7 @@ function write<T>(runtime: Runtime, key: StorageKey<T>, value: T): boolean {
  */
 /* @__NO_SIDE_EFFECTS__ */
 export function defineStorageKey<T>(name: string, options: StorageKeyOptions<T>): StorageKey<T> {
-  const { default: fallback, version = 1, migrate } = options;
+  const { default: fallback, version = 1, migrate, writeMigrated } = options;
   if (!(Number.isInteger(version) && version >= 1)) {
     throw new Error(`defineStorageKey("${name}"): version must be a whole number, 1 or more, got ${version}.`);
   }
@@ -218,7 +254,39 @@ export function defineStorageKey<T>(name: string, options: StorageKeyOptions<T>)
     options.parse ??
     ((value: unknown): T | undefined =>
       typeof value === typeof fallback && Array.isArray(value) === Array.isArray(fallback) && (value === null) === (fallback === null) ? (value as T) : undefined);
-  return Object.freeze({ name, default: fallback, version, parse, migrate });
+  const key: StorageKey<T> = { name, default: fallback, version, parse, migrate };
+  // Only when false, so keys without it look as they did.
+  return Object.freeze(writeMigrated === false ? { ...key, writeMigrated } : key);
+}
+
+/**
+ * Defines keys that share a default, parser, version and migration and differ by a suffix: one
+ * per player, save slot or level. `family(suffix)` is the key named `prefix + suffix`, made on
+ * first use and the same object every time after, so it can be called in a system each frame.
+ * The prefix is used as given: end it with the separator, such as `myGame.best.`.
+ *
+ * Throws, as `defineStorageKey` does, for invalid options, and for a suffix that is not a
+ * non-empty string.
+ *
+ * @example
+ * const BestTime = defineStorageKeyFamily("myGame.best.", { default: 0 });
+ * setStored(ctx, BestTime(levelId), 42.5); // stored as "myGame.best.<levelId>"
+ * getStored(ctx, BestTime(levelId));
+ */
+/* @__NO_SIDE_EFFECTS__ */
+export function defineStorageKeyFamily<T>(prefix: string, options: StorageKeyOptions<T>): StorageKeyFamily<T> {
+  // Checks the options now, not at the first suffix.
+  defineStorageKey(prefix, options);
+  const keys = new Map<string, StorageKey<T>>();
+  const family = (suffix: string): StorageKey<T> => {
+    if (typeof suffix !== "string" || !suffix) {
+      throw new Error(`defineStorageKeyFamily("${prefix}"): a key needs a suffix, a non-empty string, got ${JSON.stringify(suffix)}.`);
+    }
+    let key = keys.get(suffix);
+    if (!key) keys.set(suffix, (key = defineStorageKey(prefix + suffix, options)));
+    return key;
+  };
+  return Object.assign(family, { prefix });
 }
 
 /**
@@ -266,6 +334,93 @@ export function removeStored(ctx: StorageCtx, key: StorageKey<unknown>): void {
   }
 }
 
+/** What `persistResource` compares: primitives as they are, objects as JSON, so an edit in place counts. */
+const snapshot = (value: unknown): unknown => (value !== null && typeof value === "object" ? JSON.stringify(value) : value);
+
+/** Sets the field from its key. */
+function loadBinding(runtime: Runtime, resources: Resources, binding: Binding): void {
+  const value = getStored({ resources, logger: runtime.logger }, binding.key);
+  const target = peekResource(resources, binding.resource);
+  if (target) target[binding.field] = value;
+  binding.last = snapshot(value);
+}
+
+/** Saves every bound field that changed since it was loaded or last saved. */
+function saveBindings(runtime: Runtime, resources: Resources): void {
+  for (const binding of runtime.bindings!) {
+    const target = peekResource(resources, binding.resource);
+    // The resource was cleared (Engine.reset): nothing to save until it has a value again.
+    if (!target) continue;
+    const value = target[binding.field];
+    const now = snapshot(value);
+    if (Object.is(now, binding.last)) continue;
+    binding.last = now;
+    setStored({ resources, logger: runtime.logger }, binding.key, value);
+  }
+}
+
+/**
+ * Keeps `resource[field]` in the storage key `key`, so a setting such as `AudioState.muted` is
+ * saved with no hand-written sync. Setup, like `game.on`: call it once, after `createGame` (the
+ * resource must have a value, so after the plugin that adds it is installed).
+ *
+ * - Load: the field is set from the key at once or, with a backend that hydrates, as soon as
+ *   `fenrir.storage.preInit` has hydrated it, before the game's startup systems. With nothing
+ *   valid stored, the field gets the key's default, so give the key the resource's default.
+ * - Save: when the field's value has changed, it is written with `setStored` at the end of each
+ *   frame (`fenrir.storage.postUpdate`) and when a run stops (`fenrir.storage.exit`). Objects
+ *   are compared as JSON, so editing one in place counts as a change.
+ * - The binding owns the key: change the field, not the key, or the field will not follow.
+ *   Returns a function that ends the binding and leaves what is stored.
+ *
+ * Nothing is persisted unless the game asks: the engine binds no field of its own.
+ *
+ * Throws without the `storage()` plugin, when the resource has no value, or when the key is
+ * already bound.
+ *
+ * @example
+ * const Muted = defineStorageKey("myGame.muted", { default: false });
+ * const game = await createGame({ canvas, plugins: [storage(), audio(), pixi2d()] });
+ * persistResource(game, AudioState, "muted", Muted);
+ */
+export function persistResource<T extends object, K extends keyof T & string>(
+  game: Pick<GameBase, "resources" | "logger" | "addSystem">,
+  resource: ResourceType<T>,
+  field: K,
+  key: StorageKey<T[K]>,
+): () => void {
+  const caller = `persistResource(${resource.name}.${field})`;
+  const runtime = runtimeOf(caller, game);
+  const { resources } = game;
+  if (!resources.has(resource)) {
+    try {
+      // A resource with a factory gets its value here.
+      resources.get(resource);
+    } catch {
+      throw new Error(`${caller}: the resource has no value. Install the plugin that adds it, or set it, before binding it.`);
+    }
+  }
+  if (!runtime.bindings) {
+    const all: Binding[] = (runtime.bindings = []);
+    runtime.hydrated = () => {
+      for (const binding of all) loadBinding(runtime, resources, binding);
+    };
+    const save = () => saveBindings(runtime, resources);
+    // Named by option, not nameEngineSystems: SystemName.ts would pull its stage list into every core bundle.
+    game.addSystem(Schedule.PostUpdate, save, { name: "fenrir.storage.postUpdate" });
+    game.addSystem(Schedule.Exit, save, { name: "fenrir.storage.exit" });
+  }
+  const { bindings } = runtime;
+  if (bindings.some((b) => b.key.name === key.name)) throw new Error(`${caller}: storage key "${key.name}" is already bound to a resource field.`);
+  const binding: Binding = { resource: resource as unknown as Binding["resource"], field, key: key as StorageKey<unknown>, last: undefined };
+  bindings.push(binding);
+  if (!runtime.hydrating) loadBinding(runtime, resources, binding);
+  return () => {
+    const at = bindings.indexOf(binding);
+    if (at >= 0) bindings.splice(at, 1);
+  };
+}
+
 /** `localStorage`, checked with a write and a remove, or why it cannot be used. */
 function localStorageBackend(prefix: string): StorageBackend {
   const store = globalThis.localStorage;
@@ -302,7 +457,7 @@ export function storage(options: StorageOptions = {}): Plugin {
     name: "fenrir.storage",
     install(game) {
       const status: StorageStatus = { backend: "memory", persistent: true, lastError: null };
-      const runtime: Runtime = { backend: undefined!, prefix, logger: game.logger, status, cache: new Map(), warned: new Set() };
+      const runtime: Runtime = { backend: undefined!, prefix, logger: game.logger, status, cache: new Map(), warned: new Set(), hydrating: false };
       game.resources.set(StorageStatus, status);
       runtimes.set(game.resources, runtime);
       try {
@@ -314,6 +469,7 @@ export function storage(options: StorageOptions = {}): Plugin {
 
       const { hydrate } = runtime.backend;
       if (!hydrate) return;
+      runtime.hydrating = true;
       let hydrated = false;
       // Named by option, not nameEngineSystems: SystemName.ts would pull its stage list into every core bundle.
       game.addSystem(Schedule.PreInit, async function hydrateStorage() {
@@ -326,6 +482,8 @@ export function storage(options: StorageOptions = {}): Plugin {
         }
         // Anything read before hydration came from an empty store.
         runtime.cache.clear();
+        runtime.hydrating = false;
+        runtime.hydrated?.();
       }, { name: "fenrir.storage.preInit" });
     },
   };

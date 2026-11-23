@@ -366,6 +366,21 @@ await game.run();
 - A tween ends exactly on its end values (on its start values after an even number of yoyo plays) and sends `TweenDone { entity, name }`. A frame that runs past the end of a play carries the rest into the next play, and a long frame fires a repeating timer as many times as it holds. Finished timers and tweens are removed, so a running one is one that is present.
 - Both live in components, `Timers` and `Tweens` (records by name), that `game.inspect()` shows as plain JSON with their `elapsed` time. Each entry has a `paused` field to pause and resume it; `MotionSettings.paused[group] = true` pauses a group of them; `cancelTimer` and `cancelTween` remove one; removing the component or destroying the entity removes them all. If the tweened component is removed, its tweens are dropped without `TweenDone`.
 - `motion()` registers `fenrir.motion.preUpdate`. Plugins install before the game adds systems, so it runs first in `PreUpdate`: `Update` systems and the renderer see this frame's values, and `TimerFired` and `TweenDone` are read in the same frame. Timers and tweens added in `Update` start moving the next frame.
+- `MotionSettings.pausedAll = true` pauses every timer and tween, grouped or not, for a pause menu that leaves the rest of the game running. Settings are read when the motion system runs, so a pause set in `Update` holds from the next frame. For a pause that also stops this frame's advance, decide it in `PreUpdate` before the motion system, where this frame's input is already latched:
+
+```ts
+import { MotionSettings, Schedule, defineAction, type SystemCtx } from "fenrir-ts";
+
+const Pause = defineAction("myGame.pause", ["Escape", "KeyP"]);
+
+function pauseMenu({ input, resources }: SystemCtx): void {
+  const settings = resources.get(MotionSettings);
+  if (input.pressed(Pause)) settings.pausedAll = !settings.pausedAll;
+}
+
+game.addSystem(Schedule.PreUpdate, pauseMenu, { before: "fenrir.motion.preUpdate" });
+```
+
 - Timers and tweens are entity data, so they stay across `stop()` and `run()` and carry on where they were, as entities do. A paused game moves none of them.
 
 ### Audio
@@ -373,7 +388,7 @@ await game.run();
 Sounds come from `fenrir-ts/audio`, which needs no peer package (Web Audio only). Declare each sound once with `defineSound`, as a sample (an `audio` asset of a manifest, so it preloads in a bundle with progress) or a synth (a function that builds nodes on the `AudioContext`), and play it by its handle from systems. The `audio()` plugin starts output inside the first user gesture on the canvas, with no game code. A game that does not import `fenrir-ts/audio` ships none of this code.
 
 ```ts
-import { Schedule, createGame, defineAction, defineAssets, defineStorageKey, getStored, loadAssets, setStored, storage, type SystemCtx } from "fenrir-ts";
+import { Schedule, createGame, defineAction, defineAssets, defineStorageKey, loadAssets, persistResource, storage, type SystemCtx } from "fenrir-ts";
 import { AudioState, audio, defineSound, playSound, stopSound, type Synth } from "fenrir-ts/audio";
 import { pixi2d } from "fenrir-ts/2d";
 
@@ -382,12 +397,13 @@ const Sounds = defineAssets("myGame.sounds", {
   bundles: { boot: ["tap", "theme"] },
 });
 
-// A synthesized sound: two quick notes. It returns the source that ends last.
-const coin: Synth = (context, output, { rate }) => {
+// A synthesized sound: two quick notes. It returns the source that ends last. Its parameters are
+// typed: the sound gives every one, and each play may change some.
+const coin: Synth<{ low: number; high: number }> = (context, output, { rate, params }) => {
   const osc = context.createOscillator();
   const env = context.createGain();
-  osc.frequency.setValueAtTime(988 * rate, context.currentTime);
-  osc.frequency.setValueAtTime(1319 * rate, context.currentTime + 0.06);
+  osc.frequency.setValueAtTime(params.low * rate, context.currentTime);
+  osc.frequency.setValueAtTime(params.high * rate, context.currentTime + 0.06);
   env.gain.setValueAtTime(0.3, context.currentTime);
   env.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
   osc.connect(env).connect(output);
@@ -397,7 +413,7 @@ const coin: Synth = (context, output, { rate }) => {
 };
 
 const Tap = defineSound("myGame.tap", { sample: "tap", volume: 0.8 });
-const Coin = defineSound("myGame.coin", { synth: coin, limit: 3 });
+const Coin = defineSound("myGame.coin", { synth: coin, params: { low: 988, high: 1319 }, limit: 3 });
 const Theme = defineSound("myGame.theme", { sample: "theme", bus: "music", loop: true });
 const Muted = defineStorageKey("myGame.muted", { default: false });
 const ToggleMute = defineAction("myGame.toggleMute", ["KeyM"]);
@@ -406,22 +422,26 @@ const Quit = defineAction("myGame.quit", ["Escape"]);
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const game = await createGame({ canvas, plugins: [audio(), storage(), pixi2d()] });
+// The game keeps mute, not the engine: loaded now, saved at the end of each frame it changes in.
+persistResource(game, AudioState, "muted", Muted);
 
 async function loadSounds(ctx: SystemCtx): Promise<void> {
   await loadAssets(ctx, Sounds, "boot");
-  ctx.resources.get(AudioState).muted = getStored(ctx, Muted); // the game keeps mute, not the engine
   playSound(ctx, Theme); // a loop: queued until the first gesture, then it starts
 }
 
+let combo = 0;
 function play(ctx: SystemCtx): void {
   const { input, random, resources } = ctx;
   if (input.pressed(ToggleMute)) {
     const audioState = resources.get(AudioState);
-    audioState.muted = !audioState.muted; // applied by the end of the frame
-    setStored(ctx, Muted, audioState.muted);
+    audioState.muted = !audioState.muted; // applied, and saved, by the end of the frame
   }
   if (input.pressed(Jump)) playSound(ctx, Tap); // a one-shot: dropped while output is locked
-  if (input.pressed(Jump) && random.next() < 0.2) playSound(ctx, Coin, { rate: 0.9 + random.next() * 0.2 });
+  if (input.pressed(Jump) && random.next() < 0.2) {
+    // One sound, a variant per combo step: the high note climbs a semitone each time.
+    playSound(ctx, Coin, { rate: 0.9 + random.next() * 0.2, params: { high: 1319 * 2 ** (combo++ / 12) } });
+  }
   if (input.pressed(Quit)) stopSound(ctx, Theme, { fade: 1 });
 }
 
@@ -431,8 +451,8 @@ await game.run();
 
 - **Unlock.** Browsers start audio only inside a user gesture. The plugin starts output from `input.onGesture`, so the first key press, tap or click on the canvas starts it (on `pointerup` too, which iOS Safari needs). Where autoplay is allowed it starts when the run starts. For a gesture outside the canvas, such as an HTML menu button, call `unlockAudio(ctx)` in its handler. `AudioState.status` is `locked`, `running`, `suspended` or `unavailable`, and `AudioUnlocked` is sent once, the first time output runs.
 - **Before unlock.** A one-shot played while output is not running is dropped and counted in `AudioState.dropped`: a tap sound played seconds late reads as a bug. A looping sound is queued in `AudioState.queued` and starts when output runs, so music asked for at startup begins at the first gesture. The same holds while the page is hidden.
-- **Playing.** `playSound(ctx, sound, { volume?, rate? })` returns whether it plays (for a loop: plays or is queued). A looping sound plays once at a time; playing it again does nothing. Each sound has a `limit` of instances (4 by default, 1 for a loop): one more stops the oldest. A sample whose asset is not loaded is dropped and logged once. `stopSound(ctx, sound, { fade? })` stops every instance, fading over `fade` seconds.
-- **Volume.** `AudioState` is plain data the game edits: `muted`, `volume` (master) and `buses[name].volume` and `.muted`. Buses are `sfx` (the default for a sound) and `music`, or whatever `audio({ buses })` names. Changes apply by the end of the frame and to every sound as it starts. The engine does not save mute: store it with `storage()`, as above, so the game decides the key and when to write it.
+- **Playing.** `playSound(ctx, sound, { volume?, rate?, params? })` returns whether it plays (for a loop: plays or is queued). `params` reach a synth as `params`, laid over the sound's own: a `Synth<P>` types them, `defineSound` then needs every field of `P` as `params`, and a play passes only those that differ, so one sound covers its variants. A sample, or a synth without parameters, takes none (a compile error, and a throw). A looping sound plays once at a time; playing it again does nothing. Each sound has a `limit` of instances (4 by default, 1 for a loop): one more stops the oldest. A sample whose asset is not loaded is dropped and logged once. `stopSound(ctx, sound, { fade? })` stops every instance, fading over `fade` seconds.
+- **Volume.** `AudioState` is plain data the game edits: `muted`, `volume` (master) and `buses[name].volume` and `.muted`. Buses are `sfx` (the default for a sound) and `music`, or whatever `audio({ buses })` names. Changes apply by the end of the frame and to every sound as it starts. The engine does not save mute: bind it to a key of the game's with `persistResource` from `storage()`, as above, so the game decides the key.
 - **Lifecycle.** Output is suspended while the page is hidden and resumed when it shows; a loop keeps its place. When the run stops, every sound stops and output is suspended; the next `run()` resumes it without a new gesture. A paused game keeps playing. `AudioState.playing` counts instances by sound name, and `game.inspect()` shows all of it under `fenrir.AudioState`.
 - **Samples.** `fenrir-ts/audio` adds the `audio` asset kind. The plugin registers its loader (fetch, then decode), so manifests load samples with progress, fallbacks and unload. Before output starts, samples decode on an `OfflineAudioContext`: no `AudioContext` is created outside a gesture.
 - **Backends.** The output is an `AudioBackend`: `webAudio()` by default, `testAudio()` in tests, or a host app's own (`audio({ backend })`). The engine decides what plays, when and how loud; a backend only does it.
@@ -500,7 +520,27 @@ function finishRound(ctx: SystemCtx, score: number): void {
 - **Migration.** A value stored with an older `version` goes through `migrate(value, from)`, then `parse`, and is written back. A value not written by Fenrir is version 0: its JSON, or its raw text if it is not JSON, so a game can adopt the keys its own code wrote before.
 - **Status.** `StorageStatus` (`fenrir.StorageStatus`, shown by `game.inspect()`) is `{ backend, persistent, lastError }`: `persistent` is false when `localStorage` was unavailable at install (one warning, then memory), and `lastError` is the latest failure with its key.
 - **Backends.** `localStorage` by default. `storage({ backend: memoryStorage() })` in tests, where `backend.items` is the `Map` written to. A backend is synchronous (`getItem`, `setItem`, `removeItem`), so systems read without awaiting; one backed by an asynchronous store, such as a host app's bridge in a webview, adds `hydrate()`, which the plugin awaits once in `fenrir.storage.preInit` before the game's startup systems.
-- **Lifetime.** Values are not tied to a run: they stay across `stop()` and `run()`. Changes from another tab are not picked up while a value is cached. Binding a resource to a key is game code: read it in `PreInit` or `Init` and write it where the game changes it, as the audio example does with mute.
+- **Lifetime.** Values are not tied to a run: they stay across `stop()` and `run()`. Changes from another tab are not picked up while a value is cached.
+- **Families.** `defineStorageKeyFamily(prefix, options)` takes the options of `defineStorageKey` and returns `family(suffix)`: the key named `prefix + suffix`, made once and the same object on every call after, for keys per player, level or save slot. The prefix is used as given, so end it with its separator.
+- **Keeping old builds working.** By default a migrated value is written back on its first read. `writeMigrated: false` keeps it in memory and leaves the old value stored until the game next writes the key, so an older build can still read it: a release can be rolled back. Each session then migrates on its first read.
+- **Resource fields.** `persistResource(game, Resource, field, key)` keeps one field of a resource in a key: it loads the field at once (after `hydrate`, with a backend that has one), and saves it with `setStored` at the end of each frame it changed in and when the run stops. Objects compare as JSON, so an edit in place counts. Call it after `createGame`, once the plugin that adds the resource is installed; it throws if the resource has no value or the key is already bound, and returns a function that ends the binding. The engine binds nothing by default.
+
+```ts
+import { createGame, defineResource, defineStorageKey, defineStorageKeyFamily, getStored, persistResource, setStored, storage, type SystemCtx } from "fenrir-ts";
+
+const Settings = defineResource("myGame.Settings", () => ({ hints: true, sensitivity: 1 }));
+const Hints = defineStorageKey("myGame.hints", { default: true });
+const BestTime = defineStorageKeyFamily("myGame.bestTime.", { default: 0, writeMigrated: false });
+
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [storage()] });
+persistResource(game, Settings, "hints", Hints); // Settings.hints now loads and saves itself
+
+function finishLevel(ctx: SystemCtx, level: string, seconds: number): void {
+  const best = getStored(ctx, BestTime(level)); // "myGame.bestTime.<level>"
+  if (!best || seconds < best) setStored(ctx, BestTime(level), seconds);
+}
+```
 
 ### Input
 
@@ -737,6 +777,7 @@ Read time and draw random numbers from the context, not from `Date.now()`, `perf
 - `random.next()` is in [0, 1), `random.int(min, max)` includes both ends, and `random.pick(items)` returns one item and throws on an empty list. The generator is mulberry32.
 - `createGame({ seed })` seeds `ctx.random` and `game.random`. Without a seed it is seeded from the clock; `game.random.seed` reports the seed either way, so log it to replay a run. Stopping and running a game again continues the sequence.
 - `Time` reads only the `Clock` it is given: `{ monotonic(), now() }`. `Engine` takes one as `clock`; the default is the browser's.
+- `createGame({ maxFrameDelta })` caps `time.delta`, in seconds: after a stall (a background tab, a debugger) a frame moves the game at most this much. It defaults to 0.25; a game whose motion must not jump far passes a smaller cap, such as `1 / 20`. `createTestGame` takes it too.
 
 ```ts
 import { Schedule, createGame, type SystemCtx } from "fenrir-ts";
@@ -799,6 +840,18 @@ function scorePoint({ resources }: SystemCtx): void {
 
 game.resources.set(Level, 3);
 game.addSystem(Schedule.Update, scorePoint);
+```
+
+`resources.has(Resource)` says whether a resource has a value, without running its factory. A plugin's resource has one once the plugin is installed, so game code and tests use it to work with or without an optional plugin:
+
+```ts
+import { MotionSettings, type SystemCtx } from "fenrir-ts";
+import { AudioState } from "fenrir-ts/audio";
+
+function openMenu({ resources }: SystemCtx): void {
+  if (resources.has(AudioState)) resources.get(AudioState).buses.music!.volume = 0.3; // only with audio()
+  if (resources.has(MotionSettings)) resources.get(MotionSettings).pausedAll = true; // only with motion()
+}
 ```
 
 ### States
@@ -913,7 +966,7 @@ it("lands the fish after one second of casting", async () => {
 
 - `await game.start()` runs the startup stages with the same rollback as `run()`: if a startup system throws, `Exit` systems and cleanups run and `start()` rejects. `await game.stop()` runs `Exit` systems and cleanups. A stopped test game can `start()` again.
 - `game.step(dt = 1 / 60, frames = 1)` runs whole frames through the same frame body as the browser loop: `PreUpdate`, the `Tick` stages the accumulator holds, `Update`, `PostUpdate`, then the event buffers advance. Fixed ticks accumulate from `dt` exactly, so `step(1 / 60, 600)` runs 600 ticks and `step(1 / 120, 2)` runs one.
-- `dt` is at most 0.25 s, the engine's frame-delta clamp. A longer `dt` throws rather than silently simulating less than you asked: to advance a second, write `step(1 / 60, 60)`. A frame still runs at most 8 ticks, as in the browser, so `step(0.25)` runs 8 ticks of 1/60 and drops the rest, as a long browser frame does.
+- `dt` is at most 0.25 s, the engine's frame-delta clamp (`maxFrameDelta`, which `createTestGame` takes as an option). A longer `dt` throws rather than silently simulating less than you asked: to advance a second, write `step(1 / 60, 60)`. A frame still runs at most 8 ticks, as in the browser, so `step(0.25)` runs 8 ticks of 1/60 and drops the rest, as a long browser frame does.
 - Each stepped frame moves `time.now()` by `dt`, starting from `now` (default 0). `time.elapsed` and `states.timeIn` count stepped time only; `clock.advance(ms)` moves `time.now()` alone.
 - `seed` is required. Nothing in a test game reads `performance.now()`, `Date.now()` or `requestAnimationFrame`.
 - A test game has no canvas, so a plugin that reads `game.canvas`, such as `pixi2d`, throws when it installs, saying so. Plugins that only add systems, resources or listeners install as usual. A system that draws with Pixi needs the renderer and is tested in the browser; keep drawing out of gameplay systems so they run in both.

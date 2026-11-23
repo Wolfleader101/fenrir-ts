@@ -55,7 +55,7 @@ describe("motion() plugin", () => {
     game.addSystem(Schedule.PreUpdate, function gameInput() {});
     const snapshot = game.inspect();
     expect(snapshot.schedule.preUpdate).toEqual(["fenrir.motion.preUpdate", "gameInput"]);
-    expect(snapshot.resources["fenrir.MotionSettings"]).toEqual({ paused: {}, reducedMotion: false });
+    expect(snapshot.resources["fenrir.MotionSettings"]).toEqual({ paused: {}, pausedAll: false, reducedMotion: false });
   });
 
   it("moves values before the game's Update systems, so they see this frame's values", async () => {
@@ -365,6 +365,52 @@ describe("groups and reduced motion", () => {
     expect(s.fired).toHaveLength(2);
   });
 
+  it("pauses everything, grouped or not, with pausedAll", async () => {
+    const s = await setup((ctx, entity) => {
+      addTween(ctx, entity, Transform2D, { to: { x: 8 }, duration: 1 });
+      addTimer(ctx, entity, "test.blink", { duration: 0.25, repeat: Infinity, group: "ambient" });
+    });
+    s.game.step(0.25);
+    const settings = s.game.resources.get(MotionSettings);
+    settings.pausedAll = true;
+    s.game.step(0.25, 2);
+    expect(at(s)).toMatchObject({ x: 2 });
+    expect(s.fired).toHaveLength(1);
+    // A group's own flag still holds it after pausedAll is lifted.
+    settings.paused.ambient = true;
+    settings.pausedAll = false;
+    s.game.step(0.25);
+    expect(at(s)).toMatchObject({ x: 4 });
+    expect(s.fired).toHaveLength(1);
+  });
+
+  describe("pausing in the frame that decides it", () => {
+    // The pause is decided in the second frame, by a PreUpdate system.
+    async function pauseOnStep(options: { before?: string }) {
+      const s = await setup((ctx, entity) => addTween(ctx, entity, Transform2D, { to: { x: 8 }, duration: 1 }));
+      let pauseNow = false;
+      s.game.addSystem(Schedule.PreUpdate, function pauseMenu({ resources }) {
+        if (pauseNow) resources.get(MotionSettings).pausedAll = true;
+      }, options);
+      s.game.step(0.25);
+      pauseNow = true;
+      s.game.step(0.25);
+      return s;
+    }
+
+    it("takes effect in the same frame from a system ordered before fenrir.motion.preUpdate", async () => {
+      const s = await pauseOnStep({ before: "fenrir.motion.preUpdate" });
+      expect(s.game.inspect().schedule.preUpdate).toEqual(["pauseMenu", "fenrir.motion.preUpdate"]);
+      expect(at(s)).toMatchObject({ x: 2 });
+    });
+
+    it("takes effect a frame late from a system registered after the plugin, as before", async () => {
+      const s = await pauseOnStep({});
+      expect(s.game.inspect().schedule.preUpdate).toEqual(["fenrir.motion.preUpdate", "pauseMenu"]);
+      expect(at(s)).toMatchObject({ x: 4 });
+    });
+  });
+
   it("completes tweens at once under reducedMotion, sending TweenDone, and leaves timers alone", async () => {
     const s = await setup((ctx, entity) => {
       addTween(ctx, entity, Transform2D, { to: { x: 8 }, duration: 2, delay: 1 });
@@ -397,7 +443,7 @@ describe("lifetime and determinism", () => {
     s.game.step(0.25);
     expect(at(s).x).toBe(6);
     expect(s.fired).toHaveLength(1);
-    expect(s.game.resources.get(MotionSettings)).toEqual({ paused: {}, reducedMotion: false });
+    expect(s.game.resources.get(MotionSettings)).toEqual({ paused: {}, pausedAll: false, reducedMotion: false });
   });
 
   it("gives the same values for the same steps", async () => {

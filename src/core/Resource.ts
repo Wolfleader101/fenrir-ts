@@ -68,6 +68,19 @@ export class Resources {
     }
   }
 
+  /**
+   * Whether the resource has a value: set, or made by its factory on an earlier `get`. Never
+   * runs the factory. A plugin's resource (`AudioState`, `MotionSettings`, `StorageStatus`)
+   * has a value once the plugin is installed, so this is how game code and tests ask whether an
+   * optional plugin is there before using it.
+   *
+   * @example
+   * if (resources.has(AudioState)) resources.get(AudioState).muted = true;
+   */
+  public has<T>(resource: ResourceType<T>): boolean {
+    return this.values.has(resource.name);
+  }
+
   /** Replaces the resource's value. Works before `game.run()` and from any system. */
   public set<T>(resource: ResourceType<T>, value: NoInfer<T>): void {
     this.values.set(resource.name, value);

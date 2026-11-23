@@ -120,14 +120,17 @@ describe("webAudio()", () => {
     expect(output!.disconnect).toHaveBeenCalled();
   });
 
-  it("hands a synth the context, the voice's output and the rate", async () => {
+  it("hands a synth the context, the voice's output, the rate and the play's params", async () => {
     vi.stubGlobal("AudioContext", FakeContext);
     const backend = webAudio();
     await backend.start();
     const synth = vi.fn((audio: AudioContext) => audio.createOscillator());
-    backend.play({ sound: "s", bus: "sfx", clip: null, synth, volume: 1, rate: 2, loop: false });
+    backend.play({ sound: "s", bus: "sfx", clip: null, synth, params: { hz: 220 }, volume: 1, rate: 2, loop: false });
     const context = FakeContext.created[0]!;
-    expect(synth).toHaveBeenCalledWith(context, context.gains.at(-1), { rate: 2 });
+    expect(synth).toHaveBeenCalledWith(context, context.gains.at(-1), { rate: 2, params: { hz: 220 } });
+    // A request built without params, by code from before they existed, gives the synth {}.
+    backend.play({ sound: "s", bus: "sfx", clip: null, synth, volume: 1, rate: 1, loop: false });
+    expect(synth).toHaveBeenLastCalledWith(context, context.gains.at(-1), { rate: 1, params: {} });
   });
 
   it("throws from start when there is no Web Audio", () => {

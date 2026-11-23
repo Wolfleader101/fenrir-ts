@@ -13,6 +13,7 @@ export type {
   AudioCtx,
   AudioOptions,
   AudioVoice,
+  NoParams,
   PlayOptions,
   SoundOptions,
   SoundType,
