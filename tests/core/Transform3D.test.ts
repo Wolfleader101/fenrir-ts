@@ -3,7 +3,6 @@ import { Quaternion, Vector3 } from "three";
 import { Transform as CoreTransform } from "@/core/ECS/DefaultComponents";
 import { EntityList } from "@/core/ECS/EntityList";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import "@/core/EntityBuilder/extensions/coreExtensions";
 import { Transform } from "@/core/Transform3D";
 
 describe("Transform3D", () => {

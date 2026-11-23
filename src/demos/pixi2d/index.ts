@@ -17,7 +17,7 @@ const logger = new ConsoleLogger();
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 
 // createGame with pixi2d({ design }). Input comes with createGame: a tap, click, Space or Enter counts a tap.
-// debug: true puts game.inspect on window.__FENRIR__: try window.__FENRIR__.inspect() in the console.
+// debug: true calls exposeInspector(game), which puts inspect(game) on window.__FENRIR__: try window.__FENRIR__.inspect() in the console.
 const { game, pixi } = await createDemoGame2D(canvas, { logger, design: DESIGN, debug: true });
 
 const demo = create2DDemo(pixi.renderer);

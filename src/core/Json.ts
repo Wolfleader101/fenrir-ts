@@ -32,7 +32,7 @@ const thrown = (error: unknown): JsonValue => {
 };
 
 /**
- * Encodes any value as JSON for `game.inspect()`. Never throws, always terminates, and encodes at
+ * Encodes any value as JSON for `inspect(game)`. Never throws, always terminates, and encodes at
  * most `MAX_VALUES` values. The rules are in README.md under "Inspecting a game".
  */
 export function toJson(root: unknown): JsonValue {
@@ -106,7 +106,11 @@ export function toJson(root: unknown): JsonValue {
     }
     // A class instance shows its fields only when every one is a string, number, boolean or null.
     const data = keys.length <= MAX_ITEMS && keys.every((k) => record[k] === null || ["string", "number", "boolean"].includes(typeof record[k]));
-    return data ? fields(record, keys, depth, { $type }) : { $type };
+    if (data) return fields(record, keys, depth, { $type });
+    // A string `label` (Pixi's display objects have one) is a name that survives minification,
+    // which renames classes and so `$type`.
+    const label = record.label;
+    return typeof label === "string" && label ? { $type, label: encode(label, depth) } : { $type };
   }
 
   return encode(root, 0);

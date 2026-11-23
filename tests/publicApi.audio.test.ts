@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { inspect } from "@/core/Inspect";
 
 // The audio entry needs no peer package. Each of these throws if it reaches one.
 vi.mock("three", () => {
@@ -63,7 +64,7 @@ describe("fenrir-ts/audio public API", () => {
       ["publicApi.tap", "sfx", 0.5, 1.5],
     ]);
     expect(backend.volumes.master).toBe(0);
-    expect(game.inspect().resources["fenrir.AudioState"]).toMatchObject({ status: "running", muted: true, dropped: 1, playing: { "publicApi.theme": 1, "publicApi.tap": 1 } });
+    expect(inspect(game).resources["fenrir.AudioState"]).toMatchObject({ status: "running", muted: true, dropped: 1, playing: { "publicApi.theme": 1, "publicApi.tap": 1 } });
     stopSound(game, Theme, { fade: 1 });
     await game.stop();
     expect(game.resources.get(AudioState)).toMatchObject({ status: "suspended", playing: {} });

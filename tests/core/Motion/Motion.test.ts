@@ -22,6 +22,7 @@ import {
   motion,
 } from "@/core/Motion/Motion";
 import { defineEasing, easings } from "@/core/Motion/Easing";
+import { inspect } from "@/core/Inspect";
 
 const logger = new NullLogger();
 
@@ -53,7 +54,7 @@ describe("motion() plugin", () => {
   it("adds MotionSettings and one system, fenrir.motion.preUpdate, first in PreUpdate", async () => {
     const game = await createTestGame({ seed: 1, logger, plugins: [motion()] });
     game.addSystem(Schedule.PreUpdate, function gameInput() {});
-    const snapshot = game.inspect();
+    const snapshot = inspect(game);
     expect(snapshot.schedule.preUpdate).toEqual(["fenrir.motion.preUpdate", "gameInput"]);
     expect(snapshot.resources["fenrir.MotionSettings"]).toEqual({ paused: {}, pausedAll: false, reducedMotion: false });
   });
@@ -400,13 +401,13 @@ describe("groups and reduced motion", () => {
 
     it("takes effect in the same frame from a system ordered before fenrir.motion.preUpdate", async () => {
       const s = await pauseOnStep({ before: "fenrir.motion.preUpdate" });
-      expect(s.game.inspect().schedule.preUpdate).toEqual(["pauseMenu", "fenrir.motion.preUpdate"]);
+      expect(inspect(s.game).schedule.preUpdate).toEqual(["pauseMenu", "fenrir.motion.preUpdate"]);
       expect(at(s)).toMatchObject({ x: 2 });
     });
 
     it("takes effect a frame late from a system registered after the plugin, as before", async () => {
       const s = await pauseOnStep({});
-      expect(s.game.inspect().schedule.preUpdate).toEqual(["fenrir.motion.preUpdate", "pauseMenu"]);
+      expect(inspect(s.game).schedule.preUpdate).toEqual(["fenrir.motion.preUpdate", "pauseMenu"]);
       expect(at(s)).toMatchObject({ x: 4 });
     });
   });
@@ -456,7 +457,7 @@ describe("lifetime and determinism", () => {
       const trace: unknown[] = [];
       for (const dt of [1 / 60, 1 / 30, 0.2, 0, 1 / 144, 0.25, 1 / 60]) {
         s.game.step(dt, 3);
-        trace.push(s.game.inspect().entities, s.fired.length, s.done.length);
+        trace.push(inspect(s.game).entities, s.fired.length, s.done.length);
       }
       return trace;
     };
@@ -469,7 +470,7 @@ describe("lifetime and determinism", () => {
       addTimer(ctx, entity, "test.t", { duration: 0.5 });
     });
     s.game.step(0.25);
-    const snapshot = s.game.inspect();
+    const snapshot = inspect(s.game);
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
     const { components } = snapshot.entities.find((e) => e.id === s.entity)!;
     expect(components["fenrir.Tweens"]).toEqual({

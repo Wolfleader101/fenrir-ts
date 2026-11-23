@@ -5,7 +5,6 @@ import { Transform } from "@/core/ECS/DefaultComponents";
 import { Transform2D } from "@/core/ECS/Transform2D";
 import { Display2D } from "@/core/ECS/Display2D";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import "@/core/EntityBuilder/extensions/coreExtensions";
 import "@/core/EntityBuilder/extensions/render2DExtensions";
 import { createGame } from "@/core/Game";
 import { createTestGame } from "@/core/TestGame";
@@ -15,6 +14,7 @@ import { Schedule } from "@/core/Scheduler";
 import { PixiNode, Renderable2D, createPixiRendererSystem, pixi2d } from "@/core/Renderer2D";
 import type { SystemCtx } from "@/core/SystemCtx";
 import { createMockSystemCtx } from "../../utils/testHelpers";
+import { inspect } from "@/core/Inspect";
 
 const logger = new NullLogger();
 
@@ -240,14 +240,16 @@ describe("PixiNode and Transform2D", () => {
     expect(drawnAt).toBe(4);
     expect(node.parent).toBe(pixi.renderer.layer("world"));
 
-    const ship = game.inspect().entities.find((e) => e.name === "ship")!;
+    const ship = inspect(game).entities.find((e) => e.name === "ship")!;
     expect(ship.components["fenrir.Transform2D"]).toEqual({ x: 4, y: 0, rotation: 0, scaleX: 1, scaleY: 1 });
     expect(ship.components["fenrir.PixiNode"]).toEqual({ node: { $type: "Container" }, layer: "world" });
-    expect(JSON.parse(JSON.stringify(game.inspect()))).toEqual(game.inspect());
+    node.label = "myGame.ship";
+    expect(inspect(game).entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toEqual({ node: { $type: "Container", label: "myGame.ship" }, layer: "world" });
+    expect(JSON.parse(JSON.stringify(inspect(game)))).toEqual(inspect(game));
 
     await game.stop();
     expect(node.destroyed).toBe(true);
-    expect(game.inspect().entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toBeUndefined();
+    expect(inspect(game).entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toBeUndefined();
   });
 });
 
@@ -401,7 +403,7 @@ describe("Display2D", () => {
       });
     await game.start();
     game.step(0.25, 4);
-    const ghost = game.inspect().entities.find((e) => e.name === "ghost")!;
+    const ghost = inspect(game).entities.find((e) => e.name === "ghost")!;
     expect(ghost.components["fenrir.Display2D"]).toEqual({ alpha: 0, visible: false });
     await game.stop();
   });

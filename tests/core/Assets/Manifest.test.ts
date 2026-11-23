@@ -16,6 +16,7 @@ import { Schedule } from "@/core/Scheduler";
 import { createTestGame, type TestGame } from "@/core/TestGame";
 import type { SystemCtx } from "@/core/SystemCtx";
 import "@/core/Assets/Assets2D";
+import { inspect } from "@/core/Inspect";
 
 /** A stand-in texture: the manifest only passes values through. */
 const texture = (label: string) => ({ label }) as unknown as Texture;
@@ -474,7 +475,7 @@ describe("lifetime and inspection", () => {
 
   it("shows progress in inspect() as plain JSON under the manifest's name", async () => {
     const { game, fake } = await setUp();
-    expect(game.inspect().resources["test.assets"]).toBeUndefined();
+    expect(inspect(game).resources["test.assets"]).toBeUndefined();
     const loading = loadAssets(game, GameAssets, "reef");
     await settle();
     await fake.reject("reef");
@@ -482,7 +483,7 @@ describe("lifetime and inspection", () => {
     await fake.resolve("logo");
     await loading;
 
-    const snapshot = game.inspect().resources["test.assets"];
+    const snapshot = inspect(game).resources["test.assets"];
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
     expect(snapshot).toEqual({
       loaded: 3,

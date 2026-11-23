@@ -124,7 +124,7 @@ export interface AudioBus {
 }
 
 /**
- * The game's audio, as plain data: the value of the `AudioState` resource, which `game.inspect()`
+ * The game's audio, as plain data: the value of the `AudioState` resource, which `inspect(game)`
  * shows. The game edits `muted`, `volume` and `buses`; they apply by the end of the frame, and to
  * every sound that plays. The engine writes the rest.
  */

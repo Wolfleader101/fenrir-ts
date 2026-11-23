@@ -57,7 +57,7 @@ export interface BundleProgress extends AssetCounts {
 
 /**
  * A manifest's progress, as plain data: the value of `manifest.progress`, a resource, so a HUD
- * reads it each frame with `ctx.resources.get(manifest.progress)` and `game.inspect()` shows it.
+ * reads it each frame with `ctx.resources.get(manifest.progress)` and `inspect(game)` shows it.
  * The top-level counts are over every asset a loading or loaded bundle holds.
  */
 export interface AssetProgress<A extends string = string, B extends string = string> extends AssetCounts {

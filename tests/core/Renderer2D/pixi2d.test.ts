@@ -4,6 +4,7 @@ import { createGame } from "@/core/Game";
 import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Scheduler";
 import { pixi2d } from "@/core/Renderer2D";
+import { inspect } from "@/core/Inspect";
 
 /** A Pixi application that looks initialized on `canvas`, without a GPU. */
 function adoptedApplication(canvas: HTMLCanvasElement) {
@@ -34,7 +35,7 @@ describe("pixi2d", () => {
     // The names are stable, so game systems can order against them.
     function movePlayer() {}
     game.addSystem(Schedule.PostUpdate, movePlayer, { before: "fenrir.pixi.postUpdate" });
-    expect(game.inspect().schedule.update).toEqual([]);
+    expect(inspect(game).schedule.update).toEqual([]);
     expect(() => game.removeSystem("fenrir.pixi.postUpdate")).not.toThrow();
     for (const name of ["fenrir.pixi.init", "fenrir.pixi.exit"]) {
       expect(() => game.replaceSystem(name, () => {})).not.toThrow();

@@ -14,7 +14,10 @@ export type { Game, GameBase, GameOptions, Plugin } from "./Game";
 // Test game: frames on demand, no canvas and no real clock
 export { createTestGame } from "./TestGame";
 export type { TestClock, TestGame, TestGameOptions } from "./TestGame";
-export type { GameSnapshot, EntitySnapshot } from "./Inspect";
+
+// Inspection: inspect(game) and window.__FENRIR__, functions so a game that never calls them ships none of it
+export { inspect, exposeInspector } from "./Inspect";
+export type { GameSnapshot, EntitySnapshot, DebugGlobal } from "./Inspect";
 export type { JsonValue } from "./Json";
 
 // States: state machines with enter and exit hooks, and the inState run condition
@@ -78,9 +81,8 @@ export { Display2D } from "./ECS/Display2D";
 export { defineComponent } from "./ECS/Component";
 export type { ComponentType } from "./ECS/Component";
 
-// Entity Builder (with the core transform() and name() extensions)
+// Entity Builder: transform(), name(), transform2D() and display2D() are its own methods
 export { EntityBuilder } from "./EntityBuilder/EntityBuilder";
-export * from "./EntityBuilder/extensions/coreExtensions";
 
 // Assets
 export type { IAssetStore, Asset, AssetKey, AssetKind, AssetKinds, AssetStoreConfig, LoaderConfig } from "./Assets/AssetStore";

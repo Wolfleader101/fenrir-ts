@@ -79,7 +79,7 @@ export interface StorageKeyFamily<T> {
   readonly prefix: string;
 }
 
-/** Where storage stands, as plain data: `game.inspect()` shows it under `fenrir.StorageStatus`. */
+/** Where storage stands, as plain data: `inspect(game)` shows it under `fenrir.StorageStatus`. */
 export interface StorageStatus {
   /** The backend in use: `"localStorage"`, `"memory"`, or an injected backend's name. */
   backend: string;

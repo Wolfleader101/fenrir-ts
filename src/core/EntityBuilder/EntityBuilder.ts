@@ -1,4 +1,7 @@
 import type { Entity, EntityList, ComponentType } from "../ECS";
+import { Name, Transform, createDefaultTransform, type QuatLike, type Vec3Like } from "../ECS/DefaultComponents";
+import { Display2D } from "../ECS/Display2D";
+import { Transform2D } from "../ECS/Transform2D";
 
 type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
 
@@ -44,6 +47,32 @@ export class EntityBuilder {
 
     this.ops.push({ type, make });
     return this;
+  }
+
+  /** Adds the engine's `Transform`. Defaults come from the installed factory: Three objects once fenrir-ts/3d is loaded. */
+  public transform(pos?: Vec3Like, rot?: QuatLike, scale?: Vec3Like): this {
+    const defaults = createDefaultTransform();
+    return this.with(Transform, {
+      position: pos ?? defaults.position,
+      rotation: rot ?? defaults.rotation,
+      scale: scale ?? defaults.scale,
+    });
+  }
+
+  /** Adds the engine's `Name`. */
+  public name(value: string): this {
+    return this.with(Name, { name: value });
+  }
+
+  /** Adds `Transform2D`: `x`, `y` in logical units, `rotation` in radians, scale 1 unless given. */
+  public transform2D(x = 0, y = 0, options: { rotation?: number; scaleX?: number; scaleY?: number } = {}): this {
+    // A factory, so every spawn gets its own object.
+    return this.with(Transform2D, () => ({ x, y, rotation: options.rotation ?? 0, scaleX: options.scaleX ?? 1, scaleY: options.scaleY ?? 1 }));
+  }
+
+  /** Adds `Display2D`: `alpha` 1 and `visible` true unless given. */
+  public display2D({ alpha = 1, visible = true }: { alpha?: number; visible?: boolean } = {}): this {
+    return this.with(Display2D, () => ({ alpha, visible }));
   }
 
   /**
