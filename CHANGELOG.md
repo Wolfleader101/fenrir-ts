@@ -15,15 +15,17 @@ A base 2D game ships 4.2 kB less engine code (58.4 â†’ 54.1 kB minified, 18.7 â†
 
 ### Breaking changes
 
+The 2D texture methods on `AssetStore` are removed (every 2D consumer that used them): five methods, each now a function of the same name from `fenrir-ts/2d` that takes the store first.
+
 | Before | After |
 | --- | --- |
-| `createGame({ canvas, debug: true })` | `createGame({ canvas, plugins: [inspector({ global: true })] })` |
-| `game.inspect()` on a `createGame` game with no plugin | install `inspector()`; without it `inspect()` throws, naming the plugin. Test games need nothing. |
 | `assets.requestTexture2D(key, url)` | `requestTexture2D(assets, key, url)` from `fenrir-ts/2d` |
 | `assets.loadTexture2D(key, url)` | `loadTexture2D(assets, key, url)` |
 | `assets.getTexture2D(key)` | `getTexture2D(assets, key)` |
 | `assets.registerTexture2DLoader(name, config)` | `registerTexture2DLoader(assets, name, config)` |
 | `assets.getSupportedTexture2DExtensions()` | `getSupportedTexture2DExtensions(assets)` |
+| `createGame({ canvas, debug: true })` | `createGame({ canvas, plugins: [inspector({ global: true })] })` |
+| `game.inspect()` on a `createGame` game with no plugin | install `inspector()`; without it `inspect()` throws, naming the plugin. Test games need nothing. |
 | `new AssetStore({ texture2DLoaders: { name: config } })` | `registerTexture2DLoader(store, name, config)` |
 | `new AssetStore()` then `loadModel`, `loadTexture`, `getGeometry`, `getAnimations`, `getMaterials`, `getTexture`, `registerModelLoader`, `registerTextureLoader`, `getSupported*Extensions` (with `fenrir-ts/3d` imported) | `new AssetStore3D()` from `fenrir-ts/3d`; `bootstrapEngine` returns one as `assets` |
 | `new AssetStore({ modelLoaders, textureLoaders })` | `new AssetStore3D({ modelLoaders, textureLoaders })` |
