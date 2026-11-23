@@ -14,7 +14,7 @@ import { Schedule } from "@/core/Scheduler";
 import { PixiNode, Renderable2D, createPixiRendererSystem, pixi2d } from "@/core/Renderer2D";
 import type { SystemCtx } from "@/core/SystemCtx";
 import { createMockSystemCtx } from "../../utils/testHelpers";
-import { inspector } from "@/core/Inspect";
+import { inspect } from "@/core/Inspect";
 
 const logger = new NullLogger();
 
@@ -223,7 +223,7 @@ describe("PixiNode and Transform2D", () => {
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const { app, canvas, render } = fakeApplication();
     const pixi = pixi2d({ application: app, layers: ["world"] });
-    const game = await createGame({ canvas, logger, plugins: [pixi, inspector()] });
+    const game = await createGame({ canvas, logger, plugins: [pixi] });
     const node = new Container();
     let drawnAt: number | undefined;
     render.mockImplementation(() => { drawnAt = node.x; });
@@ -240,16 +240,16 @@ describe("PixiNode and Transform2D", () => {
     expect(drawnAt).toBe(4);
     expect(node.parent).toBe(pixi.renderer.layer("world"));
 
-    const ship = game.inspect().entities.find((e) => e.name === "ship")!;
+    const ship = inspect(game).entities.find((e) => e.name === "ship")!;
     expect(ship.components["fenrir.Transform2D"]).toEqual({ x: 4, y: 0, rotation: 0, scaleX: 1, scaleY: 1 });
     expect(ship.components["fenrir.PixiNode"]).toEqual({ node: { $type: "Container" }, layer: "world" });
     node.label = "myGame.ship";
-    expect(game.inspect().entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toEqual({ node: { $type: "Container", label: "myGame.ship" }, layer: "world" });
-    expect(JSON.parse(JSON.stringify(game.inspect()))).toEqual(game.inspect());
+    expect(inspect(game).entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toEqual({ node: { $type: "Container", label: "myGame.ship" }, layer: "world" });
+    expect(JSON.parse(JSON.stringify(inspect(game)))).toEqual(inspect(game));
 
     await game.stop();
     expect(node.destroyed).toBe(true);
-    expect(game.inspect().entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toBeUndefined();
+    expect(inspect(game).entities.find((e) => e.name === "ship")!.components["fenrir.PixiNode"]).toBeUndefined();
   });
 });
 
@@ -267,7 +267,7 @@ describe("the first rendered frame", () => {
 
   it("draws nodes spawned at startup at their Transform2D when the game renders before the first frame", async () => {
     const { frames, canvas, render, pixi } = startGame();
-    const game = await createGame({ canvas, logger, plugins: [pixi, inspector()] });
+    const game = await createGame({ canvas, logger, plugins: [pixi] });
     const Phase = defineState("test.Phase", { values: ["ready"], initial: "ready" });
     const deck = new Container();
     const fromHook = new Container();
@@ -295,7 +295,7 @@ describe("the first rendered frame", () => {
 
   it("draws an entity spawned mid-frame at its Transform2D in any render that follows", async () => {
     const { canvas, render, pixi, frames } = startGame();
-    const game = await createGame({ canvas, logger, plugins: [pixi, inspector()] });
+    const game = await createGame({ canvas, logger, plugins: [pixi] });
     const node = new Container();
     const drawn: number[] = [];
     render.mockImplementation(() => drawn.push(node.x));
@@ -403,7 +403,7 @@ describe("Display2D", () => {
       });
     await game.start();
     game.step(0.25, 4);
-    const ghost = game.inspect().entities.find((e) => e.name === "ghost")!;
+    const ghost = inspect(game).entities.find((e) => e.name === "ghost")!;
     expect(ghost.components["fenrir.Display2D"]).toEqual({ alpha: 0, visible: false });
     await game.stop();
   });

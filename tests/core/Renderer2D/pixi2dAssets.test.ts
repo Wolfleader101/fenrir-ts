@@ -4,7 +4,7 @@ import { EntityBuilder, Schedule, createGame, defineAssets, getAsset, loadAssets
 import { pixi2d } from "@/2d";
 import { NullLogger } from "@/core/NullLogger";
 import type { Entity } from "@/core/ECS";
-import { inspector } from "@/core/Inspect";
+import { inspect } from "@/core/Inspect";
 
 /** A Pixi application that looks initialized on `canvas`, without a GPU. */
 function adoptedApplication(canvas: HTMLCanvasElement) {
@@ -55,7 +55,7 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
 
     const canvas = document.createElement("canvas");
     const pixi = pixi2d({ application: adoptedApplication(canvas) });
-    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [pixi, inspector()] });
+    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [pixi] });
     const spawned: Entity[] = [];
     game
       .addSystem(Schedule.PreInit, async function loadBoot(ctx) {
@@ -72,7 +72,7 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
     frame();
     await settle();
     expect(sprites(pixi.renderer.root).map((sprite) => sprite.texture)).toEqual(expect.arrayContaining([logo, hero]));
-    expect(game.inspect().resources["test.pixiAssets"]).toMatchObject({ loaded: 2, total: 2, fraction: 1 });
+    expect(inspect(game).resources["test.pixiAssets"]).toMatchObject({ loaded: 2, total: 2, fraction: 1 });
 
     await game.stop();
     unloadAssets(game, GameAssets, "boot");

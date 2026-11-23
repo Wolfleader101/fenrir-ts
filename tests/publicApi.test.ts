@@ -199,8 +199,8 @@ describe("fenrir-ts core public API", () => {
     expect(ctx.entities.get(entity, Transform2D).x).toBe(2.5);
     const tween: Tween = ctx.entities.get(entity, Tweens)["fenrir.Transform2D:x"]!;
     expect(tween).toMatchObject({ component: "fenrir.Transform2D", ease: "publicApi.half", elapsed: 0.25 });
-    expect(game.inspect().resources["fenrir.MotionSettings"]).toEqual({ paused: {}, pausedAll: false, reducedMotion: false });
-    expect(game.inspect().schedule.preUpdate).toEqual(["fenrir.motion.preUpdate"]);
+    expect(core.inspect(game).resources["fenrir.MotionSettings"]).toEqual({ paused: {}, pausedAll: false, reducedMotion: false });
+    expect(core.inspect(game).schedule.preUpdate).toEqual(["fenrir.motion.preUpdate"]);
     game.resources.get(MotionSettings).reducedMotion = true;
     game.step(0);
     expect(ctx.entities.get(entity, Transform2D).x).toBe(10);
@@ -232,7 +232,7 @@ describe("fenrir-ts core public API", () => {
     expect(loaded).toEqual(["boot ", "level b"]);
     expect(getAsset(game, Assets, "b")).toEqual({ name: "a" });
     await expect(loadAssets(game, Assets, "broken")).rejects.toBeInstanceOf(AssetBundleError);
-    expect(game.inspect().resources["publicApi.assets"]).toMatchObject({ loaded: 2, failed: 1, total: 3 });
+    expect(core.inspect(game).resources["publicApi.assets"]).toMatchObject({ loaded: 2, failed: 1, total: 3 });
     unloadAssets(game, Assets, ["level", "boot", "broken"]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(unloaded).toEqual(["a"]);
@@ -260,7 +260,7 @@ describe("fenrir-ts core public API", () => {
     expect(updateStored(game, Best, ({ score }) => ({ score: score + 1 }))).toEqual({ score: 13 });
     removeStored(game, Muted);
     expect(getStored(game, Muted)).toBe(false);
-    expect(game.inspect().resources["fenrir.StorageStatus"]).toEqual({
+    expect(core.inspect(game).resources["fenrir.StorageStatus"]).toEqual({
       backend: "memory",
       persistent: true,
       lastError: { key: "publicApi.muted", message: expect.stringContaining("invalid value") },
@@ -292,7 +292,7 @@ describe("fenrir-ts core public API", () => {
     game.step(0.1);
     expect(() => game.step(0.2)).toThrow(/0 to 0.1 s/);
     expect(backend.items.get("publicApi.hints")).toBe('{"v":1,"value":true}');
-    expect(game.inspect().resources["fenrir.MotionSettings"]).toMatchObject({ pausedAll: true });
+    expect(core.inspect(game).resources["fenrir.MotionSettings"]).toMatchObject({ pausedAll: true });
     await game.stop();
   });
 
@@ -496,21 +496,22 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
-  it("inspects a game as JSON and exposes it on window.__FENRIR__ with inspector({ global: true })", async () => {
-    const { createGame, defineComponent, defineResource, inspector, NullLogger, Schedule } = core;
+  it("inspects a game as JSON with inspect(game) and exposes it on window.__FENRIR__ with exposeInspector(game)", async () => {
+    const { createGame, defineComponent, defineResource, exposeInspector, inspect, NullLogger, Schedule } = core;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const Score = defineResource("publicApi.inspect.Score", () => new Map([["ana", 3]]));
     const Speed = defineComponent<{ value: number }>("publicApi.inspect.Speed");
 
-    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger(), plugins: [inspector({ global: true })] });
+    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
+    exposeInspector(game);
     game.addSystem(Schedule.Init, function spawn({ entities, resources }) {
       entities.set(entities.createEntity(), Speed, { value: 2 });
       resources.get(Score);
     });
     await game.run();
 
-    const snapshot = game.inspect();
+    const snapshot = inspect(game);
     expectTypeOf(snapshot).toEqualTypeOf<import("@/index").GameSnapshot>();
     expectTypeOf(snapshot.resources).toEqualTypeOf<Readonly<Record<string, import("@/index").JsonValue>>>();
     expect(snapshot).toMatchObject({
@@ -525,11 +526,13 @@ describe("fenrir-ts core public API", () => {
     delete (window as { __FENRIR__?: unknown }).__FENRIR__;
   });
 
-  it("throws from inspect() on a game without inspector(), naming the plugin", async () => {
-    const { createGame, NullLogger } = core;
+  it("adds no inspect method to a game: inspection is a function a game imports", async () => {
+    const { createGame, createTestGame, NullLogger } = core;
     const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
-    expect(() => game.inspect()).toThrow(/inspector\(\)/);
+    expect(game).not.toHaveProperty("inspect");
+    expect(await createTestGame({ seed: 1 })).not.toHaveProperty("inspect");
   });
+
 });
 
 describe("fenrir-ts time and random", () => {

@@ -54,7 +54,7 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 
 | Import | Source | Contents | Peer |
 | --- | --- | --- | --- |
-| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), the `inspector()` plugin (`game.inspect()`), `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache, asset manifests (`defineAssets`, `loadAssets`, `unloadAssets`, `getAsset`, `setAssetLoader`), storage (`storage()`, `defineStorageKey`, `getStored`, `setStored`, `updateStored`, `removeStored`, `memoryStorage`, `StorageStatus`) | none |
+| `fenrir-ts` | `src/index.ts`, which re-exports `src/core/index.ts` | Core: `createGame`, `Game`, `Plugin`, `createTestGame`, `TestGame`, named systems, engine, scheduler, scenes, ECS, events, resources, time, logging, input actions (`defineAction`, `ctx.input`), timers and tweens (`motion()`, `addTimer`, `addTween`, `Timers`, `Tweens`, `easings`), inspection (`inspect(game)`, `exposeInspector`), `Transform2D`, `Display2D`, `EntityBuilder` with `transform()`, `transform2D()`, `display2D()` and `name()`, the asset cache, asset manifests (`defineAssets`, `loadAssets`, `unloadAssets`, `getAsset`, `setAssetLoader`), storage (`storage()`, `defineStorageKey`, `getStored`, `setStored`, `updateStored`, `removeStored`, `memoryStorage`, `StorageStatus`) | none |
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin with named layers, Pixi renderer and its system, `PixiNode`, `Transform2D` and `Display2D` (re-exported from core), `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
@@ -420,24 +420,24 @@ await game.run();
 - The listeners read pointer buttons from `event.buttons`. A synthetic `PointerEvent` in a browser test needs `buttons: 1` on `pointerdown` and a matching `pointerup` with `buttons: 0`, or the engine sees no press (`button: 0` alone is not enough).
 - `inspect()` does not show input yet.
 
-**Inspecting a game.** `game.inspect()` (`src/core/Inspect.ts`, values encoded by `toJson` in `src/core/Json.ts`) returns a `GameSnapshot` of plain JSON: `frame`, `time` (`elapsed`, `delta`), `schedule` (system names per stage in run order), `states` (value and `timeIn` of each state the game has used), `resources` (each one that has a value) and `entities` of the active scene (`id`, `name`, `parent`, `components`).
-It needs the `inspector()` plugin (`src/core/Inspect.ts`), which sets `GameImpl.inspector`; without it `inspect()` throws, naming the plugin, and the game ships no snapshot or `toJson` code. With it, `inspect()` never throws and works before `run()`, while paused and after `stop()`.
-Every `TestGame` has it with no plugin (`createTestGame` calls `enableInspect`; test games never reach a production bundle), and stepped frames count. `frame` counts frames since the current run started (0 during startup, kept after `stop()`, reset by `run()` or `start()`); `time` is as of the start of the latest frame, so two calls with no frame between them are deeply equal. Keys are the names given to `defineState`, `defineResource` and `defineComponent`, sorted; entities are by id. `id` and `parent` are entity handles; `fenrir.Name` and `fenrir.Relationship` are folded into `name` and `parent`, and `fenrir.Transform` stays in `components`.
-`inspector({ global: true })` also sets `window.__FENRIR__ = { inspect }`. The last game installed with it owns it, it stays after `stop()`, and without a `window` nothing happens. `global` is off by default. Do not move inspection back into `createGame` or `GameImpl`: `check:consumer` fails if a fixture other than `game-2d-inspector` ships it.
+**Inspecting a game.** `inspect(game)` (`src/core/Inspect.ts`, values encoded by `toJson` in `src/core/Json.ts`) returns a `GameSnapshot` of plain JSON: `frame`, `time` (`elapsed`, `delta`), `schedule` (system names per stage in run order), `states` (value and `timeIn` of each state the game has used), `resources` (each one that has a value) and `entities` of the active scene (`id`, `name`, `parent`, `components`).
+It is a function, not a method on `Game`, so a game that never calls it ships no snapshot or `toJson` code. It never throws and works before `run()`, while paused and after `stop()`, on a `Game` and a `TestGame`, where stepped frames count. `frame` counts frames since the current run started (0 during startup, kept after `stop()`, reset by `run()` or `start()`); `time` is as of the start of the latest frame, so two calls with no frame between them are deeply equal. Keys are the names given to `defineState`, `defineResource` and `defineComponent`, sorted; entities are by id. `id` and `parent` are entity handles; `fenrir.Name` and `fenrir.Relationship` are folded into `name` and `parent`, and `fenrir.Transform` stays in `components`.
+`exposeInspector(game)` sets `window.__FENRIR__ = { inspect }`. The last game exposed owns it, it stays after `stop()`, and without a `window` nothing happens. Do not add inspection back to `createGame` or `GameImpl`: `check:consumer` fails if a fixture other than `game-2d-inspector` ships it.
 
 ```ts
-import { Schedule, createGame, defineResource, inspector, type SystemCtx } from "fenrir-ts";
+import { Schedule, createGame, defineResource, exposeInspector, inspect, type SystemCtx } from "fenrir-ts";
 
 const Scores = defineResource("myGame.Scores", () => new Map<string, number>());
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
-const game = await createGame({ canvas, plugins: [inspector({ global: true })] });
+const game = await createGame({ canvas });
+exposeInspector(game);
 
 game.addSystem(Schedule.Init, function score({ resources }: SystemCtx) {
   resources.get(Scores).set("ana", 10);
 });
 await game.run();
 
-const { resources, schedule } = game.inspect();
+const { resources, schedule } = inspect(game);
 console.log(resources["myGame.Scores"]); // { $type: "Map", entries: [["ana", 10]] }
 console.log(schedule.init); // ["score"]
 ```
@@ -454,7 +454,7 @@ console.log(schedule.init); // ["score"]
 | throwing getter or `toJSON` | `{ $type: "Thrown", message }` |
 | cycle; more than 8 levels; more than 100 items or keys; more than 1000 characters; more than 5000 values in one component or resource | cut and marked with `$truncated`: `"cycle"`, `"depth"`, `"length"` (with `size`) or `"size"` |
 
-To check what a game is doing, assert on `inspect()`, not on pixels: `game.inspect()` in a unit test, `page.evaluate(() => window.__FENRIR__.inspect())` in a Playwright test of a game made with `inspector({ global: true })`. Snapshots of the same game state are identical, so compare them whole or snapshot-test them. A value is complete unless it carries `$truncated`.
+To check what a game is doing, assert on `inspect()`, not on pixels: `inspect(game)` in a unit test, `page.evaluate(() => window.__FENRIR__.inspect())` in a Playwright test of a game that calls `exposeInspector(game)`. Snapshots of the same game state are identical, so compare them whole or snapshot-test them. A value is complete unless it carries `$truncated`.
 ## Viewport
 
 `pixi2d({ design: { width, minHeight }, safeArea, maxResolution })` makes a 2D game draw in design units. The design width fills the safe area's width and the logical height grows from `minHeight` to fill its height; a safe area too short for `minHeight` scales the frame down further and centres it horizontally. The code is in `src/core/Renderer2D/`: the layout maths (`layoutViewport`, exported from `fenrir-ts/2d` for browser tests) and the `Viewport` resource in `Viewport.ts` (no Pixi imports, so core's input uses it), the listeners in `ViewportSystem.ts`.
@@ -531,7 +531,7 @@ Component and event identity is the name, through `Symbol.for`. Two `defineCompo
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
 System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.audio.init` and `fenrir.audio.postUpdate`, `fenrir.storage.preInit` (only with a backend that hydrates), `fenrir.storage.postUpdate` and `fenrir.storage.exit` (only once `persistResource` is called), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
-Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`, `fenrir.inspector`.
+Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
 

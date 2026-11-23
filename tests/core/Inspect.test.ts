@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGame, type Game } from "@/core/Game";
 import { createTestGame } from "@/core/TestGame";
-import { inspector, type GameSnapshot } from "@/core/Inspect";
+import { exposeInspector, inspect, type GameSnapshot } from "@/core/Inspect";
 import { defineComponent } from "@/core/ECS/Component";
 import { Name } from "@/core/ECS/DefaultComponents";
 import { NullLogger } from "@/core/NullLogger";
@@ -37,8 +37,11 @@ function runFrames(count: number): void {
 }
 
 const roundTrip = (snapshot: GameSnapshot): unknown => JSON.parse(JSON.stringify(snapshot));
-const newGame = ({ global, logger = new NullLogger() }: { global?: boolean; logger?: ILogger } = {}): Promise<Game> =>
-  createGame({ canvas: document.createElement("canvas"), logger, plugins: [inspector({ global })] });
+async function newGame({ global, logger = new NullLogger() }: { global?: boolean; logger?: ILogger } = {}): Promise<Game> {
+  const game = await createGame({ canvas: document.createElement("canvas"), logger });
+  if (global) exposeInspector(game);
+  return game;
+}
 
 // A Pixi-like display object: a class whose fields are not all primitives.
 class Container {
@@ -88,13 +91,13 @@ const transform = {
   scale: { x: 1, y: 1, z: 1 },
 };
 
-describe("game.inspect()", () => {
+describe("inspect(game)", () => {
   it("reports a small game in full", async () => {
     const game = await smallGame();
     await game.run();
     runFrames(3);
 
-    expect(game.inspect()).toEqual({
+    expect(inspect(game)).toEqual({
       frame: 3,
       time: { elapsed: 0.048, delta: 0.016 },
       schedule: {
@@ -136,10 +139,10 @@ describe("game.inspect()", () => {
     const game = await smallGame();
     await game.run();
     runFrames(2);
-    const first = game.inspect();
+    const first = inspect(game);
     now += 500;
-    expect(game.inspect()).toEqual(first);
-    expect(JSON.stringify(game.inspect())).toBe(JSON.stringify(first));
+    expect(inspect(game)).toEqual(first);
+    expect(JSON.stringify(inspect(game))).toBe(JSON.stringify(first));
     await game.stop();
   });
 
@@ -147,7 +150,7 @@ describe("game.inspect()", () => {
     const game = await smallGame();
     await game.run();
     runFrames(1);
-    const snapshot = game.inspect();
+    const snapshot = inspect(game);
     expect(roundTrip(snapshot)).toEqual(snapshot);
     await game.stop();
   });
@@ -169,7 +172,7 @@ describe("game.inspect()", () => {
     });
     await game.run();
 
-    const snapshot = game.inspect();
+    const snapshot = inspect(game);
     expect(Object.keys(snapshot.resources)).toEqual(["test.inspect.order.a", "test.inspect.order.z"]);
     expect(Object.keys(snapshot.states)).toEqual(["test.inspect.order.A", "test.inspect.order.Z"]);
     expect(snapshot.entities.map((e) => e.id)).toEqual([1]);
@@ -186,7 +189,7 @@ describe("game.inspect()", () => {
     });
     await game.run();
     expect(reused).not.toBe(0);
-    expect(game.inspect().entities).toMatchObject([{ id: reused, name: "Entity 0" }]);
+    expect(inspect(game).entities).toMatchObject([{ id: reused, name: "Entity 0" }]);
     await game.stop();
   });
 
@@ -196,7 +199,7 @@ describe("game.inspect()", () => {
       entities.set(entities.createEntity(), Symbol("loose"), { a: 1 });
     });
     await game.run();
-    expect(game.inspect().entities[0]!.components["Symbol(loose)"]).toEqual({ a: 1 });
+    expect(inspect(game).entities[0]!.components["Symbol(loose)"]).toEqual({ a: 1 });
     await game.stop();
   });
 
@@ -208,13 +211,13 @@ describe("game.inspect()", () => {
       scenes.changeActiveScene("level2");
     });
     await game.run();
-    expect(game.inspect().entities).toEqual([]);
+    expect(inspect(game).entities).toEqual([]);
     await game.stop();
   });
 
   it("works before run, while paused and after stop", async () => {
     const game = await smallGame();
-    const before = game.inspect();
+    const before = inspect(game);
     expect(before.frame).toBe(0);
     expect(before.time).toEqual({ elapsed: 0, delta: 0 });
     expect(before.entities).toEqual([]);
@@ -226,14 +229,14 @@ describe("game.inspect()", () => {
     runFrames(2);
     game.pause();
     now += 1000;
-    const paused = game.inspect();
+    const paused = inspect(game);
     expect(paused.frame).toBe(2);
     expect(paused.time.elapsed).toBeCloseTo(0.032);
 
     game.resume();
     runFrames(1);
     await game.stop();
-    const after = game.inspect();
+    const after = inspect(game);
     expect(after.frame).toBe(3);
     expect(after.entities).toHaveLength(3);
   });
@@ -244,9 +247,9 @@ describe("game.inspect()", () => {
     runFrames(4);
     await game.stop();
     await game.run();
-    expect(game.inspect().frame).toBe(0);
+    expect(inspect(game).frame).toBe(0);
     runFrames(1);
-    expect(game.inspect().frame).toBe(1);
+    expect(inspect(game).frame).toBe(1);
     await game.stop();
   });
 
@@ -254,7 +257,7 @@ describe("game.inspect()", () => {
     const game = await newGame();
     const seen: number[] = [];
     game.addSystem(Schedule.Update, function look() {
-      seen.push(game.inspect().frame);
+      seen.push(inspect(game).frame);
     });
     await game.run();
     runFrames(2);
@@ -269,14 +272,14 @@ describe("game.inspect()", () => {
       entities.set(entities.createEntity(), Bad, { get boom(): number { throw new Error("boom"); } });
     });
     await game.run();
-    expect(game.inspect().entities[0]!.components["test.inspect.Bad"]).toEqual({ boom: { $type: "Thrown", message: "boom" } });
+    expect(inspect(game).entities[0]!.components["test.inspect.Bad"]).toEqual({ boom: { $type: "Thrown", message: "boom" } });
     await game.stop();
   });
 
   it("shows registration order when the schedule cannot be resolved, instead of throwing", async () => {
     const game = await newGame();
     game.addSystem(Schedule.Update, function a() {}, { after: "missing" });
-    expect(game.inspect().schedule.update).toEqual(["a"]);
+    expect(inspect(game).schedule.update).toEqual(["a"]);
   });
 });
 
@@ -291,24 +294,24 @@ describe("inspect on a test game", () => {
     });
     await game.start();
     game.step(0.1, 3);
-    const snapshot = game.inspect();
+    const snapshot = inspect(game);
     expect(snapshot.frame).toBe(3);
     expect(snapshot.time.delta).toBeCloseTo(0.1);
     expect(snapshot.time.elapsed).toBeCloseTo(0.3); // three frames of 0.1 s, as the third frame saw it
     expect(snapshot.entities[0]!.components["test.inspect.Health"]).toEqual({ current: 7, max: 10 });
     await game.stop();
     await game.start();
-    expect(game.inspect().frame).toBe(0);
+    expect(inspect(game).frame).toBe(0);
     await game.stop();
   });
 });
 
-describe("inspector({ global })", () => {
-  it("puts inspect on window.__FENRIR__ with global: true", async () => {
+describe("exposeInspector(game)", () => {
+  it("puts inspect on window.__FENRIR__", async () => {
     const game = await smallGame();
     const debugGame = await newGame({ global: true });
     debugGame.resources.set(Level, 9);
-    expect(window.__FENRIR__!.inspect()).toEqual(debugGame.inspect());
+    expect(window.__FENRIR__!.inspect()).toEqual(inspect(debugGame));
     expect(window.__FENRIR__!.inspect().resources).toEqual({ "test.inspect.Level": 9 });
     void game;
   });
@@ -318,7 +321,7 @@ describe("inspector({ global })", () => {
     expect(window.__FENRIR__).toBeUndefined();
   });
 
-  it("gives window.__FENRIR__ to the last game installed with global: true, with a warning, and keeps it after stop", async () => {
+  it("gives window.__FENRIR__ to the last game exposed, with a warning, and keeps it after stop", async () => {
     const logger = { ...new NullLogger(), warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as ILogger;
     const first = await newGame({ global: true });
     first.resources.set(Level, 1);
@@ -337,25 +340,23 @@ describe("inspector({ global })", () => {
     const two = await newGame();
     one.resources.set(Level, 1);
     two.resources.set(Level, 2);
-    expect(one.inspect().resources).toEqual({ "test.inspect.Level": 1 });
-    expect(two.inspect().resources).toEqual({ "test.inspect.Level": 2 });
+    expect(inspect(one).resources).toEqual({ "test.inspect.Level": 1 });
+    expect(inspect(two).resources).toEqual({ "test.inspect.Level": 2 });
   });
 
-  it("makes inspect() throw, naming the plugin, on a game without it", async () => {
-    const game = await createGame({ canvas: document.createElement("canvas"), logger: new NullLogger() });
-    expect(() => game.inspect()).toThrow("game.inspect() needs the inspector() plugin");
-  });
-
-  it("installs in a test game, which has inspect() already", async () => {
-    const plain = await createTestGame({ seed: 1 });
-    const withPlugin = await createTestGame({ seed: 1, plugins: [inspector()] });
-    expect(withPlugin.inspect()).toEqual(plain.inspect());
+  it("inspects a createGame game and a test game alike, with no setup", async () => {
+    const game = await newGame();
+    const test = await createTestGame({ seed: 1 });
+    game.resources.set(Level, 4);
+    test.resources.set(Level, 4);
+    expect(inspect(game).resources).toEqual(inspect(test).resources);
+    expect(game).not.toHaveProperty("inspect");
   });
 
   it("does nothing where there is no window", async () => {
     vi.stubGlobal("window", undefined);
     const game = await newGame({ global: true });
-    expect(game.inspect().frame).toBe(0);
+    expect(inspect(game).frame).toBe(0);
     vi.unstubAllGlobals();
     expect(window.__FENRIR__).toBeUndefined();
   });

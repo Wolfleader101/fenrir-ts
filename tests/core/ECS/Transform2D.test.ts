@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { Schedule, createTestGame, EntityBuilder, EntityList, Transform2D, type SystemCtx } from "@/index";
+import { inspect } from "@/core/Inspect";
 
 const MOVING = [Transform2D] as const;
 
@@ -21,7 +22,7 @@ it("moves Transform2D entities headless, with no renderer, and shows them in ins
   await game.start();
   game.step(1 / 60, 30);
 
-  const fish = game.inspect().entities.filter((e) => e.name === "fish");
+  const fish = inspect(game).entities.filter((e) => e.name === "fish");
   expect(fish).toHaveLength(2);
   for (const { components } of fish) {
     const t = components["fenrir.Transform2D"] as Transform2D;

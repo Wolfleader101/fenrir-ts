@@ -9,31 +9,31 @@
   },
   "consumers": {
     "game-2d": {
-      "minified": 56900,
+      "minified": 56800,
       "gzip": 18100
     },
     "core-only": {
-      "minified": 39600,
+      "minified": 39500,
       "gzip": 12400
     },
     "game-2d-motion": {
-      "minified": 60900,
-      "gzip": 19800
+      "minified": 60700,
+      "gzip": 19700
     },
     "game-2d-assets": {
-      "minified": 62700,
+      "minified": 62600,
       "gzip": 20100
     },
     "game-2d-audio": {
-      "minified": 64400,
+      "minified": 64200,
       "gzip": 20900
     },
     "game-2d-storage": {
-      "minified": 61800,
-      "gzip": 19900
+      "minified": 61700,
+      "gzip": 19800
     },
     "game-2d-inspector": {
-      "minified": 60500,
+      "minified": 60300,
       "gzip": 19400
     }
   }

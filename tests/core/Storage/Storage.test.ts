@@ -19,6 +19,7 @@ import {
   updateStored,
   type StorageBackend,
 } from "@/core/Storage/Storage";
+import { inspect } from "@/core/Inspect";
 
 const Muted = defineStorageKey("test.muted", { default: false });
 const Volume = defineStorageKey("test.volume", { default: 0.8 });
@@ -151,7 +152,7 @@ describe("storage() plugin", () => {
     expect(getStored(game, Best)).toEqual({ score: 8, level: 2 });
     expect(logger.warnings).toHaveLength(1);
     expect(logger.warnings[0]).toMatch(/"test.best": could not be saved/);
-    expect(game.inspect().resources["fenrir.StorageStatus"]).toEqual({
+    expect(inspect(game).resources["fenrir.StorageStatus"]).toEqual({
       backend: "memory",
       persistent: true,
       lastError: { key: "test.best", message: expect.stringMatching(/could not be saved.*quota has been exceeded/) },
@@ -191,7 +192,7 @@ describe("storage() plugin", () => {
     expect(setStored(game, Muted, true)).toBe(true);
     expect(getStored(game, Muted)).toBe(true);
     expect(logger.warnings).toEqual(["Storage: localStorage is unavailable; values last only this session"]);
-    expect(game.inspect().resources["fenrir.StorageStatus"]).toMatchObject({ backend: "memory", persistent: false, lastError: { key: null } });
+    expect(inspect(game).resources["fenrir.StorageStatus"]).toMatchObject({ backend: "memory", persistent: false, lastError: { key: null } });
   });
 
   it("throws a clear error without the plugin", async () => {
@@ -227,7 +228,7 @@ describe("storage() plugin", () => {
     game.addSystem(Schedule.PreInit, function readSetting(ctx) {
       seen = getStored(ctx, Muted);
     });
-    expect(game.inspect().schedule.preInit).toEqual(["fenrir.storage.preInit", "readSetting"]);
+    expect(inspect(game).schedule.preInit).toEqual(["fenrir.storage.preInit", "readSetting"]);
     const started = game.start();
     await Promise.resolve();
     expect(seen).toBeUndefined();
@@ -340,7 +341,7 @@ describe("persistResource", () => {
       resources.get(Settings).muted = false;
     });
     await game.start();
-    expect(game.inspect().schedule.postUpdate).toEqual(["fenrir.storage.postUpdate"]);
+    expect(inspect(game).schedule.postUpdate).toEqual(["fenrir.storage.postUpdate"]);
     game.step();
     expect(backend.items.get("test.settings.muted")).toBe(envelope(1, false));
     await game.stop();
@@ -421,7 +422,7 @@ describe("persistResource", () => {
   it("persists nothing by default", async () => {
     const backend = memoryStorage();
     const game = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [storage({ backend }), audio({ backend: testAudio() })] });
-    expect(game.inspect().schedule.postUpdate).toEqual(["fenrir.audio.postUpdate"]);
+    expect(inspect(game).schedule.postUpdate).toEqual(["fenrir.audio.postUpdate"]);
     await game.start();
     game.resources.get(AudioState).muted = true;
     game.step();

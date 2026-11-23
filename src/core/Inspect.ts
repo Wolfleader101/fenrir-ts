@@ -1,13 +1,13 @@
 import { Name, Relationship } from "./ECS/DefaultComponents";
 import type { Entity, EntityList } from "./ECS/EntityList";
 import type { Engine } from "./Engine";
-import type { GameImpl, Plugin } from "./Game";
+import type { GameBase, GameImpl } from "./Game";
 import { toJson, type JsonValue } from "./Json";
 import type { Resources } from "./Resource";
 import { Schedule, type ScheduleStage } from "./Schedule";
 import type { GameStates } from "./State";
 
-/** One entity of the active scene, as `game.inspect()` reports it. */
+/** One entity of the active scene, as `inspect(game)` reports it. */
 export interface EntitySnapshot {
   /** The entity handle: the value `entities.get` and `entities.set` take. */
   readonly id: number;
@@ -19,7 +19,7 @@ export interface EntitySnapshot {
   readonly components: Readonly<Record<string, JsonValue>>;
 }
 
-/** What a game is doing, as plain JSON. Returned by `game.inspect()`. */
+/** What a game is doing, as plain JSON. Returned by `inspect(game)`. */
 export interface GameSnapshot {
   /** Frames run since the current run started. 0 during startup; kept after `stop()` until the next `run()`. */
   readonly frame: number;
@@ -70,7 +70,7 @@ function entitySnapshots(list: EntityList): EntitySnapshot[] {
   return snapshots;
 }
 
-/** Builds `game.inspect()`'s snapshot. Reads the engine's internals; changes nothing. */
+/** Builds `inspect(game)`'s snapshot. Reads the engine's internals; changes nothing. */
 export function inspectGame(engine: Engine, states: GameStates, resources: Resources): GameSnapshot {
   const { count, elapsed } = engine["frames"];
   const scheduler = engine.getScheduler();
@@ -104,45 +104,36 @@ export function inspectGame(engine: Engine, states: GameStates, resources: Resou
   };
 }
 
-/** What `inspector({ global: true })` puts on `window.__FENRIR__`. */
+/** What `exposeInspector(game)` puts on `window.__FENRIR__`. */
 export interface DebugGlobal {
   inspect(): GameSnapshot;
 }
 
-export interface InspectorOptions {
-  /**
-   * Puts `inspect` on `window.__FENRIR__` for browser tests and agents. Off by default. With two
-   * games on one page, the last one installed owns it. It stays after the game stops. Does
-   * nothing where there is no `window`.
-   */
-  readonly global?: boolean;
-}
-
-/** Internal. Makes `game.inspect()` work on `game`. `createTestGame` calls it for every test game. */
-export function enableInspect(game: GameImpl): void {
-  game.inspector = () => inspectGame(game["engine"], game.states as GameStates, game.resources);
+/**
+ * What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
+ * scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
+ * after `stop()`; never throws. A function rather than a method, so a game that never calls it
+ * ships none of the snapshot and JSON-encoding code. The serialisation rules are in README.md
+ * under "Inspecting a game".
+ *
+ * ```ts
+ * const { entities, resources } = inspect(game);
+ * ```
+ */
+export function inspect(game: GameBase): GameSnapshot {
+  const impl = game as GameImpl;
+  return inspectGame(impl["engine"], impl.states as GameStates, impl.resources);
 }
 
 /**
- * The inspector plugin: makes `game.inspect()` return a `GameSnapshot`. Without it,
- * `game.inspect()` throws, and a game ships none of the snapshot and JSON-encoding code.
- * A test game from `createTestGame` has it already.
- *
- * ```ts
- * const game = await createGame({ canvas, plugins: [pixi2d(), inspector({ global: true })] });
- * ```
+ * Puts `inspect(game)` on `window.__FENRIR__.inspect` for browser tests and agents. The last
+ * game exposed owns it, with a warning when it replaces another; it stays after the game stops.
+ * Does nothing where there is no `window`. Call it only in builds that need it, such as a debug
+ * or browser-tested build: a game that never calls it ships no inspection code.
  */
-export function inspector(options: InspectorOptions = {}): Plugin {
-  return {
-    name: "fenrir.inspector",
-    install(game) {
-      const impl = game as GameImpl;
-      enableInspect(impl);
-      if (options.global && typeof window !== "undefined") {
-        const target = window as { __FENRIR__?: DebugGlobal };
-        if (target.__FENRIR__) game.logger.warn("window.__FENRIR__ now inspects the newest game with inspector({ global: true }).");
-        target.__FENRIR__ = { inspect: () => game.inspect() };
-      }
-    },
-  };
+export function exposeInspector(game: GameBase): void {
+  if (typeof window === "undefined") return;
+  const target = window as { __FENRIR__?: DebugGlobal };
+  if (target.__FENRIR__) game.logger.warn("window.__FENRIR__ now inspects the newest game passed to exposeInspector.");
+  target.__FENRIR__ = { inspect: () => inspect(game) };
 }

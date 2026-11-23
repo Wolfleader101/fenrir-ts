@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Schedule, createGame, defineAction, type Game } from "@/index";
 import { Viewport, identityViewport } from "@/core/Renderer2D/Viewport";
 import { NullLogger } from "@/core/NullLogger";
-import { inspector } from "@/core/Inspect";
+import { inspect } from "@/core/Inspect";
 
 const Tap = defineAction("test.listen.tap", ["pointer.primary", "Space"]);
 const Left = defineAction("test.listen.left", ["ArrowLeft", "KeyA"]);
@@ -28,7 +28,7 @@ function canvasAt(left = 10, top = 20, width = 300, height = 600): HTMLCanvasEle
 async function running(canvas = canvasAt(), configure?: (game: Game) => void): Promise<Game> {
   vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
-  const game = await createGame({ canvas, logger: new NullLogger(), plugins: [inspector()] });
+  const game = await createGame({ canvas, logger: new NullLogger() });
   games.push(game);
   configure?.(game);
   await game.run();
@@ -113,7 +113,7 @@ describe("input listeners on the canvas", () => {
     pointer(canvas, "pointermove", { x: 110, y: 220 });
     game.step();
     expect(game.input.pointer).toEqual({ x: 100, y: 200, down: false, inside: true, cancelled: false });
-    expect(game.inspect().resources).not.toHaveProperty(["fenrir.viewport.Viewport"]);
+    expect(inspect(game).resources).not.toHaveProperty(["fenrir.viewport.Viewport"]);
   });
 
   it("reports the pointer in logical units under a scaled and offset viewport", async () => {
@@ -283,7 +283,7 @@ describe("stuck input", () => {
     const canvas = canvasAt();
     const touchAction = canvas.style.touchAction;
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
-    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [inspector()] });
+    const game = await createGame({ canvas, logger: new NullLogger() });
     game.addSystem(Schedule.Init, function failToStart() {
       throw new Error("no assets");
     });

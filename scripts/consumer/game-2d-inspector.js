@@ -1,14 +1,15 @@
-// game-2d.js plus the inspector() plugin with window.__FENRIR__, as a debug build or a
+// game-2d.js plus inspect(game) on window.__FENRIR__ (exposeInspector), as a debug build or a
 // browser-tested build ships it. Its size minus game-2d's is what inspect() costs a game.
 // Bundled, never run.
-import { EntityBuilder, Schedule, createGame, defineEvent, inspector } from "fenrir-ts";
+import { EntityBuilder, Schedule, createGame, defineEvent, exposeInspector } from "fenrir-ts";
 import { Transform2D, pixi2d } from "fenrir-ts/2d";
 import { Graphics } from "pixi.js";
 
 const Scored = defineEvent("fixture.scored");
 
 const canvas = document.querySelector("canvas");
-const game = await createGame({ canvas, plugins: [pixi2d({ layers: ["world", "ui"] }), inspector({ global: true })] });
+const game = await createGame({ canvas, plugins: [pixi2d({ layers: ["world", "ui"] })] });
+exposeInspector(game);
 const scored = game.events.createReader(Scored);
 const MOVING = [Transform2D];
 

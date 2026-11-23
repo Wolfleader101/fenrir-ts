@@ -15,8 +15,8 @@
 // The measured fixtures import no 3D entry, so their engine code must not
 // contain the 3D-only members that fenrir-ts/3d adds to core classes. Only
 // game-2d-motion uses timers and tweens, game-2d-assets an asset manifest,
-// game-2d-audio fenrir-ts/audio, game-2d-storage storage and game-2d-inspector the
-// inspector() plugin: the others must not ship that code.
+// game-2d-audio fenrir-ts/audio, game-2d-storage storage and game-2d-inspector
+// inspect(game): the others must not ship that code.
 //
 // Run `build:lib` first.
 //   --update        rewrite the consumer budgets from this build
@@ -70,9 +70,9 @@ const USES_AUDIO = ["game-2d-audio"];
 const STORAGE_ONLY = /fenrir\.(?:storage|StorageStatus)\b/g;
 /** Fixtures that store values. */
 const USES_STORAGE = ["game-2d-storage"];
-/** Names only the inspector and its JSON encoder hold. */
-const INSPECTOR_ONLY = /fenrir\.inspector\b|\$truncated/g;
-/** Fixtures that install inspector(). */
+/** Names only inspect(game), exposeInspector and the JSON encoder hold. */
+const INSPECTOR_ONLY = /__FENRIR__|\$truncated/g;
+/** Fixtures that inspect the game. */
 const USES_INSPECTOR = ["game-2d-inspector"];
 
 if (!existsSync(join(root, "dist", "index.js"))) {
@@ -280,7 +280,7 @@ try {
       console.error(`${name}: ships ${manifestLeaked.join(", ")} without declaring an asset manifest. Keep it tree-shakeable.`);
       failed = true;
     }
-    for (const [only, users, what] of [[AUDIO_ONLY, USES_AUDIO, "playing sounds"], [STORAGE_ONLY, USES_STORAGE, "storing values"], [INSPECTOR_ONLY, USES_INSPECTOR, "installing inspector()"]]) {
+    for (const [only, users, what] of [[AUDIO_ONLY, USES_AUDIO, "playing sounds"], [STORAGE_ONLY, USES_STORAGE, "storing values"], [INSPECTOR_ONLY, USES_INSPECTOR, "calling inspect or exposeInspector"]]) {
       const shipped = users.includes(name) ? [] : [...new Set(result.engine.match(only) ?? [])];
       if (shipped.length > 0) {
         console.error(`${name}: ships ${shipped.join(", ")} without ${what}. Keep it tree-shakeable.`);

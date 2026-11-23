@@ -8,6 +8,7 @@ import type { SystemCtx } from "@/core/SystemCtx";
 import { defineAssets, loadAssets, setAssetLoader } from "@/core/Assets/Manifest";
 import { AudioState, AudioUnlocked, audio, defineSound, playSound, stopSound, unlockAudio, type AudioBackend, type Synth } from "@/core/Audio/Audio";
 import { testAudio, type TestAudio } from "@/core/Audio/TestAudio";
+import { inspect } from "@/core/Inspect";
 
 const blip: Synth = (context, output) => {
   const osc = context.createOscillator();
@@ -56,7 +57,7 @@ afterEach(() => {
 describe("audio() plugin", () => {
   it("adds AudioState, the audio loader and two named systems", async () => {
     const game = await createTestGame({ seed: 1, logger: new NullLogger(), plugins: [audio({ backend: testAudio(), buses: ["sfx", "music", "voice"] })] });
-    const snapshot = game.inspect();
+    const snapshot = inspect(game);
     expect(snapshot.schedule.init).toEqual(["fenrir.audio.init"]);
     expect(snapshot.schedule.postUpdate).toEqual(["fenrir.audio.postUpdate"]);
     expect(snapshot.resources["fenrir.AudioState"]).toEqual({
@@ -379,7 +380,7 @@ describe("audio() plugin", () => {
     playSound(s.ctx, Theme);
     playSound(s.ctx, Coin);
     playSound(s.ctx, Coin);
-    expect(s.game.inspect().resources["fenrir.AudioState"]).toMatchObject({ status: "running", playing: { "test.theme": 1, "test.coin": 2 } });
+    expect(inspect(s.game).resources["fenrir.AudioState"]).toMatchObject({ status: "running", playing: { "test.theme": 1, "test.coin": 2 } });
   });
 
   it("runs the AGENTS.md example", async () => {

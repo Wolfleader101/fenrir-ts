@@ -12,7 +12,6 @@ import { SceneManager } from "./SceneManager";
 import { Scheduler } from "./Scheduler";
 import { GameStates } from "./State";
 import { InputImpl } from "./Input/Input";
-import type { GameSnapshot } from "./Inspect";
 import type { StateType, States } from "./State";
 import type { AsyncStage, ScheduleStage, SyncStage, SystemOptions } from "./Scheduler";
 import type { AsyncSystemFn, GameServices, SyncSystemFn } from "./SystemCtx";
@@ -58,7 +57,7 @@ export interface GameOptions {
 }
 
 /**
- * What a `Game` and a `TestGame` share: registration, services, `stop`, `step` and `inspect`. Systems,
+ * What a `Game` and a `TestGame` share: registration, services, `stop` and `step`. Systems,
  * hooks and listeners written against it run unchanged in both.
  */
 export interface GameBase extends GameServices {
@@ -113,14 +112,6 @@ export interface GameBase extends GameServices {
    * `ctx.events.on` from a system.
    */
   on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
-
-  /**
-   * What the game is doing, as plain JSON: frame, time, schedule, states, resources and the active
-   * scene's entities. Needs the `inspector()` plugin, and throws without it; a test game has it
-   * already. Works before the game runs, while paused and after `stop()`, and then never throws.
-   * The serialisation rules are in README.md under "Inspecting a game".
-   */
-  inspect(): GameSnapshot;
 }
 
 /** A running game. Built by `createGame`. */
@@ -144,8 +135,6 @@ export class GameImpl implements Game {
   declare public readonly states: States;
   declare public readonly input: GameServices["input"];
   protected readonly engine: Engine;
-  /** Set by the `inspector()` plugin. Without it `inspect()` throws, and no snapshot code ships. */
-  public inspector?: () => GameSnapshot;
   private readonly target?: HTMLCanvasElement;
 
   constructor(
@@ -228,11 +217,6 @@ export class GameImpl implements Game {
 
   public resume(): void {
     this.engine.resume();
-  }
-
-  public inspect(): GameSnapshot {
-    if (!this.inspector) throw new Error("game.inspect() needs the inspector() plugin: add inspector() from fenrir-ts to plugins.");
-    return this.inspector();
   }
 }
 

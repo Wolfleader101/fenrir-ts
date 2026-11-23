@@ -1,7 +1,7 @@
 import {
   Schedule,
   createGame,
-  inspector,
+  exposeInspector,
   type AsyncSystemFn,
   type ILogger,
   type SyncSystemFn,
@@ -24,8 +24,9 @@ export async function createDemoGame2D(
 ) {
   const { background = 0x101010, design, physics, logger, debug } = opts;
   const pixi = pixi2d({ background, design });
-  // inspector({ global: true }) puts game.inspect on window.__FENRIR__.
-  const game = await createGame({ canvas, logger, plugins: debug ? [pixi, inspector({ global: true })] : [pixi] });
+  const game = await createGame({ canvas, logger, plugins: [pixi] });
+  // Puts inspect(game) on window.__FENRIR__.
+  if (debug) exposeInspector(game);
   if (physics) {
     game
       .addSystem(Schedule.Init, physics.init)

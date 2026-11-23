@@ -3,7 +3,6 @@ import { GameImpl, createServices, installPlugins } from "./Game";
 import type { GameBase, Plugin } from "./Game";
 import type { ILogger } from "./ILogger";
 import type { TestInput } from "./Input/Input";
-import { enableInspect } from "./Inspect";
 
 export interface TestGameOptions {
   /** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
@@ -86,8 +85,6 @@ export async function createTestGame(options: TestGameOptions): Promise<TestGame
     throw new TypeError(`createTestGame needs { seed }: a safe integer, so random draws repeat. Got ${options?.seed}.`);
   }
   const game = new TestGameImpl(options, new ManualClock(options.now ?? 0));
-  // Tests assert on inspect(), and a test game never ships in a production bundle.
-  enableInspect(game);
   await installPlugins(game, options.plugins, "createTestGame");
   return game;
 }

@@ -894,64 +894,6 @@ export declare class Engine {
 	removeSystem(name: string): this;
 	getScheduler(): Scheduler;
 }
-/** A value that `JSON.stringify` writes and `JSON.parse` reads back unchanged. */
-export type JsonValue = null | boolean | number | string | readonly JsonValue[] | {
-	readonly [key: string]: JsonValue;
-};
-/** One entity of the active scene, as `game.inspect()` reports it. */
-export interface EntitySnapshot {
-	/** The entity handle: the value `entities.get` and `entities.set` take. */
-	readonly id: number;
-	/** From the engine's `fenrir.Name` component. */
-	readonly name: string;
-	/** The parent's handle, from the engine's `fenrir.Relationship` component; null for a root. */
-	readonly parent: number | null;
-	/** Every other component, `fenrir.Transform` included, by the name given to `defineComponent`. */
-	readonly components: Readonly<Record<string, JsonValue>>;
-}
-/** What a game is doing, as plain JSON. Returned by `game.inspect()`. */
-export interface GameSnapshot {
-	/** Frames run since the current run started. 0 during startup; kept after `stop()` until the next `run()`. */
-	readonly frame: number;
-	/** `time.elapsed` and `time.delta` as of the start of the latest frame. */
-	readonly time: {
-		readonly elapsed: number;
-		readonly delta: number;
-	};
-	/** System names per stage, in run order. */
-	readonly schedule: Readonly<Record<ScheduleStage, readonly string[]>>;
-	/** Each state's current value and seconds in it, by the name given to `defineState`. */
-	readonly states: Readonly<Record<string, {
-		readonly value: string;
-		readonly timeIn: number;
-	}>>;
-	/** Each resource that has a value, by the name given to `defineResource`. */
-	readonly resources: Readonly<Record<string, JsonValue>>;
-	/** The active scene's entities, by id. */
-	readonly entities: readonly EntitySnapshot[];
-}
-/** What `inspector({ global: true })` puts on `window.__FENRIR__`. */
-export interface DebugGlobal {
-	inspect(): GameSnapshot;
-}
-export interface InspectorOptions {
-	/**
-	 * Puts `inspect` on `window.__FENRIR__` for browser tests and agents. Off by default. With two
-	 * games on one page, the last one installed owns it. It stays after the game stops. Does
-	 * nothing where there is no `window`.
-	 */
-	readonly global?: boolean;
-}
-/**
- * The inspector plugin: makes `game.inspect()` return a `GameSnapshot`. Without it,
- * `game.inspect()` throws, and a game ships none of the snapshot and JSON-encoding code.
- * A test game from `createTestGame` has it already.
- *
- * ```ts
- * const game = await createGame({ canvas, plugins: [pixi2d(), inspector({ global: true })] });
- * ```
- */
-export declare function inspector(options?: InspectorOptions): Plugin$1;
 /**
  * Something that attaches to a game: a renderer, and later physics, audio or UI.
  *
@@ -991,7 +933,7 @@ export interface GameOptions {
 	maxFrameDelta?: number;
 }
 /**
- * What a `Game` and a `TestGame` share: registration, services, `stop`, `step` and `inspect`. Systems,
+ * What a `Game` and a `TestGame` share: registration, services, `stop` and `step`. Systems,
  * hooks and listeners written against it run unchanged in both.
  */
 export interface GameBase extends GameServices {
@@ -1040,13 +982,6 @@ export interface GameBase extends GameServices {
 	 * `ctx.events.on` from a system.
 	 */
 	on<T>(event: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
-	/**
-	 * What the game is doing, as plain JSON: frame, time, schedule, states, resources and the active
-	 * scene's entities. Needs the `inspector()` plugin, and throws without it; a test game has it
-	 * already. Works before the game runs, while paused and after `stop()`, and then never throws.
-	 * The serialisation rules are in README.md under "Inspecting a game".
-	 */
-	inspect(): GameSnapshot;
 }
 /** A running game. Built by `createGame`. */
 export interface Game extends GameBase {
@@ -1124,6 +1059,65 @@ export interface TestGame extends GameBase {
  * ```
  */
 export declare function createTestGame(options: TestGameOptions): Promise<TestGame>;
+/** A value that `JSON.stringify` writes and `JSON.parse` reads back unchanged. */
+export type JsonValue = null | boolean | number | string | readonly JsonValue[] | {
+	readonly [key: string]: JsonValue;
+};
+/** One entity of the active scene, as `inspect(game)` reports it. */
+export interface EntitySnapshot {
+	/** The entity handle: the value `entities.get` and `entities.set` take. */
+	readonly id: number;
+	/** From the engine's `fenrir.Name` component. */
+	readonly name: string;
+	/** The parent's handle, from the engine's `fenrir.Relationship` component; null for a root. */
+	readonly parent: number | null;
+	/** Every other component, `fenrir.Transform` included, by the name given to `defineComponent`. */
+	readonly components: Readonly<Record<string, JsonValue>>;
+}
+/** What a game is doing, as plain JSON. Returned by `inspect(game)`. */
+export interface GameSnapshot {
+	/** Frames run since the current run started. 0 during startup; kept after `stop()` until the next `run()`. */
+	readonly frame: number;
+	/** `time.elapsed` and `time.delta` as of the start of the latest frame. */
+	readonly time: {
+		readonly elapsed: number;
+		readonly delta: number;
+	};
+	/** System names per stage, in run order. */
+	readonly schedule: Readonly<Record<ScheduleStage, readonly string[]>>;
+	/** Each state's current value and seconds in it, by the name given to `defineState`. */
+	readonly states: Readonly<Record<string, {
+		readonly value: string;
+		readonly timeIn: number;
+	}>>;
+	/** Each resource that has a value, by the name given to `defineResource`. */
+	readonly resources: Readonly<Record<string, JsonValue>>;
+	/** The active scene's entities, by id. */
+	readonly entities: readonly EntitySnapshot[];
+}
+/** What `exposeInspector(game)` puts on `window.__FENRIR__`. */
+export interface DebugGlobal {
+	inspect(): GameSnapshot;
+}
+/**
+ * What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
+ * scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
+ * after `stop()`; never throws. A function rather than a method, so a game that never calls it
+ * ships none of the snapshot and JSON-encoding code. The serialisation rules are in README.md
+ * under "Inspecting a game".
+ *
+ * ```ts
+ * const { entities, resources } = inspect(game);
+ * ```
+ */
+export declare function inspect(game: GameBase): GameSnapshot;
+/**
+ * Puts `inspect(game)` on `window.__FENRIR__.inspect` for browser tests and agents. The last
+ * game exposed owns it, with a warning when it replaces another; it stays after the game stops.
+ * Does nothing where there is no `window`. Call it only in builds that need it, such as a debug
+ * or browser-tested build: a game that never calls it ships no inspection code.
+ */
+export declare function exposeInspector(game: GameBase): void;
 /** Maps progress `t` from 0 to 1 onto eased progress, 0 at 0 and 1 at 1. */
 export type Easing = (t: number) => number;
 /**
@@ -1410,7 +1404,7 @@ export interface StorageKeyFamily<T> {
 	/** Put before each suffix, such as `myGame.best.`. */
 	readonly prefix: string;
 }
-/** Where storage stands, as plain data: `game.inspect()` shows it under `fenrir.StorageStatus`. */
+/** Where storage stands, as plain data: `inspect(game)` shows it under `fenrir.StorageStatus`. */
 export interface StorageStatus {
 	/** The backend in use: `"localStorage"`, `"memory"`, or an injected backend's name. */
 	backend: string;
@@ -1685,7 +1679,7 @@ export interface BundleProgress extends AssetCounts {
 }
 /**
  * A manifest's progress, as plain data: the value of `manifest.progress`, a resource, so a HUD
- * reads it each frame with `ctx.resources.get(manifest.progress)` and `game.inspect()` shows it.
+ * reads it each frame with `ctx.resources.get(manifest.progress)` and `inspect(game)` shows it.
  * The top-level counts are over every asset a loading or loaded bundle holds.
  */
 export interface AssetProgress<A extends string = string, B extends string = string> extends AssetCounts {

@@ -6,9 +6,9 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ### Smaller base build (part of #39)
 
-A game that does not install `inspector()` ships about 3.2 kB less engine code (about 1.2 kB gzip); a core-only game that never builds an entity about 1 kB more on top.
+A game that never inspects itself ships about 3.2 kB less engine code (about 1.2 kB gzip); a core-only game that never builds an entity about 1 kB less on top.
 
-- **`inspector()` plugin.** `game.inspect()` and `window.__FENRIR__` come from `inspector()` in `fenrir-ts`. A game without it ships no snapshot or JSON-encoding code. Every `createTestGame` game has it with no plugin.
+- **`inspect(game)` is a function.** `game.inspect()` is gone: `inspect(game)` from `fenrir-ts` returns the same `GameSnapshot`, on a `Game` or a `TestGame`. `exposeInspector(game)` puts it on `window.__FENRIR__`. A game that calls neither ships no snapshot or JSON-encoding code.
 - **`EntityBuilder` core methods are the class's own.** `transform()`, `name()`, `transform2D()` and `display2D()` no longer patch the class at import, so a game that never builds an entity ships no builder. Source-compatible.
 - **Stable names in snapshots.** A class instance with a non-empty string `label` (every Pixi display object has one) shows it next to `$type`, which a minifier renames.
 
@@ -16,5 +16,5 @@ A game that does not install `inspector()` ships about 3.2 kB less engine code (
 
 | Before | After |
 | --- | --- |
-| `createGame({ canvas, debug: true })` | `createGame({ canvas, plugins: [inspector({ global: true })] })` |
-| `game.inspect()` on a `createGame` game with no plugin | install `inspector()`; without it `inspect()` throws, naming the plugin. Test games need nothing. |
+| `game.inspect()` | `inspect(game)` from `fenrir-ts` |
+| `createGame({ canvas, debug: true })` | `createGame({ canvas })`, then `exposeInspector(game)` |
