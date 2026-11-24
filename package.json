@@ -23,6 +23,10 @@
       "types": "./dist/audio.d.ts",
       "import": "./dist/audio.js"
     },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js"
+    },
     "./physics": {
       "types": "./dist/physics.d.ts",
       "import": "./dist/physics.js"

@@ -14,6 +14,7 @@ export default defineConfig({
         "stacking-blocks": resolve(__dirname, "stacking-blocks.html"),
         "monaco-editor": resolve(__dirname, "monaco-editor.html"),
         pixi2d: resolve(__dirname, "pixi2d.html"),
+        "ui-controls": resolve(__dirname, "ui-controls.html"),
         platformer: resolve(__dirname, "platformer.html"),
         "platformer-physics": resolve(__dirname, "platformer-physics.html"),
       },
@@ -36,6 +37,10 @@ export default defineConfig({
       {
         source: "/monaco-editor",
         destination: "/monaco-editor.html",
+      },
+      {
+        source: "/ui-controls",
+        destination: "/ui-controls.html",
       },
       {
         source: "/pixi2d",

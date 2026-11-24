@@ -26,6 +26,7 @@ Each entry point needs its own peer dependency. Install the ones for the entries
 | `fenrir-ts/3d` | `three` |
 | `fenrir-ts/physics` | `jolt-physics` and `three` |
 | `fenrir-ts/audio` | none (Web Audio) |
+| `fenrir-ts/ui` | `pixi.js` |
 | `fenrir-ts/editor` | `monaco-editor` |
 
 The core entry, `fenrir-ts`, needs none of them.
@@ -42,6 +43,8 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 | `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D`, 2D builder methods such as `pixiNode` and `renderSprite`, 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
+| `fenrir-ts/audio` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound` |
+| `fenrir-ts/ui` | UI controls on Pixi nodes: the `ui()` plugin, `control`, `modalScope`, `UiFocus`, `ControlActivated`, `paginate`, `activateControl`, `listControls` |
 | `fenrir-ts/editor` | Monaco live code editor |
 
 Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder` and `AssetStore`, so `renderSprite` and `requestTexture2D` exist once you import `fenrir-ts/2d`.
@@ -692,6 +695,75 @@ for (const [type, buttons] of [["pointerdown", 1], ["pointerup", 0]] as const) {
 ```
 
 Playwright's `locator.click()` and `page.mouse` send real browser input and need nothing extra.
+
+### UI controls
+
+`fenrir-ts/ui` turns Pixi nodes the game drew into buttons: tappable, focusable with the keyboard, described to screen readers through the canvas, and gone when the node is destroyed. The game draws every pixel; the kit adds no DOM elements and patches no class. Its peer is `pixi.js`, and a game that does not import it ships none of its code.
+
+```ts
+import { Schedule, createGame, type SystemCtx } from "fenrir-ts";
+import { pixi2d } from "fenrir-ts/2d";
+import { ControlActivated, control, modalScope, paginate, ui } from "fenrir-ts/ui";
+import { Container, Graphics } from "pixi.js";
+
+const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, layers: ["world", "overlay"] });
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const game = await createGame({ canvas, plugins: [pixi, ui({ pixi, summary: "Town" })] });
+
+const shop = { open: true, page: 0, coins: 40, dirty: true };
+const ITEMS = ["sword", "shield", "potion", "bow", "arrows"];
+const sheet = new Container();
+
+function drawShop(ctx: SystemCtx): void {
+  for (const child of sheet.removeChildren()) child.destroy({ children: true }); // rebuilt from state
+  sheet.visible = shop.open;
+  if (!shop.open) return;
+  modalScope(sheet, { label: "Shop", onClose: () => ((shop.open = false), (shop.dirty = true)) });
+  const { rows, page, pages } = paginate(ITEMS, 3, shop.page);
+  rows.forEach((item, i) => {
+    const row = sheet.addChild(new Graphics().roundRect(0, 0, 300, 48, 8).fill(0x2b5d7a));
+    row.position.set(45, 80 + i * 60);
+    control(row, { id: `buy-${item}`, label: `Buy ${item}, 50 coins`, disabled: shop.coins < 50, onActivate: () => ctx.logger.info(`bought ${item}`) });
+  });
+  const next = sheet.addChild(new Graphics().circle(0, 0, 24).fill(0x3b6d8a));
+  next.position.set(345, 300);
+  control(next, { id: "next-page", label: `Page ${page + 1} of ${pages}`, hitArea: { x: 0, y: 0, radius: 32 }, onActivate: () => ((shop.page = page + 1), (shop.dirty = true)) });
+}
+
+game.on(ControlActivated, ({ id, via }) => game.logger.debug(`${id} by ${via}`)); // a click sound, analytics
+game
+  .addSystem(Schedule.Init, function mountShop() {
+    pixi.renderer.layer("overlay").addChild(sheet);
+  })
+  .addSystem(Schedule.Update, function redrawShop(ctx: SystemCtx) {
+    if (shop.dirty) drawShop(ctx);
+    shop.dirty = false;
+  });
+await game.run();
+```
+
+- **Plugin.** `ui({ pixi, keys?, focusRing?, summary?, hint? })`, listed after `pixi2d` and given that plugin, so the kit reaches its `root` and `backdrop` without `pixi2d` carrying any code for it. Without it, `createGame` rejects with a message that says so. A test game, which has no renderer, passes `ui({ root })`: a container whose units are the logical units the pointer reports.
+- **Controls.** `control(node, { id, label, onActivate?, disabled?, hitArea?, order? })` returns `node`. A control is live while its node is under `root` or `backdrop` and it and every ancestor are `visible` and `renderable`. The kit keeps no list of controls: options are held against the node in a `WeakMap`, and each frame it walks the display tree for live ones, so clearing and redrawing a sheet every state change leaves nothing behind. Calling `control` again on a node replaces its options.
+- **Hit areas** come from the node's local bounds (children included) unless `hitArea` gives a rectangle `{ x, y, width, height }` or a circle `{ x, y, radius }` in the node's own units; Pixi's `Rectangle` and `Circle` fit. Points are tested in the node's space, so scaled, rotated and nested nodes, the `Viewport` design frame, letterboxing and resizes all line up with what is drawn. Where controls overlap, the one drawn on top wins.
+- **Pointer.** A control activates when the primary pointer goes down and comes up over it, in the frame that reports the release. The press is consumed (`input.consumePointer()`), so systems after `fenrir.ui.preUpdate` do not see a tap that hit a control. A press that slides off, or one the browser cancels (`pointer.cancelled`), activates nothing. The cursor is `pointer` over an enabled control.
+- **Keyboard.** Tab and Shift+Tab move focus in display order (depth first, back to front), then by `order` (lower first, default 0). Tab is kept on the canvas while there is a control to move to and leaves it past either end, decided inside the `keydown` with `input.onDown`. The arrows move focus too, wrapping, but only once a control has focus or a modal scope is open, so a game can use them for movement. Enter and Space activate the focused control and are consumed; with nothing focused they are the game's. Change the keys with `ui({ keys: { tab, next, previous, activate, close } })`; an empty list turns one off.
+- **Focus.** `UiFocus` (`fenrir.UiFocus`) is `{ id, visible }`: set `id` to move focus. It survives a redraw when a control with the same id is live again by the next frame, and is cleared otherwise. A tap focuses the control without showing the ring (`visible: false`); a key shows it. The default ring is a rounded rectangle drawn above everything in `root` while the canvas has keyboard focus; `focusRing: (ring, bounds, control) => ...` draws your own into a cleared `Graphics`, and `focusRing: false` draws none.
+- **Disabled controls** take focus and taps (so a tap on a greyed button does not fall through to the game) and never activate: no `onActivate`, no `ControlActivated`. Screen readers hear ", unavailable".
+- **Duplicate ids.** Ids must be unique among live controls. A later live control with an id already seen, in display order, is ignored, and the kit warns once per id.
+- **Modal scopes.** `modalScope(node, { label, onClose? })` makes a container modal while it is live: only controls inside it take taps, focus and `activateControl`; every tap, inside or out, is kept from the game; Escape calls `onClose` (the game hides or destroys the node). Scopes nest: the one that became live last is on top, and the one below takes over when it ends.
+- **Activation.** `onActivate(ctx, via)` runs first, then `ControlActivated { id, via }` is sent, where `via` is `"pointer"`, `"key"` or `"call"`. Both run inside `fenrir.ui.preUpdate`.
+- **Order against game systems.** `fenrir.ui.preUpdate` runs in `PreUpdate`, before the game's own `PreUpdate` systems, so taps on controls are consumed before gameplay reads them. A game system that must see a press first passes `{ before: "fenrir.ui.preUpdate" }`. Controls drawn in `Update` are hit-tested from the next frame, where they are what the player sees.
+- **Accessibility** goes through the canvas only: `aria-label` is the top modal scope's label, else `summary` (a string, or `(ctx) => string` read each frame), else the canvas's own; `aria-description` is `Focused: <label>` or, while nothing has focus, `hint`. Both are restored when the run stops. The engine already makes the canvas focusable (`tabindex="0"`) when a run starts.
+- **Paging.** `paginate(rows, capacity, page)` returns `{ rows, page, pages }` with `page` clamped into range, so a list that shrank shows its last page.
+- **Tests.** Everything works in `createTestGame` with `ui({ root })` and `TestInput`: `pointerDown(x, y)` and `pointerUp()`, and `press(action)` with actions bound to the same keys. `activateControl(game, id)` activates as a tap would and returns whether it did; `listControls(game)` returns `{ id, label, disabled, focused, blocked, bounds }` in focus order, with `bounds` in logical units for `logicalToScreen` in a browser test. `inspect(game)` shows the same list under `fenrir.UiControls`, with the top scope's label as `modal`.
+
+**Migrating hand-rolled canvas buttons.** A game that keeps its own list of button rectangles, hit-tests `ctx.input.pointer` against them and tracks a focused index:
+
+1. Replace each `{ x, y, width, height, onTap }` entry with `control(node, { id, label, onActivate })` on the node that draws it; drop the rectangle, the list and the hit test.
+2. Replace the hand-kept focus index with `UiFocus`, the Tab and arrow handling with the kit's keys, and the game's own `onDown(Tab)` handler with nothing.
+3. Wrap each sheet or dialog in `modalScope(sheet, { label, onClose })` and delete the code that ignored taps behind it and handled Escape.
+4. Replace the focus-ring drawing with `focusRing`, and the aria attributes the game set with `summary` and the scope labels.
+5. In tests, replace synthetic clicks at computed coordinates with `activateControl(game, id)`, or with `listControls(game)` bounds and `logicalToScreen` in a browser test.
 
 ### Plugins
 

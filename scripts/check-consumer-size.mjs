@@ -15,8 +15,8 @@
 // The measured fixtures import no 3D entry, so their engine code must not
 // contain the 3D-only members that fenrir-ts/3d adds to core classes. Only
 // game-2d-motion uses timers and tweens, game-2d-assets an asset manifest,
-// game-2d-audio fenrir-ts/audio, game-2d-storage storage and game-2d-inspector
-// inspect(game): the others must not ship that code.
+// game-2d-audio fenrir-ts/audio, game-2d-storage storage, game-2d-inspector
+// inspect(game) and game-2d-ui fenrir-ts/ui: the others must not ship that code.
 //
 // Run `build:lib` first.
 //   --update        rewrite the consumer budgets from this build
@@ -49,7 +49,7 @@ const showBreakdown = process.argv.includes("--breakdown");
 const HEADROOM = 1.03;
 
 /** Fixtures measured against a budget. */
-const MEASURED = ["game-2d", "core-only", "game-2d-motion", "game-2d-assets", "game-2d-audio", "game-2d-storage", "game-2d-inspector"];
+const MEASURED = ["game-2d", "core-only", "game-2d-motion", "game-2d-assets", "game-2d-audio", "game-2d-storage", "game-2d-inspector", "game-2d-ui"];
 /** Fixtures run after bundling. */
 const RUN = ["side-effects-2d"];
 /** Members fenrir-ts/3d adds to core classes. A fixture without fenrir-ts/3d must not ship them. */
@@ -74,6 +74,10 @@ const USES_STORAGE = ["game-2d-storage"];
 const INSPECTOR_ONLY = /__FENRIR__|\$truncated/g;
 /** Fixtures that inspect the game. */
 const USES_INSPECTOR = ["game-2d-inspector"];
+/** Names only the UI controls kit holds. */
+const UI_ONLY = /fenrir\.(?:ui|UiFocus|UiControls)\b/g;
+/** Fixtures that use controls. */
+const USES_UI = ["game-2d-ui"];
 
 if (!existsSync(join(root, "dist", "index.js"))) {
   console.error("dist/index.js is missing. Run build:lib first.");
@@ -280,7 +284,7 @@ try {
       console.error(`${name}: ships ${manifestLeaked.join(", ")} without declaring an asset manifest. Keep it tree-shakeable.`);
       failed = true;
     }
-    for (const [only, users, what] of [[AUDIO_ONLY, USES_AUDIO, "playing sounds"], [STORAGE_ONLY, USES_STORAGE, "storing values"], [INSPECTOR_ONLY, USES_INSPECTOR, "calling inspect or exposeInspector"]]) {
+    for (const [only, users, what] of [[AUDIO_ONLY, USES_AUDIO, "playing sounds"], [STORAGE_ONLY, USES_STORAGE, "storing values"], [INSPECTOR_ONLY, USES_INSPECTOR, "calling inspect or exposeInspector"], [UI_ONLY, USES_UI, "importing fenrir-ts/ui"]]) {
       const shipped = users.includes(name) ? [] : [...new Set(result.engine.match(only) ?? [])];
       if (shipped.length > 0) {
         console.error(`${name}: ships ${shipped.join(", ")} without ${what}. Keep it tree-shakeable.`);
