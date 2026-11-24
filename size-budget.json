@@ -5,7 +5,8 @@
     "3d.js": 60000,
     "physics.js": 25000,
     "editor.js": 245500,
-    "audio.js": 24000
+    "audio.js": 24000,
+    "ui.js": 12000
   },
   "consumers": {
     "game-2d": {
@@ -35,6 +36,10 @@
     "game-2d-inspector": {
       "minified": 60300,
       "gzip": 19400
+    },
+    "game-2d-ui": {
+      "minified": 62400,
+      "gzip": 20500
     }
   }
 }

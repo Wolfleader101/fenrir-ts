@@ -58,10 +58,11 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 | `fenrir-ts/2d` | `src/2d.ts` | The `pixi2d` plugin with named layers, Pixi renderer and its system, `PixiNode`, `Transform2D` and `Display2D` (re-exported from core), `Viewport`, `ViewportResized`, `layoutViewport`, `screenToLogical`, `logicalToScreen`, `Renderable2D`, the 2D builder methods, 2D texture loading (`requestTexture2D`) | `pixi.js` |
 | `fenrir-ts/3d` | `src/3d.ts` | Three renderer and its system, camera, skybox, animation, the 3D builder methods, model and texture loading, `bootstrapEngine`, stats, `Transform` typed with Three, the window-level input `bootstrapEngine` registers (`createDomInputSystems`, `createInputStateSystem`, `InputState`, `InputEvent`) | `three` |
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
+| `fenrir-ts/ui` | `src/ui.ts` | UI controls on Pixi nodes the game drew: the `ui()` plugin, `control`, `modalScope`, `UiFocus`, `ControlActivated`, `paginate`, `activateControl`, `listControls` | `pixi.js` |
 | `fenrir-ts/audio` | `src/audio.ts` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound`, `unlockAudio`, `AudioState`, `AudioUnlocked`, the `audio` asset kind (`AudioClip`), `webAudio()` and `testAudio()` backends | none |
 | `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
 
-Consumers import only from these six paths. Never import from `fenrir-ts/dist/...` or a source file path.
+Consumers import only from these seven paths. Never import from `fenrir-ts/dist/...` or a source file path.
 Anything not exported from one of the entry files is internal and can change without notice.
 There is no `fenrir-ts/core`: core is the root entry.
 
@@ -73,6 +74,7 @@ Each renderer entry adds to core types when it is imported, and to core classes 
 - `fenrir-ts/2d` adds `pixiNode`, `renderSprite` and the other 2D methods to `EntityBuilder`, and `requestTexture2D`, `loadTexture2D`, `getTexture2D` and the Pixi loader to `AssetStore`.
 - `fenrir-ts/3d` adds the 3D builder methods, `loadModel`, `loadTexture`, `getTexture` and the glTF loader to `AssetStore`, and `skybox`, `setSkybox`, `removeSkybox` and `hasSkybox` to `Scene` (`src/core/Skybox/SceneSkybox.ts`), and makes every default `Transform` out of Three `Vector3` and `Quaternion`. `pnpm check:consumer` fails if a 2D bundle ships the skybox members.
 - `fenrir-ts/audio` adds the `audio` asset kind to `AssetKinds`, so manifests declare `{ kind: "audio", src }`; the `audio()` plugin registers its loader when it installs. It patches no class.
+- `fenrir-ts/ui` patches nothing and adds no types to core: controls are options kept against Pixi nodes.
 - `fenrir-ts/physics` adds the physics builder methods and `physics?: PhysicsHelpers` to `SystemCtx`, and also makes default transforms out of Three objects.
 
 So a method from an entry is typed and present only when that entry is imported.
@@ -525,12 +527,56 @@ await game.run();
 - Tests: game logic that moves `Transform2D` needs no renderer, so test it with `createTestGame` and `inspect()`. Test node sync with `createPixiRendererSystem({ application })`, an `Application` whose `renderer` is a stub, and `createMockSystemCtx()`, calling `init`, `postUpdate` and `exit` directly: `tests/core/Renderer2D/PixiNode.test.ts`. Pixi containers need no renderer.
 - `inspect()` shows `fenrir.PixiNode` as `{ node: { $type: "<class name>" }, layer, keep }`, with `label` added to `node` when the node has a non-empty string `label` (a minifier renames classes, not labels), and `fenrir.Display2D` as its values.
 
+## UI controls
+
+`fenrir-ts/ui` (`src/ui.ts`; code in `src/core/UI/`: `Ui.ts`, and the accessibility seam `Access.ts`) makes Pixi nodes the game drew into controls on the engine's own input. It does not use Pixi's federated events, `eventMode` or Pixi's accessibility system, and adds no DOM elements. README "UI controls" has the full example and the migration steps.
+
+```ts
+import { Schedule, createTestGame, defineAction } from "fenrir-ts";
+import { ControlActivated, UiFocus, activateControl, control, listControls, modalScope, ui } from "fenrir-ts/ui";
+import { Container, Graphics } from "pixi.js";
+
+const Tab = defineAction("myGame.tab", ["Tab"]); // TestInput presses bindings, so any action bound to Tab drives the kit's Tab
+const root = new Container(); // a test game has no renderer: this container is the logical frame
+const game = await createTestGame({ seed: 1, plugins: [ui({ root })] });
+const activated: string[] = [];
+game.on(ControlActivated, ({ id, via }) => void activated.push(`${id}:${via}`));
+
+const sheet = root.addChild(new Container());
+game.addSystem(Schedule.Update, function drawSheet() {
+  for (const child of sheet.removeChildren()) child.destroy(); // rebuilt every frame, focus kept by id
+  modalScope(sheet, { label: "Shop" });
+  control(sheet.addChild(new Graphics().rect(0, 0, 100, 40).fill(0)), { id: "myGame.buy", label: "Buy" });
+});
+await game.start();
+game.step();
+game.input.press(Tab);
+game.input.release(Tab);
+game.step(1 / 60, 2); // focus moves to the first control and shows the ring
+game.input.pointerDown(50, 20);
+game.input.pointerUp();
+game.step(1 / 60, 2); // the press is seen in one frame, the release that activates in the next
+console.log([...activated], game.resources.get(UiFocus).id); // ["myGame.buy:pointer"] "myGame.buy"
+console.log(activateControl(game, "myGame.buy"), listControls(game)[0]!.bounds); // true { x: 0, y: 0, width: 100, height: 40 }
+// This example runs in tests/core/UI/agentsUiExample.test.ts. Change both together.
+```
+
+- Plugin: `ui({ pixi, keys?, focusRing?, summary?, hint? })` after `pixi2d` in `plugins`, given that plugin (`pixi2d` keeps no seam for it, so 2D games without the kit pay nothing); `ui({ root })` in a test game. Neither: install throws. It registers `fenrir.ui.init` (Init, after `fenrir.pixi.init`: the ring, the canvas's saved cursor and aria attributes, `onCleanup`) and `fenrir.ui.preUpdate` (PreUpdate, before the game's PreUpdate systems because plugins install first), and one `input.onDown` handler for the Tab keys at install.
+- Registry: none. `control(node, options)` and `modalScope(node, options)` put options in module-level `WeakMap`s keyed by the node. Each `fenrir.ui.preUpdate` (and `activateControl`, `listControls`, the Tab handler, and every activation) walks `renderer.backdrop` and `renderer.root` (or `root`), skipping subtrees that are not `visible` or `renderable` or are destroyed. Per-run state (live list, scope stamps, the pressed id, run ctx) is cleared in `onCleanup`. Do not add a list of nodes: a game that clears a sheet with `removeChildren()` and drops the nodes must leave nothing behind.
+- Hit testing: `node.toLocal(pointer, space)` against `hitArea` or `node.getLocalBounds()`, where `space` is `renderer.root` (logical units, the space `ctx.input.pointer` is in) or `root`. Works headless: Pixi containers compute transforms and Graphics bounds without a renderer. The topmost live control (last in display order) wins.
+- Rules a change must keep: press and release over the same id activates, in the frame that reports the release; a cancelled pointer never activates; a press on a control, or any press while a modal scope is live, is consumed with `consumePointer()`. Disabled controls take focus and taps and never activate. A later live duplicate id is ignored with one warning per id. Tab claims its `keydown` (via `onDown`) only while a control is next in that direction; each `keydown` records its direction (`shiftKey`) for the frame, so Shift held before the canvas had focus still goes back. Arrows act only while a control is focused or a scope is open; Enter and Space only while a control is focused; Escape only while a scope is open; each is consumed when it acts. Scope order is the frame a scope first became live (`stamps`), not the order of `modalScope` calls, so a redraw of the lower sheet does not lift it.
+- `UiFocus` (`fenrir.UiFocus`, `{ id, visible }`) is cleared when its id is not a live, unblocked control at the start or end of `fenrir.ui.preUpdate`, and at stop. `ControlActivated` (`fenrir.ui.activated`) is `{ id, via: "pointer" | "key" | "call" }`, sent after `onActivate(ctx, via)`.
+- Accessibility: `describeUi` in `Access.ts` is a pure function of the focusable controls, the focused one and the label; `fenrir.ui.preUpdate` writes its result to the canvas's `aria-label` and `aria-description` only when they change, and the saved values come back at stop. A future DOM mirror reads the same inputs; keep accessibility output behind that function.
+- `inspect()` shows `fenrir.UiControls` as `{ modal, controls }` (`toJSON` on the internal resource, from the latest frame's walk) and `fenrir.UiFocus`.
+- Cost: `check:consumer` fails if a fixture other than `game-2d-ui` ships `fenrir.ui`, `fenrir.UiFocus` or `fenrir.UiControls`.
+- Tests: `tests/core/UI/Ui.test.ts` (`createTestGame` with `ui({ root })` and `TestInput`), `tests/core/UI/uiPixi.test.ts` (`createGame` + `pixi2d({ design })` with real canvas listeners, a stubbed window and a letterboxed viewport), `tests/publicApi.ui.test.ts`.
+
 ## Naming rule
 
 Component and event identity is the name, through `Symbol.for`. Two `defineComponent` or `defineEvent` calls with the same name return the same key and share storage. Resources follow the same rule: two `defineResource` handles with the same name share one value in each game.
 So prefix every name with a namespace for your game or library, such as `myGame.Health`. Names starting with `fenrir.` are reserved for the engine. Engine code uses them, for example `fenrir.Transform` and `fenrir.input.keyDown`.
 
-System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.audio.init` and `fenrir.audio.postUpdate`, `fenrir.storage.preInit` (only with a backend that hydrates), `fenrir.storage.postUpdate` and `fenrir.storage.exit` (only once `persistResource` is called), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
+System names follow the same rule. Every system the engine registers is named `fenrir.<module>.<stage>`, where `<stage>` is the `Schedule` value it runs in: `fenrir.pixi.init`, `fenrir.pixi.postUpdate` (writes transforms to nodes and views, then renders), `fenrir.pixi.exit` (unmounts and destroys nodes), `fenrir.input.dom.init` and `fenrir.input.state.preUpdate` (3D only), `fenrir.viewport.init`, `fenrir.viewport.preUpdate`, `fenrir.motion.preUpdate` (timers and tweens), `fenrir.audio.init` and `fenrir.audio.postUpdate`, `fenrir.storage.preInit` (only with a backend that hydrates), `fenrir.storage.postUpdate` and `fenrir.storage.exit` (only once `persistResource` is called), `fenrir.ui.init` and `fenrir.ui.preUpdate` (controls), `fenrir.three.*`, `fenrir.camera.*`, `fenrir.skybox.*`, `fenrir.animation.*`, `fenrir.stats.postUpdate`, `fenrir.physics.*` and `fenrir.editor.*` (the editor's user script).
 Engine factories name their systems with `nameEngineSystems(module, { init, update, ... })` from `src/core/SystemName.ts`, which is internal. A new engine factory uses it; a game or third-party plugin passes `{ name }` with its own namespace, such as `myGame.audio.update`. Plugin names follow the rule too: `fenrir.pixi2d`.
 
 ## Frozen areas
@@ -546,7 +592,7 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Window-level input for 3D: `src/core/InputSystem/`, exported from `fenrir-ts/3d`
 - Editor (Monaco): `src/editor/`
 
-New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, `src/core/Audio/`, `src/core/Storage/`, ECS, scheduling and events.
+New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, `src/core/Audio/`, `src/core/Storage/`, `src/core/UI/`, ECS, scheduling and events.
 
 ## Changing the engine
 
@@ -570,8 +616,8 @@ TypeScript conventions are in [`.kilocode/rules/typescript.md`](.kilocode/rules/
 
 These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12) and do not exist. Do not use them, and do not document them as if they did:
 
-- The `fenrir-ts/ui` entry point
-- Canvas UI, accessibility, music streaming and the rest of [#39](https://github.com/Wolfleader101/fenrir-ts/issues/39) (audio and storage exist: see above)
+- UI beyond controls: layout, grids, scrolling, styled widgets, text input, drag and drop, gamepad navigation, and a DOM mirror of the controls for assistive technology (`fenrir-ts/ui` has controls, modal scopes and canvas `aria-*` output only: see above)
+- Music streaming and the rest of [#39](https://github.com/Wolfleader101/fenrir-ts/issues/39) (audio, storage and UI controls exist: see above)
 
 A new service adds a field to `GameServices` in `src/core/SystemCtx.ts`, which puts it on both `game` and `ctx`, and builds it in `createServices` in `src/core/Game.ts`.
 
