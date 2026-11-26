@@ -591,6 +591,8 @@ export interface InputPointer {
 export interface InputEdge {
 	readonly action: ActionType;
 	readonly kind: "pressed" | "released";
+	/** The key or pointer button whose press or release made the edge. One key bound to several actions gives each an edge with the same binding, one after another. */
+	readonly binding: InputBinding;
 }
 /** The DOM event an input handler runs inside: a `keydown`, or a `pointerdown` or `pointerup`. */
 export type InputDomEvent = KeyboardEvent | PointerEvent;
@@ -626,8 +628,8 @@ export interface Input {
 	 * when its first binding goes down and released when its last goes up, as for `pressed` and
 	 * `released`. The list is what arrived since the last frame, so a quick tap is `pressed`
 	 * then `released` here in the frame where `pressed()` is true. Bindings hidden by `consume`
-	 * or `consumePointer` are left out. In `Tick` it is the frame's list in every tick: read it
-	 * in `PreUpdate` or `Update`.
+	 * or `consumePointer` are left out until they lift; a press after the lift is listed again. In
+	 * `Tick` it is the frame's list in every tick: read it in `PreUpdate` or `Update`.
 	 */
 	edges(actions: readonly ActionType[]): readonly InputEdge[];
 	/**
@@ -635,7 +637,9 @@ export interface Input {
 	 * run after this call see no `pressed`, `held` or `released` from the pointer bindings until
 	 * the pointer is lifted; keys bound to the same action still count. Systems that ran earlier
 	 * in the frame already saw the press, so the UI system must run first. `pointer.down` still
-	 * reports the pointer. Does nothing in a frame with no new pointer press.
+	 * reports the pointer. Does nothing in a frame with no new pointer press. Only this press is
+	 * hidden: a press after the pointer lifts is seen again, even one in the next frame or one that
+	 * lifted and went down again between two frames.
 	 */
 	consumePointer(): void;
 	/**
@@ -643,7 +647,8 @@ export interface Input {
 	 * for UI that handled the press. It hides the bindings that went down this frame as
 	 * `consumePointer` hides the pointer: until they lift, systems that run after the call see no
 	 * `pressed`, `held`, `released` or edges from them, for this action or any other bound to the
-	 * same key or button. Does nothing when no binding of the action went down this frame.
+	 * same key or button. Does nothing when no binding of the action went down this frame. As for
+	 * `consumePointer`, a later press of the same key is seen again.
 	 */
 	consume(action: ActionType): void;
 	/**

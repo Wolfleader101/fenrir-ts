@@ -667,3 +667,125 @@ describe("input.onDown and input.onGesture in a test game", () => {
     expect(gestures).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("consumption ends with the press it hid", () => {
+  /** A UI system that consumes every press of `action`, and a later gameplay system recording what it sees. */
+  async function consuming(action = Activate, onlyFirst = true) {
+    const g = await game();
+    let consumed = 0;
+    g.addSystem(Schedule.PreUpdate, function ui({ input }) {
+      if (input.pressed(action) && (!onlyFirst || consumed === 0)) consumed++, input.consume(action);
+    });
+    const after = record(g, Schedule.Update, seen(action), "play");
+    const edges = record(g, Schedule.Update, ({ input }) => named(input.edges([action])), "edges");
+    await g.start();
+    return { g, after, edges, consumed: () => consumed };
+  }
+
+  it("sees a second press that lifts and goes down again between two frames", async () => {
+    const { g, after, edges } = await consuming();
+    g.input.press(Activate);
+    g.step(); // consumed
+    g.input.release(Activate);
+    g.input.press(Activate); // still down when the next frame latches
+    g.step();
+    g.step();
+    expect(after).toEqual([IDLE, PRESSED, HELD]);
+    expect(edges).toEqual([[], ["test.gaps.activate:pressed"], []]);
+  });
+
+  it("sees a press in the very next frame after a consumed tap", async () => {
+    const { g, after, edges } = await consuming();
+    g.input.press(Activate);
+    g.input.release(Activate);
+    g.step(); // the tap holds for this frame and is consumed
+    g.input.press(Activate);
+    g.step();
+    g.input.release(Activate);
+    g.step();
+    expect(after).toEqual([IDLE, PRESSED, RELEASED]);
+    expect(edges).toEqual([[], ["test.gaps.activate:pressed"], ["test.gaps.activate:released"]]);
+  });
+
+  it("still hides a consumed key held across frames until it lifts", async () => {
+    const { g, after, edges } = await consuming();
+    g.input.press(Activate);
+    g.step(1 / 60, 3);
+    g.input.release(Activate);
+    g.step();
+    expect(after).toEqual([IDLE, IDLE, IDLE, IDLE]);
+    expect(edges).toEqual([[], [], [], []]);
+  });
+
+  it("lets the UI consume the second press too", async () => {
+    const { g, after, consumed } = await consuming(Activate, false);
+    g.input.press(Activate);
+    g.step();
+    g.input.release(Activate);
+    g.input.press(Activate);
+    g.step();
+    expect(consumed()).toBe(2);
+    expect(after).toEqual([IDLE, IDLE]);
+  });
+
+  it("does the same for the pointer and consumePointer", async () => {
+    const g = await game();
+    let consumed = 0;
+    g.addSystem(Schedule.PreUpdate, function ui({ input }) {
+      if (input.pressed(Tap) && consumed === 0) consumed++, input.consumePointer();
+    });
+    const after = record(g, Schedule.Update, seen(), "play");
+    const edges = record(g, Schedule.Update, ({ input }) => named(input.edges([Tap])), "edges");
+    await g.start();
+    g.input.pointerDown(5, 5);
+    g.step();
+    g.input.pointerUp();
+    g.input.pointerDown(6, 6);
+    g.step();
+    g.input.pointerUp();
+    g.step();
+    g.input.pointerDown(5, 5);
+    g.input.pointerUp();
+    consumed = 0;
+    g.step(); // a consumed tap, then a press in the very next frame
+    g.input.pointerDown(5, 5);
+    g.step();
+    expect(after).toEqual([IDLE, PRESSED, RELEASED, IDLE, PRESSED]);
+    expect(edges.map((e) => e.length)).toEqual([0, 1, 1, 0, 1]);
+  });
+
+  it("is seen in Tick as well", async () => {
+    const g = await game();
+    let consumed = 0;
+    g.addSystem(Schedule.PreUpdate, function ui({ input }) {
+      if (input.pressed(Jump) && consumed++ === 0) input.consume(Jump);
+    });
+    const ticks = record(g, Schedule.Tick, ({ input }) => input.pressed(Jump));
+    await g.start();
+    g.input.press(Jump);
+    g.step();
+    g.input.release(Jump);
+    g.input.press(Jump);
+    g.step();
+    expect(ticks).toEqual([false, true]);
+  });
+
+  it("hides a press that two quick taps merged into a held binding", async () => {
+    // Failure path of the merge: a tap the game saw, then a second press before the next frame,
+    // which pressed() folds into the hold. Consuming that press now hides the hold as well.
+    const g = await game();
+    let consumeNow = false;
+    g.addSystem(Schedule.PreUpdate, function ui({ input }) {
+      if (consumeNow) input.consume(Activate);
+    });
+    const after = record(g, Schedule.Update, seen(Activate), "play");
+    await g.start();
+    g.input.press(Activate);
+    g.input.release(Activate);
+    g.step();
+    g.input.press(Activate);
+    consumeNow = true;
+    g.step();
+    expect(after).toEqual([PRESSED, { pressed: false, released: true, held: false }]);
+  });
+});

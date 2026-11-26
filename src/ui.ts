@@ -7,6 +7,8 @@
  */
 export {
   ui,
+  moveFocus,
+  syncUi,
   control,
   modalScope,
   paginate,
@@ -24,5 +26,6 @@ export type {
   HitArea,
   ModalScopeOptions,
   UiKeys,
+  UiCtx,
   UiOptions,
 } from "./core/UI/Ui";

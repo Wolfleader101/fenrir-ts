@@ -4,6 +4,24 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Input and UI controls: gaps a first consumer hit (part of #39)
+
+- **Consumed input (bug fix).** `consume(action)` and `consumePointer()` hide only the press they were given. A key or pointer button that lifts and goes down again before the next frame, or goes down in the frame right after a consumed tap, is a new press: `pressed`, `edges` and `Tick` see it. Before, it stayed hidden until it lifted again. `consume` also hides a second press that `pressed()` folded into a hold.
+- **`InputEdge.binding`**: the key or button that made the edge.
+- **One ordered pass.** `ui({ actions, onAction })` hands the game's own key and pointer presses to `onAction(ctx, action)` in the order they were typed among the kit's keys, reading the display tree again after each, so Enter that opens a sheet and Escape after it in one frame open and close it. The kit's pointer presses are read from `input.edges` too, so a quick second tap is no longer lost.
+- **Press-time controls.** `control(node, { activateOn: "press" })` activates in the frame of the press; `passThrough: true` lets the press reach gameplay, even in a modal scope.
+- **Arrows.** `ui({ arrows: "linear" })` stops at the ends and works from no focus. **`moveFocus(game | ctx, delta, wrap?)`** moves focus from game code.
+- **Tap focus.** `ui({ tapFocus: "clear" })` clears focus on every pointer press.
+- **Focus and scopes (bug fix).** Focus no longer carries to a control with the same id in a different modal scope. `modalScope(node, { focus })` names the control that takes focus when the scope comes on top.
+- **Output in the frame of the change.** The ring, cursor and canvas `aria-*` are written by the new `fenrir.ui.postUpdate` (before `fenrir.pixi.postUpdate`) and `fenrir.ui.postInit`, not in `fenrir.ui.preUpdate`, so a scope opened or focus moved in `Update`, and controls drawn at `Init`, are in the frame drawn. **`syncUi(ctx)`** does it on demand. A frame with no input no longer walks the tree in `fenrir.ui.preUpdate`, so an idle frame still walks once.
+- **NumpadEnter** activates the focused control by default.
+- **`summary`** may return nothing to keep the canvas's own label.
+- `activateControl` and `listControls` take a system's `ctx` as well as the game.
+
+Size: the kit costs a 2D game 6.84 kB minified / 2.94 kB gzip, up from 5.49 / 2.32. The input fix adds 0.20 kB / 0.05 kB gzip to every game.
+
+Changed defaults, both judged bugs: the consumed re-press above, and focus no longer moving into another scope by id. No other breaking changes.
+
 ### UI controls: `fenrir-ts/ui` (#16, #17, part of #39)
 
 A new entry point, opt-in: a game that does not import it ships none of its code. Its peer is `pixi.js`.

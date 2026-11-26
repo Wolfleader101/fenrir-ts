@@ -30,7 +30,9 @@ describe("fenrir-ts/ui public API", () => {
       "control",
       "listControls",
       "modalScope",
+      "moveFocus",
       "paginate",
+      "syncUi",
       "ui",
     ]);
     expect("ui" in core).toBe(false);

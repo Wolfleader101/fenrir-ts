@@ -6,7 +6,7 @@
     "physics.js": 25000,
     "editor.js": 245500,
     "audio.js": 24000,
-    "ui.js": 12000
+    "ui.js": 14000
   },
   "consumers": {
     "game-2d": {
