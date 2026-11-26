@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Application, Container, Graphics } from "pixi.js";
-import { createGame, type Game } from "@/index";
+import { Schedule, createGame, type Game } from "@/index";
 import { Viewport, logicalToScreen, pixi2d } from "@/2d";
 import { NullLogger } from "@/core/NullLogger";
-import { ControlActivated, UiFocus, control, listControls, modalScope, ui } from "@/ui";
+import { ControlActivated, UiFocus, control, listControls, modalScope, syncUi, ui, type UiOptions } from "@/ui";
 
 // createGame + pixi2d({ design }) on a stubbed window, with the engine's real canvas listeners:
 // what a browser game does, without a GPU. jsdom has no layout, PointerEvent or safe-area insets.
@@ -52,7 +52,7 @@ afterEach(async () => {
   document.body.replaceChildren();
 });
 
-async function start(options: { summary?: string } = {}) {
+async function start(options: Omit<UiOptions, "pixi" | "root"> = {}, configure?: (game: Game, pixi: ReturnType<typeof pixi2d>) => void) {
   const canvas = document.createElement("canvas");
   canvas.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 600);
   canvas.setAttribute("aria-label", "A game");
@@ -63,6 +63,12 @@ async function start(options: { summary?: string } = {}) {
   const activated: unknown[] = [];
   game.on(ControlActivated, (payload) => void activated.push(payload));
   const removeListener = vi.spyOn(canvas, "removeEventListener");
+  /** The canvas's aria-label and aria-description each time Pixi renders a frame. */
+  const rendered: string[] = [];
+  vi.mocked(pixi.renderer.app.renderer.render).mockImplementation(() => {
+    rendered.push(`${canvas.getAttribute("aria-label")} | ${canvas.getAttribute("aria-description")}`);
+  });
+  configure?.(game, pixi);
   await game.run();
   game.pause();
   const overlay = pixi.renderer.layer("overlay");
@@ -74,7 +80,7 @@ async function start(options: { summary?: string } = {}) {
     pointer(canvas, "pointerup", at.x, at.y, 0);
     game.step();
   };
-  return { canvas, pixi, game, overlay, activated, click, removeListener };
+  return { canvas, pixi, game, overlay, activated, click, removeListener, rendered };
 }
 
 describe("ui with pixi2d", () => {
@@ -180,5 +186,56 @@ describe("ui with pixi2d", () => {
     const canvas = document.createElement("canvas");
     const pixi = pixi2d({ application: adoptedApplication(canvas) });
     await expect(createGame({ canvas, logger: new NullLogger(), plugins: [ui({ pixi }), pixi] })).rejects.toThrow(/list pixi2d\(\) before ui\(\)/);
+  });
+
+  it("draws the first frame, rendered in PostInit, with the controls drawn at Init described", async () => {
+    const { rendered } = await start({ summary: "Title" }, (game, pixi) => {
+      game.addSystem(Schedule.Init, function draw() {
+        control(pixi.renderer.layer("overlay").addChild(new Graphics().rect(0, 0, 50, 50).fill(0)), { id: "play", label: "Play" });
+      });
+      game.addSystem(Schedule.PostInit, function firstFrame() {
+        pixi.renderer.render();
+      });
+    });
+    expect(rendered[0]).toBe("Title | Press Tab to move between the controls.");
+  });
+
+  it("describes a control drawn in PostInit when the game calls syncUi before rendering", async () => {
+    const { rendered } = await start({}, (game, pixi) => {
+      game.addSystem(Schedule.PostInit, function drawAndRender(ctx) {
+        control(pixi.renderer.layer("overlay").addChild(new Graphics().rect(0, 0, 50, 50).fill(0)), { id: "play", label: "Play" });
+        Object.assign(ctx.resources.get(UiFocus), { id: "play", visible: true });
+        syncUi(ctx);
+        pixi.renderer.render();
+      });
+    });
+    expect(rendered[0]).toBe("A game | Focused: Play");
+  });
+
+  it("renders a scope opened and focus moved in Update in that same frame", async () => {
+    let open = false;
+    const { game, rendered } = await start({}, (game, pixi) => {
+      game.addSystem(Schedule.Update, function openSheet(ctx) {
+        const overlay = pixi.renderer.layer("overlay");
+        if (!open || overlay.children.length) return;
+        const sheet = modalScope(overlay.addChild(new Container()), { label: "Shop" });
+        control(sheet.addChild(new Graphics().rect(0, 0, 50, 50).fill(0)), { id: "close", label: "Close" });
+        ctx.resources.get(UiFocus).id = "close";
+      });
+    });
+    game.step();
+    open = true;
+    game.step();
+    expect(rendered.at(-1)).toBe("Shop | Focused: Close");
+  });
+
+  it("falls back to the canvas's own label when summary returns nothing", async () => {
+    let text: string | undefined = "Round 1";
+    const { game, canvas } = await start({ summary: () => text });
+    game.step();
+    expect(canvas.getAttribute("aria-label")).toBe("Round 1");
+    text = undefined;
+    game.step();
+    expect(canvas.getAttribute("aria-label")).toBe("A game");
   });
 });

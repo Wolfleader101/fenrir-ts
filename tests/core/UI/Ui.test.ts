@@ -9,7 +9,9 @@ import {
   control,
   listControls,
   modalScope,
+  moveFocus,
   paginate,
+  syncUi,
   ui,
   type ControlOptions,
   type UiOptions,
@@ -315,7 +317,8 @@ describe("control: keyboard", () => {
     expect(focus()).toBe("b");
     game.step(1 / 60, 3);
     expect(focus()).toBe("b");
-    expect(root.children).toHaveLength(2); // no nodes left behind
+    // No nodes left behind: the two buttons, and the ring the kit put back after the redraw.
+    expect(root.children.map((child) => child.label === "fenrir.ui.focusRing")).toEqual([false, false, true]);
 
     ids = ["a", "c"];
     game.step(1 / 60, 2);
@@ -486,5 +489,314 @@ describe("paginate", () => {
     expect(paginate([], 4, 3)).toEqual({ rows: [], page: 0, pages: 1 });
     expect(() => paginate(rows, 0, 0)).toThrow(RangeError);
     expect(() => paginate(rows, 1.5, 0)).toThrow(RangeError);
+  });
+});
+
+const NumpadEnter = defineAction("test.numpadEnter", ["NumpadEnter"]);
+const Up = defineAction("test.up", ["ArrowUp"]);
+/** A game key that opens a sheet. Bound to Enter, which the kit leaves to the game while nothing is focused. */
+const Open = defineAction("test.open", ["Enter"]);
+
+describe("one ordered pass over the kit's keys and the game's actions", () => {
+  /** A game whose Open key draws a modal sheet with a close control, closed by Escape. */
+  async function withSheet(onActionResult: boolean | undefined = true) {
+    const opened: string[] = [];
+    const sheet = new Container();
+    const draw = (open: boolean): void => {
+      for (const child of sheet.removeChildren()) child.destroy();
+      sheet.visible = open;
+      if (open) button(sheet, 0, 100, { id: "close", label: "Close" });
+    };
+    modalScope(sheet, { label: "Sheet", onClose: () => (opened.push("closed"), draw(false)) });
+    const ctx = await setUp({
+      actions: [Open],
+      onAction: (_ctx, action) => {
+        opened.push(action.name);
+        draw(true);
+        return onActionResult;
+      },
+    });
+    ctx.root.addChild(sheet);
+    draw(false);
+    return { ...ctx, opened, sheet };
+  }
+
+  it("opens a sheet with Enter and closes it with an Escape typed after it in the same frame", async () => {
+    const { game, opened, seen, sheet } = await withSheet();
+    game.input.press(Open);
+    game.input.release(Open);
+    game.input.press(Escape);
+    game.input.release(Escape);
+    game.step();
+    expect(opened).toEqual(["test.open", "closed"]);
+    expect(sheet.visible).toBe(false);
+    expect([seen.gameEnters, seen.gameEscapes]).toEqual([0, 0]); // both consumed
+  });
+
+  it("keeps the order the other way round: Escape first is the game's, then Enter opens", async () => {
+    const { game, opened, seen, sheet } = await withSheet();
+    game.input.press(Escape);
+    game.input.release(Escape);
+    game.input.press(Open);
+    game.input.release(Open);
+    game.step();
+    expect(opened).toEqual(["test.open"]);
+    expect(sheet.visible).toBe(true);
+    expect(seen.gameEscapes).toBe(1);
+  });
+
+  it("lets the press through to later systems when onAction does not return true", async () => {
+    const { game, seen } = await withSheet(false);
+    game.input.press(Open);
+    game.step();
+    expect(seen.gameEnters).toBe(1);
+  });
+
+  it("acts first on a key it uses: Enter on a focused control activates it and never reaches onAction", async () => {
+    const { root, opened, seen, key } = await withSheet();
+    button(root, 0, 0, { id: "a", label: "A" });
+    key(Tab);
+    key(Enter);
+    expect(seen.activated).toEqual([{ id: "a", via: "key" }]);
+    expect(opened).toEqual([]);
+  });
+
+  it("throws for actions without onAction", () => {
+    expect(() => ui({ root: new Container(), actions: [Open] })).toThrow(/onAction/);
+  });
+});
+
+describe("press-time and pass-through controls", () => {
+  it('activates an activateOn: "press" control in the frame of the press, once, and keeps the tap from the game', async () => {
+    const { root, game, seen } = await setUp();
+    button(root, 0, 0, { id: "cast", label: "Cast", activateOn: "press" });
+    game.input.pointerDown(10, 10);
+    game.step();
+    expect(seen.activated).toEqual([{ id: "cast", via: "pointer" }]);
+    game.input.pointerUp();
+    game.step(1 / 60, 2);
+    expect(seen.activated).toHaveLength(1);
+    expect(seen.gameTaps).toBe(0);
+  });
+
+  it("still activates on release by default, and never activates a disabled press control", async () => {
+    const { root, game, seen, tap } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 100, 0, { id: "off", label: "Off", activateOn: "press", disabled: true });
+    game.input.pointerDown(10, 10);
+    game.step();
+    expect(seen.activated).toEqual([]);
+    game.input.pointerUp();
+    game.step();
+    expect(seen.activated).toEqual([{ id: "a", via: "pointer" }]);
+    tap(110, 10);
+    expect(seen.activated).toHaveLength(1);
+    expect(seen.gameTaps).toBe(0);
+  });
+
+  it("lets a passThrough control's press reach the game, even in a modal scope, and still activates it", async () => {
+    const { root, seen, tap, focus } = await setUp();
+    const sheet = modalScope(root.addChild(new Container()), { label: "Play" });
+    button(sheet, 0, 0, { id: "fish", label: "Fish", passThrough: true, activateOn: "press" });
+    tap(10, 10);
+    expect(seen.gameTaps).toBe(1);
+    expect(seen.activated).toEqual([{ id: "fish", via: "pointer" }]);
+    expect(focus()).toBe("fish");
+    tap(200, 200); // not on it: the scope keeps the tap
+    expect(seen.gameTaps).toBe(1);
+  });
+});
+
+describe("arrows and moveFocus", () => {
+  it("in linear mode, moves from no focus, stops at the ends, and consumes the arrows while a control is live", async () => {
+    const { root, game, focus, key } = await setUp({ arrows: "linear" });
+    const arrowsForGame = vi.fn();
+    game.addSystem(Schedule.Update, function arrows({ input }: SystemCtx) {
+      if (input.pressed(Down) || input.pressed(Up)) arrowsForGame();
+    });
+    key(Down); // no control: the game's
+    expect(arrowsForGame).toHaveBeenCalledOnce();
+
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    key(Down);
+    expect(focus()).toBe("a");
+    key(Down);
+    key(Down);
+    expect(focus()).toBe("b"); // stopped at the end
+    key(Up);
+    key(Up);
+    expect(focus()).toBe("a");
+    game.resources.get(UiFocus).id = null;
+    key(Up);
+    expect(focus()).toBe("b"); // from no focus, previous goes to the last
+    expect(arrowsForGame).toHaveBeenCalledOnce();
+    expect(game.resources.get(UiFocus).visible).toBe(true);
+  });
+
+  it("still wraps and waits for focus by default", async () => {
+    const { root, focus, key } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    key(Down);
+    expect(focus()).toBeNull();
+    key(Tab);
+    key(Up);
+    expect(focus()).toBe("b");
+  });
+
+  it("moveFocus moves by delta from game or ctx, stops or wraps, and returns the focused id", async () => {
+    const { root, game, focus } = await setUp();
+    expect(moveFocus(game, 1)).toBeNull(); // nothing live
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    button(root, 0, 100, { id: "c", label: "C" });
+    expect(moveFocus(game, 1)).toBe("a");
+    expect(moveFocus(game, 5)).toBe("c");
+    expect(moveFocus(game, 1, true)).toBe("a");
+    expect(moveFocus(game, -1)).toBe("a");
+    expect(moveFocus(game, 0)).toBe("a");
+    game.addSystem(Schedule.Update, function fromCtx(ctx: SystemCtx) {
+      if (focus() === "a") moveFocus(ctx, 2);
+    });
+    game.step();
+    expect(game.resources.get(UiFocus)).toEqual({ id: "c", visible: true });
+    const bare = await createTestGame({ seed: 1, logger: new NullLogger() });
+    expect(() => moveFocus(bare, 1)).toThrow(/no ui\(\) plugin/);
+  });
+});
+
+describe("tap focus", () => {
+  it("keeps focus on a tap elsewhere by default", async () => {
+    const { root, focus, key, tap } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    key(Tab);
+    tap(200, 200);
+    expect(focus()).toBe("a");
+  });
+
+  it('clears focus on every press with tapFocus: "clear", and still activates the tapped control', async () => {
+    const { root, focus, key, tap, seen } = await setUp({ tapFocus: "clear" });
+    button(root, 0, 0, { id: "a", label: "A" });
+    key(Tab);
+    tap(200, 200);
+    expect(focus()).toBeNull();
+    key(Tab);
+    tap(10, 10);
+    expect(focus()).toBeNull();
+    expect(seen.activated).toEqual([{ id: "a", via: "pointer" }]);
+    key(Enter); // nothing focused: Enter is the game's again
+    expect(seen.gameEnters).toBe(1);
+  });
+});
+
+describe("focus across scope changes", () => {
+  it("does not carry focus to a control with the same id in a different scope", async () => {
+    const { root, game, focus, key } = await setUp();
+    const first = modalScope(root.addChild(new Container()), { label: "First" });
+    button(first, 0, 0, { id: "close", label: "Close" });
+    key(Tab);
+    expect(focus()).toBe("close");
+    first.destroy({ children: true });
+    const second = modalScope(root.addChild(new Container()), { label: "Second" });
+    button(second, 0, 0, { id: "close", label: "Close" });
+    game.step();
+    expect(focus()).toBeNull();
+  });
+
+  it("keeps focus when the same scope node is redrawn, and when the game sets it after the change", async () => {
+    const { root, game, focus, key } = await setUp();
+    const sheet = modalScope(root.addChild(new Container()), { label: "Sheet" });
+    button(sheet, 0, 0, { id: "close", label: "Close" });
+    button(sheet, 0, 50, { id: "ok", label: "OK" });
+    key(Tab);
+    for (const child of sheet.removeChildren()) child.destroy();
+    button(sheet, 0, 0, { id: "close", label: "Close" });
+    game.step();
+    expect(focus()).toBe("close");
+
+    sheet.destroy({ children: true });
+    const other = modalScope(root.addChild(new Container()), { label: "Other" });
+    button(other, 0, 0, { id: "yes", label: "Yes" });
+    game.resources.get(UiFocus).id = "yes";
+    game.step();
+    expect(focus()).toBe("yes");
+  });
+
+  it("focuses a scope's focus control when it comes on top, keeping the ring as it was", async () => {
+    const { root, game, focus, key } = await setUp();
+    button(root, 0, 0, { id: "open", label: "Open" });
+    key(Tab);
+    const sheet = modalScope(new Container(), { label: "Sheet", focus: "close" });
+    button(sheet, 0, 0, { id: "help", label: "Help" });
+    button(sheet, 0, 50, { id: "close", label: "Close" });
+    root.addChild(sheet);
+    game.step();
+    expect(game.resources.get(UiFocus)).toEqual({ id: "close", visible: true });
+    sheet.visible = false;
+    game.step();
+    expect(focus()).toBeNull();
+  });
+});
+
+describe("output in the frame of the change", () => {
+  it("shows the ring in the frame a system in Update moves focus", async () => {
+    const { root, game } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    let moveNow = false;
+    game.addSystem(Schedule.Update, function focusFromGame({ resources }: SystemCtx) {
+      if (moveNow) Object.assign(resources.get(UiFocus), { id: "a", visible: true });
+    });
+    game.step();
+    moveNow = true;
+    game.step();
+    const ring = root.children.find((child) => child.label === "fenrir.ui.focusRing")!;
+    expect(ring.visible).toBe(true);
+    const { schedule } = inspect(game);
+    expect(schedule.postUpdate).toContain("fenrir.ui.postUpdate");
+    expect(schedule.postInit).toContain("fenrir.ui.postInit");
+  });
+
+  it("syncUi throws while the game is not running", async () => {
+    const { game } = await setUp();
+    await game.stop();
+    expect(() => syncUi(game)).toThrow(/not running/);
+  });
+});
+
+describe("activate keys and quick presses", () => {
+  it("activates the focused control with NumpadEnter by default", async () => {
+    const { root, seen, key } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    key(Tab);
+    key(NumpadEnter);
+    expect(seen.activated).toEqual([{ id: "a", via: "key" }]);
+  });
+
+  it("activates both controls of a tap followed by a press on another in the very next frame", async () => {
+    const { root, game, seen } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 100, 0, { id: "b", label: "B" });
+    game.input.pointerDown(10, 10);
+    game.input.pointerUp();
+    game.step(); // the tap on a, consumed
+    game.input.pointerDown(110, 10);
+    game.step();
+    game.input.pointerUp();
+    game.step();
+    expect(seen.activated).toEqual([{ id: "a", via: "pointer" }, { id: "b", via: "pointer" }]);
+    expect(seen.gameTaps).toBe(0);
+  });
+
+  it("moves focus twice for a consumed Tab pressed again before the next frame", async () => {
+    const { root, game, focus } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    game.input.press(Tab);
+    game.step();
+    game.input.release(Tab);
+    game.input.press(Tab);
+    game.step();
+    expect(focus()).toBe("b");
   });
 });
