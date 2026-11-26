@@ -39,7 +39,9 @@ export interface ControlOptions {
   /**
    * Lets a pointer press on the control through to the game: the kit does not consume it, so
    * gameplay systems still see `pressed`, even inside a modal scope. The control still takes
-   * focus and taps and activates as `activateOn` says.
+   * focus and taps and activates as `activateOn` says. The `activate` keys on the focused control
+   * are left unconsumed too, so gameplay sees Enter or Space as its own press. Either way the
+   * press is the kit's: it does not reach `onAction`.
    */
   readonly passThrough?: boolean;
 }
@@ -112,15 +114,23 @@ export interface UiOptions {
    * How the `next` and `previous` keys move focus. `"wrap"` (the default): round from the last
    * control to the first, only while a control has focus or a modal scope is open. `"linear"`:
    * stop at the first and last control, and from no focus go to the first (`next`) or last
-   * (`previous`); the keys are the kit's whenever a control is live.
+   * (`previous`); the keys are the kit's whenever a control is live. `"clear"`: as `"linear"`,
+   * but past the first or last control focus goes to none, staying on the canvas, so the next
+   * key starts again from no focus.
    */
-  readonly arrows?: "wrap" | "linear";
+  readonly arrows?: "wrap" | "linear" | "clear";
   /**
    * What a pointer press does to focus. `"focus"` (the default): a press on a control focuses it
    * with no ring, and a press elsewhere keeps focus. `"clear"`: every press clears focus, so
    * Enter after a tap is the game's again.
    */
   readonly tapFocus?: "focus" | "clear";
+  /**
+   * What the canvas losing keyboard focus does to focus. `"keep"` (the default): focus stays and
+   * the ring is hidden, so returning to the canvas resumes on the same control. `"clear"`: focus
+   * is cleared in every frame that starts with the canvas blurred, so it starts again from none.
+   */
+  readonly blurFocus?: "keep" | "clear";
   /** Replaces the default ring, or `false` for none. */
   readonly focusRing?: FocusRingDrawer | false;
   /**
@@ -138,14 +148,19 @@ export interface UiOptions {
   readonly actions?: readonly ActionType[];
   /**
    * Called inside `fenrir.ui.preUpdate` for each press of one of `actions` that the kit did not
-   * act on itself (a key the kit uses acts first, under its own rules). The kit reads the display
+   * act on itself (a key the kit uses acts first, under its own rules, and a pointer press on a
+   * control is the kit's even when `passThrough` leaves it unconsumed). The kit reads the display
    * tree again after it returns, so controls and scopes drawn here are live for the next key.
    * Return `true` to consume the press: later systems do not see it.
    */
   readonly onAction?: (ctx: SystemCtx, action: ActionType) => boolean | void;
 }
 
-/** The focused control. Set `id` to move focus; it is cleared when that control is not live or is blocked. */
+/**
+ * The focused control. Set `id` to move focus. It is cleared whenever the kit reads the display
+ * tree and that control is not live or a modal scope blocks it: at the start and end of its pass,
+ * after each activation, `onClose` and `onAction`, and in `syncUi`.
+ */
 export interface UiFocus {
   id: string | null;
   /** Show the ring: true after a key moves focus, false after a tap. The ring also needs the canvas focused. */
@@ -287,6 +302,7 @@ export function ui(options: UiOptions = {}): Plugin {
     keys = {},
     arrows = "wrap",
     tapFocus = "focus",
+    blurFocus = "keep",
     focusRing = defaultRing,
     summary,
     hint = "Press Tab to move between the controls.",
@@ -336,6 +352,8 @@ export function ui(options: UiOptions = {}): Plugin {
       let at: InputPointer | undefined;
       /** Directions of the Tab presses since the last frame, as each keydown decided them. */
       let tabs: number[] = [];
+      /** A press the pass reads, other than Tab, went down since the last frame: it may move focus or redraw first. */
+      let waiting = false;
       let run: SystemCtx | undefined;
 
       const blocked = (l: Live): boolean => !!top && !l.s.includes(top);
@@ -382,7 +400,7 @@ export function ui(options: UiOptions = {}): Plugin {
           if (owner === undefined) owner = s;
           // The same id in another scope is another control: focus stays with the scope it was in.
           else if (s !== owner) (f.id = null), (owner = undefined);
-        }
+        } else f.id = null; // not live, or blocked by a scope that opened since focus was set
         lastId = f.id;
       };
 
@@ -446,7 +464,7 @@ export function ui(options: UiOptions = {}): Plugin {
         pressed = null;
       };
 
-      /** A pointer press. Returns whether the kit consumed it. */
+      /** A pointer press. Returns whether the kit took it: it hit a control or a scope is open. */
       const press = (pointer: InputPointer): boolean => {
         // A press while one is in progress: the pointer lifted between frames, where it was last seen.
         if (pressing) release(pressFrame === frame ? pointer : at);
@@ -458,9 +476,9 @@ export function ui(options: UiOptions = {}): Plugin {
         if (tapFocus === "clear") f.id = null;
         else if (hit) Object.assign(f, { id: hit.c.id, visible: false });
         if (hit?.c.activateOn === "press") (pressed = null), activate(hit, "pointer");
-        const consumed = hit ? !hit.c.passThrough : !!top;
-        if (consumed) input.consumePointer();
-        return consumed;
+        if (hit ? !hit.c.passThrough : top) input.consumePointer();
+        // A press on a passThrough control is left to gameplay, but it is still the kit's, not onAction's.
+        return !!hit || !!top;
       };
 
       const tab = keyAction("tab", keys.tab ?? ["Tab"]);
@@ -473,7 +491,7 @@ export function ui(options: UiOptions = {}): Plugin {
       // The pointer and the kit's keys first: for one key bound to both, the kit acts first under its rules.
       const all = [tap, ...kitKeys, ...gameActions];
 
-      /** One of the kit's keys went down. Returns whether the kit acted on it, and consumed it. */
+      /** One of the kit's keys went down. Returns whether the kit acted on it; it consumes the key unless a passThrough control took it. */
       const key = (action: ActionType, ctx: SystemCtx): boolean => {
         const f = focus();
         if (action === tab) {
@@ -482,12 +500,13 @@ export function ui(options: UiOptions = {}): Plugin {
           move(dir, LEAVE);
         } else if (action === next || action === previous) {
           const d = action === next ? 1 : -1;
-          if (arrows === "linear" ? !order.length : f.id === null && !top) return false;
-          if (order.length) move(d, arrows === "linear" ? STOP : WRAP);
+          if (arrows === "wrap" ? f.id === null && !top : !order.length) return false;
+          if (order.length) move(d, arrows === "wrap" ? WRAP : arrows === "linear" ? STOP : LEAVE);
         } else if (action === activateKey) {
           const l = find(f.id);
           if (!l) return false;
           activate(l, "key");
+          if (l.c.passThrough) return true; // gameplay sees the key as its own press
         } else {
           const scope = top && scopes.get(top);
           if (!scope) return false;
@@ -509,10 +528,10 @@ export function ui(options: UiOptions = {}): Plugin {
       const sync = (): void => {
         const ctx = run;
         if (!ctx) throw new Error("ui: the game is not running.");
+        if (blurFocus === "clear" && !ctx.input.focused) focus().id = null;
         refresh();
         const f = focus();
         const focused = find(f.id);
-        if (!focused) f.id = lastId = null;
 
         // The game may have cleared the container the ring was in.
         if (ring?.destroyed) space.addChild((ring = newRing()));
@@ -568,12 +587,18 @@ export function ui(options: UiOptions = {}): Plugin {
         game.input.onDown(tab, (event) => {
           refresh();
           const back = event && "shiftKey" in event ? event.shiftKey : input.isDown("ShiftLeft") || input.isDown("ShiftRight");
+          // Where the Tabs still waiting for the frame leave focus, as an index into `order` (-1: none).
+          let i = order.findIndex((l) => l.c.id === focus().id);
+          for (const d of tabs) i = i < 0 ? (d > 0 ? 0 : order.length - 1) : i + d >= 0 && i + d < order.length ? i + d : -1;
           // The frame moves focus the way this event decided, even if Shift went down before the canvas had focus.
           if (!(event as KeyboardEvent | undefined)?.repeat) tabs.push(back ? -1 : 1);
-          const j = target(back ? -1 : 1);
-          return j >= 0 && j < order.length;
+          const j = i < 0 ? (back ? order.length - 1 : 0) : i + (back ? -1 : 1);
+          // Another press waiting for the frame acts first and may move focus or open a sheet: stay on the canvas.
+          return waiting || (j >= 0 && j < order.length);
         });
       }
+      // Every other press the pass reads, so a Tab typed after one in the same frame stays on the canvas.
+      for (const action of [tap, ...kitKeys, ...gameActions]) if (action !== tab) game.input.onDown(action, () => void (waiting = true));
 
       game
         .addSystem(Schedule.Init, function init(ctx) {
@@ -586,6 +611,7 @@ export function ui(options: UiOptions = {}): Plugin {
           ctx.onCleanup(() => {
             ring?.destroy();
             ring = run = top = lastTop = at = owner = undefined;
+            waiting = false;
             if (canvas) {
               canvas.style.cursor = cursor;
               attrs.forEach((name, i) => set(canvas, name, saved[i]!));
@@ -603,11 +629,12 @@ export function ui(options: UiOptions = {}): Plugin {
           const { pointer } = input;
           run = ctx;
           frame++;
+          waiting = false;
+          if (blurFocus === "clear" && !input.focused) focus().id = null;
           const edges = input.edges(all);
           // Nothing arrived: the walk from the end of the last frame stands.
           if (!edges.length && !(pressing && !pointer.down)) return void ((tabs = []), (at = pointer));
           refresh();
-          if (!find(focus().id)) focus().id = null;
 
           // One pass in arrival order. Edges of one key press are next to each other, the kit's first:
           // once the kit or the game acts on a press, the rest of its edges are skipped.
@@ -628,7 +655,7 @@ export function ui(options: UiOptions = {}): Plugin {
           if (pressing && !pointer.down) release(pointer.cancelled ? undefined : pointer);
           at = pointer;
           tabs = [];
-          if (!find(focus().id)) focus().id = null;
+          refresh();
         }, { name: "fenrir.ui.preUpdate" })
         .addSystem(Schedule.PostUpdate, () => sync(), { name: "fenrir.ui.postUpdate", ...(renderer && { before: "fenrir.pixi.postUpdate" }) });
     },
