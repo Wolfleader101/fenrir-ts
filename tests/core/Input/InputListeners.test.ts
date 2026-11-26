@@ -476,3 +476,57 @@ describe("synthetic pointer events (#63)", () => {
     expect(game.input.released(Tap)).toBe(true);
   });
 });
+
+describe("consumed input from DOM events", () => {
+  const Activate = defineAction("test.listen.activate", ["Enter"]);
+
+  it("sees a key pressed again after a consumed press, between two frames or in the next frame", async () => {
+    const canvas = canvasAt();
+    let consumeNext = true;
+    const seen: string[] = [];
+    const game = await running(canvas, (g) => {
+      g.addSystem(Schedule.PreUpdate, function ui({ input }) {
+        if (input.pressed(Activate) && consumeNext) (consumeNext = false), input.consume(Activate);
+      });
+      g.addSystem(Schedule.Update, function play({ input }) {
+        seen.push(`${input.pressed(Activate)}:${input.edges([Activate]).map((e) => e.kind).join(",")}`);
+      });
+    });
+    canvas.focus();
+    key(canvas, "keydown", "Enter");
+    game.step(); // consumed
+    key(canvas, "keyup", "Enter");
+    key(canvas, "keydown", "Enter");
+    game.step();
+    key(canvas, "keyup", "Enter");
+    game.step();
+
+    consumeNext = true;
+    key(canvas, "keydown", "Enter");
+    key(canvas, "keyup", "Enter");
+    game.step(); // a consumed tap
+    key(canvas, "keydown", "Enter");
+    game.step();
+    expect(seen).toEqual(["false:", "true:pressed", "false:released", "false:", "true:pressed"]);
+  });
+
+  it("sees the pointer pressed again after consumePointer", async () => {
+    const canvas = canvasAt();
+    let consumeNext = true;
+    const seen: boolean[] = [];
+    const game = await running(canvas, (g) => {
+      g.addSystem(Schedule.PreUpdate, function ui({ input }) {
+        if (input.pressed(Tap) && consumeNext) (consumeNext = false), input.consumePointer();
+      });
+      g.addSystem(Schedule.Update, function play({ input }) {
+        seen.push(input.pressed(Tap));
+      });
+    });
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    game.step();
+    pointer(canvas, "pointerup", { x: 20, y: 30, buttons: 0 });
+    pointer(canvas, "pointerdown", { x: 20, y: 30, buttons: 1 });
+    game.step();
+    expect(seen).toEqual([false, true]);
+  });
+});

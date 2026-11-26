@@ -26,6 +26,8 @@ export interface InputPointer {
 export interface InputEdge {
   readonly action: ActionType;
   readonly kind: "pressed" | "released";
+  /** The key or pointer button whose press or release made the edge. One key bound to several actions gives each an edge with the same binding, one after another. */
+  readonly binding: InputBinding;
 }
 
 /** The DOM event an input handler runs inside: a `keydown`, or a `pointerdown` or `pointerup`. */
@@ -65,8 +67,8 @@ export interface Input {
    * when its first binding goes down and released when its last goes up, as for `pressed` and
    * `released`. The list is what arrived since the last frame, so a quick tap is `pressed`
    * then `released` here in the frame where `pressed()` is true. Bindings hidden by `consume`
-   * or `consumePointer` are left out. In `Tick` it is the frame's list in every tick: read it
-   * in `PreUpdate` or `Update`.
+   * or `consumePointer` are left out until they lift; a press after the lift is listed again. In
+   * `Tick` it is the frame's list in every tick: read it in `PreUpdate` or `Update`.
    */
   edges(actions: readonly ActionType[]): readonly InputEdge[];
   /**
@@ -74,7 +76,9 @@ export interface Input {
    * run after this call see no `pressed`, `held` or `released` from the pointer bindings until
    * the pointer is lifted; keys bound to the same action still count. Systems that ran earlier
    * in the frame already saw the press, so the UI system must run first. `pointer.down` still
-   * reports the pointer. Does nothing in a frame with no new pointer press.
+   * reports the pointer. Does nothing in a frame with no new pointer press. Only this press is
+   * hidden: a press after the pointer lifts is seen again, even one in the next frame or one that
+   * lifted and went down again between two frames.
    */
   consumePointer(): void;
   /**
@@ -82,7 +86,8 @@ export interface Input {
    * for UI that handled the press. It hides the bindings that went down this frame as
    * `consumePointer` hides the pointer: until they lift, systems that run after the call see no
    * `pressed`, `held`, `released` or edges from them, for this action or any other bound to the
-   * same key or button. Does nothing when no binding of the action went down this frame.
+   * same key or button. Does nothing when no binding of the action went down this frame. As for
+   * `consumePointer`, a later press of the same key is seen again.
    */
   consume(action: ActionType): void;
   /**
@@ -252,7 +257,7 @@ export class InputImpl implements TestInput {
       if (goesDown) down.add(binding);
       else down.delete(binding);
       affected.forEach((action, i) => {
-        if (isHeld(action) !== before[i]) edges.push(Object.freeze({ action, kind: goesDown ? "pressed" : "released" }));
+        if (isHeld(action) !== before[i]) edges.push(Object.freeze({ action, kind: goesDown ? "pressed" : "released", binding: binding as InputBinding }));
       });
     }
     return Object.freeze(edges);
@@ -268,7 +273,8 @@ export class InputImpl implements TestInput {
 
   private consumeBindings(bindings: readonly string[]): void {
     for (const binding of bindings) {
-      if (this.fresh.has(binding)) {
+      // A press this frame: fresh, or a second press that pressed() folded into a hold.
+      if (this.fresh.has(binding) || this.frameLog.some((edge) => edge.down && edge.binding === binding)) {
         this.consumed.add(binding);
         this.tickDown.delete(binding);
       }
@@ -434,8 +440,13 @@ export class InputImpl implements TestInput {
   /** Internal. Called when each frame starts, before PreUpdate. */
   public latch(): void {
     const { held_: held, next, last, fresh, consumed } = this;
+    // Consumption hides the press it was given, not later ones: a consumed binding that went down
+    // again since the last frame (after lifting, in the gap or right after a tap) is a new press.
+    const renewed: string[] = [];
+    for (const binding of consumed) if (this.wentDown.has(binding)) renewed.push(binding);
     this.hiddenAtStart.clear();
-    for (const binding of consumed) this.hiddenAtStart.add(binding);
+    // Only a binding still down when the log starts has edges of the consumed press to hide.
+    for (const binding of consumed) if (this.logStart.has(binding)) this.hiddenAtStart.add(binding);
     this.frameStart = this.logStart;
     this.frameLog = this.log;
     this.logStart = new Set(this.down);
@@ -455,6 +466,12 @@ export class InputImpl implements TestInput {
     fresh.clear();
     for (const binding of next) {
       if (!held.has(binding)) fresh.add(binding), this.tickDown.add(binding);
+    }
+    for (const binding of renewed) {
+      consumed.delete(binding);
+      next.add(binding);
+      fresh.add(binding);
+      this.tickDown.add(binding);
     }
     for (const binding of held) {
       if (!next.has(binding) && !consumed.delete(binding)) this.tickUp.add(binding);

@@ -58,7 +58,7 @@ describe("input types", () => {
     expectTypeOf<Input["focused"]>().toEqualTypeOf<boolean>();
     expectTypeOf<Input["consume"]>().toEqualTypeOf<(action: ActionType) => void>();
     expectTypeOf<Input["edges"]>().toEqualTypeOf<(actions: readonly ActionType[]) => readonly InputEdge[]>();
-    expectTypeOf<InputEdge>().toEqualTypeOf<{ readonly action: ActionType; readonly kind: "pressed" | "released" }>();
+    expectTypeOf<InputEdge>().toEqualTypeOf<{ readonly action: ActionType; readonly kind: "pressed" | "released"; readonly binding: InputBinding }>();
     expectTypeOf<Input["onDown"]>().toEqualTypeOf<(action: ActionType, handler: InputDownHandler) => () => void>();
     expectTypeOf<InputDownHandler>().toEqualTypeOf<(event: KeyboardEvent | PointerEvent | undefined, ctx: SystemCtx) => boolean | void>();
     expectTypeOf<Input["onGesture"]>().toEqualTypeOf<(handler: InputGestureHandler) => () => void>();
