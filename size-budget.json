@@ -38,8 +38,8 @@
       "gzip": 19400
     },
     "game-2d-ui": {
-      "minified": 62400,
-      "gzip": 20500
+      "minified": 62700,
+      "gzip": 20700
     }
   }
 }

@@ -4,6 +4,18 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### UI controls: the last adapters a consumer kept (#78, part of #39)
+
+- **Focus on a blocked control (bug fix).** The kit clears `UiFocus` from a control that a modal scope blocks, or that is no longer live, every time it reads the display tree: after each activation, `onClose` and `onAction` as well as at the start and end of its pass and in `syncUi`. A HUD control's Enter that opens a sheet and an Escape that closes it in the same frame now leave nothing focused, as they did a frame apart.
+- **Tab and waiting keys.** Tab stays on the canvas while another press the kit reads (its keys, the pointer or `actions`) is waiting for the next frame, and counts the Tabs still waiting.
+- **`ui({ arrows: "clear" })`**: as `"linear"`, but stepping past either end leaves no control focused, still on the canvas.
+- **`ui({ blurFocus: "clear" })`** clears focus while the canvas lacks keyboard focus. The default, `"keep"`, is unchanged.
+- **`passThrough` and keys.** Enter, NumpadEnter and Space on a focused `passThrough` control activate it and are left unconsumed for gameplay. A press a `passThrough` control took, by key or pointer, no longer also goes to `onAction`.
+
+Size: the kit costs a 2D game 0.30 kB minified / 0.10 kB gzip more (`game-2d-ui` 62.42 / 20.58 kB).
+
+Changed defaults, both judged bugs: focus on a blocked control is cleared within the frame, and a pointer press on a `passThrough` control no longer reaches `onAction`. Migration: a game that read that press in `onAction` reads `input.pressed` in a gameplay system instead, or listens for `ControlActivated`. Enter on a focused `passThrough` control is no longer consumed; drop `passThrough` to keep it consumed.
+
 ### Input and UI controls: gaps a first consumer hit (part of #39)
 
 - **Consumed input (bug fix).** `consume(action)` and `consumePointer()` hide only the press they were given. A key or pointer button that lifts and goes down again before the next frame, or goes down in the frame right after a consumed tap, is a new press: `pressed`, `edges` and `Tick` see it. Before, it stayed hidden until it lifted again. `consume` also hides a second press that `pressed()` folded into a hold.

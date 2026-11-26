@@ -800,3 +800,176 @@ describe("activate keys and quick presses", () => {
     expect(focus()).toBe("b");
   });
 });
+
+describe("the five behaviours consumers adapted after #77 (#78)", () => {
+  const Left = defineAction("test.left", ["ArrowLeft"]);
+  const tabEvent = (shiftKey = false): KeyboardEvent => new KeyboardEvent("keydown", { code: "Tab", shiftKey });
+
+  /** A HUD control whose Enter opens a modal sheet with no `focus` option, closed by Escape. */
+  async function withHudSheet() {
+    const ctx = await setUp();
+    const sheet = new Container();
+    const draw = (open: boolean): void => {
+      for (const child of sheet.removeChildren()) child.destroy();
+      sheet.visible = open;
+      if (open) button(sheet, 0, 100, { id: "close", label: "Close" });
+    };
+    modalScope(sheet, { label: "Sheet", onClose: () => draw(false) });
+    button(ctx.root, 0, 0, { id: "hud", label: "HUD", onActivate: () => draw(true) });
+    ctx.root.addChild(sheet);
+    draw(false);
+    return { ...ctx, sheet };
+  }
+
+  it("clears focus on a control a scope blocks as soon as the scope opens: Enter then Escape in one frame", async () => {
+    const { game, focus, key, sheet } = await withHudSheet();
+    key(Tab);
+    expect(focus()).toBe("hud");
+    game.input.press(Enter);
+    game.input.release(Enter);
+    game.input.press(Escape);
+    game.input.release(Escape);
+    game.step();
+    expect(sheet.visible).toBe(false);
+    expect(focus()).toBeNull(); // as with a frame between the keys
+  });
+
+  it("clears it the same way with a frame between the keys", async () => {
+    const { focus, key, sheet } = await withHudSheet();
+    key(Tab);
+    key(Enter);
+    expect(sheet.visible).toBe(true);
+    key(Escape);
+    expect(sheet.visible).toBe(false);
+    expect(focus()).toBeNull();
+  });
+
+  it("keeps Tab on the canvas while a kit key typed before it waits for the frame", async () => {
+    const { root, game, focus, key } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    key(Tab);
+    key(Tab);
+    expect(focus()).toBe("b");
+
+    game.input.press(Left); // moves focus back to a in the frame
+    expect(game.input.press(Tab, tabEvent())).toBe(true); // so Tab stays, and goes on to b
+    game.input.release(Left);
+    game.input.release(Tab);
+    game.step(1 / 60, 2);
+    expect(focus()).toBe("b");
+
+    // Nothing waiting: past the last control, Tab leaves as before.
+    expect(game.input.press(Tab, tabEvent())).toBe(false);
+    game.input.release(Tab);
+  });
+
+  it("keeps Tab on the canvas while a press of one of the game's actions waits for the frame", async () => {
+    const Bag = defineAction("test.bag", ["KeyB"]);
+    const onAction = vi.fn(() => true);
+    const { root, game, focus, key } = await setUp({ actions: [Bag], onAction });
+    button(root, 0, 0, { id: "a", label: "A" });
+    key(Tab);
+    expect(focus()).toBe("a");
+    game.input.press(Bag); // onAction may draw a sheet the Tab then moves into
+    expect(game.input.press(Tab, tabEvent())).toBe(true);
+    game.input.release(Bag);
+    game.input.release(Tab);
+    game.step();
+    expect(onAction).toHaveBeenCalledOnce();
+  });
+
+  it("takes Tabs still waiting for the frame into account: a second Tab past the end leaves", async () => {
+    const { root, game, focus } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    expect(game.input.press(Tab, tabEvent())).toBe(true);
+    game.input.release(Tab);
+    expect(game.input.press(Tab, tabEvent())).toBe(true);
+    game.input.release(Tab);
+    expect(game.input.press(Tab, tabEvent())).toBe(false); // a, b, then past the end
+    game.input.release(Tab);
+    game.step();
+    expect(focus()).toBeNull();
+  });
+
+  it('with arrows: "clear", steps off either end to no focus, staying on the canvas', async () => {
+    const { root, game, focus, key } = await setUp({ arrows: "clear" });
+    const arrowsForGame = vi.fn();
+    game.addSystem(Schedule.Update, function arrows({ input }: SystemCtx) {
+      if (input.pressed(Down) || input.pressed(Up)) arrowsForGame();
+    });
+    key(Down); // no control: the game's
+    expect(arrowsForGame).toHaveBeenCalledOnce();
+
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    key(Down);
+    expect(focus()).toBe("a");
+    key(Down);
+    expect(focus()).toBe("b");
+    key(Down);
+    expect(focus()).toBeNull(); // past the last
+    key(Down);
+    expect(focus()).toBe("a"); // starts again from no focus
+    key(Up);
+    expect(focus()).toBeNull(); // past the first
+    key(Up);
+    expect(focus()).toBe("b");
+    expect(arrowsForGame).toHaveBeenCalledOnce(); // the kit's whenever a control is live
+  });
+
+  it('with blurFocus: "clear", clears focus while the canvas lacks keyboard focus', async () => {
+    const { root, game, focus, key } = await setUp({ blurFocus: "clear" });
+    button(root, 0, 0, { id: "a", label: "A" });
+    button(root, 0, 50, { id: "b", label: "B" });
+    key(Tab);
+    key(Tab);
+    expect(focus()).toBe("b");
+    game.input.blur();
+    game.step();
+    expect(focus()).toBeNull();
+    game.resources.get(UiFocus).id = "a"; // set while blurred: cleared too
+    game.step();
+    expect(focus()).toBeNull();
+    game.input.focus();
+    key(Tab);
+    expect(focus()).toBe("a"); // starts again from the first
+  });
+
+  it("keeps focus across a blur by default", async () => {
+    const { root, game, focus, key } = await setUp();
+    button(root, 0, 0, { id: "a", label: "A" });
+    key(Tab);
+    game.input.blur();
+    game.step();
+    expect(focus()).toBe("a");
+  });
+
+  it("leaves Enter on a focused passThrough control unconsumed for gameplay, and still activates it", async () => {
+    const { root, seen, key } = await setUp();
+    button(root, 0, 0, { id: "fish", label: "Fish", passThrough: true, activateOn: "press" });
+    button(root, 0, 50, { id: "shop", label: "Shop" });
+    key(Tab);
+    key(Enter);
+    expect(seen.activated).toEqual([{ id: "fish", via: "key" }]);
+    expect(seen.gameEnters).toBe(1); // gameplay sees the press as its own
+    key(Tab);
+    key(Enter);
+    expect(seen.activated).toEqual([{ id: "fish", via: "key" }, { id: "shop", via: "key" }]);
+    expect(seen.gameEnters).toBe(1); // a control without passThrough consumes it
+  });
+
+  it("sends neither a key nor a pointer press on a passThrough control to onAction", async () => {
+    const onAction = vi.fn(() => false);
+    const { root, seen, key, tap } = await setUp({ actions: [Open, GameTap], onAction });
+    button(root, 0, 0, { id: "fish", label: "Fish", passThrough: true, activateOn: "press" });
+    key(Tab);
+    key(Enter);
+    tap(10, 10);
+    expect(onAction).not.toHaveBeenCalled();
+    expect([seen.gameEnters, seen.gameTaps]).toEqual([1, 1]);
+    tap(200, 200); // on no control: the game's action
+    expect(onAction).toHaveBeenCalledExactlyOnceWith(expect.anything(), GameTap);
+  });
+});
