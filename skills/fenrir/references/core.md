@@ -154,7 +154,7 @@ game
   .addSystem(Schedule.Update, meter, { runIf: inState(Phase, "casting") });
 ```
 
-`states.set` queues the change, and it is applied after the current system returns: exit hooks for the old value, then enter hooks for the new one, then the next system, whose `runIf` sees the new value. This holds in every stage, startup and `Exit` included.
+`states.set` queues the change, and it is applied after the current system returns: exit hooks for the old value, then enter hooks for the new one, then the next system, whose `runIf` sees the new value. This holds in every stage, startup and `Exit` included. A change set outside any system, such as in a `game.on` listener for an event sent when a load settles, or from page code, is applied when the next stage starts; one still queued when the game stops is dropped.
 
 - Each run starts every state at `initial` and runs its enter hooks before the first `PreInit` system. Resources acquired in `Init`, such as the renderer, are not ready yet, so for setup that needs them start in a `loading` value and set the next one from `PostInit`.
 - Setting the current value does nothing. If one system sets a state several times, only the last value is applied. Several states set in one system change in the order each was first set.

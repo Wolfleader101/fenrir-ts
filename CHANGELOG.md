@@ -4,6 +4,11 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Agent guide checked in a browser (part of #91)
+
+- `SKILL.md` no longer says the engine focuses the canvas: it makes it focusable, and keys reach the game after the first click, a Tab or `canvas.focus()`. The browser entry example calls `canvas.focus()` after `run()`, and "Mistakes that look right" lists a keyboard-only start screen.
+- The guide and references now say: the first `ViewportResized` is sent before the game's `Init` systems can listen; the design frame already sits inside the safe area; how to show a loading bar instead of awaiting the bundle in `PreInit`; a labelled button is a `Container` (Pixi warns on children of a `Graphics`); Escape reaches the game while no modal scope is open; the `fenrir.UiControls` snapshot shape; when a state set outside a system applies.
+
 ## 0.2.1
 
 The first release staged by the release workflow. No change to the package's code: games can stay on 0.2.0.
