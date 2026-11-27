@@ -146,7 +146,7 @@ Object.assign(AssetStore.prototype, methods);
 AssetStore.addInstaller((store, config) => {
   store.registerTexture2DLoader("pixi-texture", {
     loader: createPixiTextureLoader(),
-    extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
+    extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif", "svg"],
     unload: unloadPixiTexture,
   });
   for (const [name, loaderConfig] of Object.entries(config.texture2DLoaders ?? {})) {

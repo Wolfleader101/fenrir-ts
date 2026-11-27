@@ -2,7 +2,7 @@
 // bundle loaded with a progress bar and its completion event, a fallback, and an unload when the
 // level is left. Its size minus game-2d's is what the manifest costs a game. Bundled, never run.
 import { AssetBundleLoaded, EntityBuilder, Schedule, createGame, defineAssets, defineEvent, getAsset, loadAssets, unloadAssets } from "fenrir-ts";
-import { Transform2D, pixi2d } from "fenrir-ts/2d";
+import { PixiNode, Renderable2D, Transform2D, pixi2d, sprite2D } from "fenrir-ts/2d";
 import { Graphics, Sprite } from "pixi.js";
 
 const Scored = defineEvent("fixture.scored");
@@ -25,7 +25,7 @@ const bar = new Graphics();
 game.on(AssetBundleLoaded, ({ bundle }, ctx) => {
   if (bundle !== "reef") return;
   const reef = new Sprite(getAsset(ctx, GameAssets, "reef"));
-  EntityBuilder.create().transform2D(0, 0).pixiNode(reef, { layer: "world" }).spawn(ctx.entities);
+  EntityBuilder.create().transform2D(0, 0).with(PixiNode, { node: reef, layer: "world" }).spawn(ctx.entities);
 });
 
 game
@@ -34,7 +34,7 @@ game
   })
   .addSystem(Schedule.Init, function spawn(ctx) {
     pixi.renderer.root.addChild(bar);
-    EntityBuilder.create().transform2D(20, 20).renderSprite("logo").spawn(ctx.entities);
+    EntityBuilder.create().transform2D(20, 20).with(Renderable2D, sprite2D("logo")).spawn(ctx.entities);
     void loadAssets(ctx, GameAssets, "reef");
   })
   .addSystem(Schedule.Update, function showProgress({ resources }) {

@@ -44,12 +44,33 @@ describe("fenrir-ts/2d public API", () => {
     expect(twoD.createPixiTextureLoader).toBeTypeOf("function");
   });
 
-  it("adds the 2D entity builder methods", () => {
-    const { EntityBuilder, EntityList } = core;
-    const entities = new EntityList();
-    const entity = EntityBuilder.create().renderCircle(5, { fillColor: 0xff0000 }).spawn(entities);
+  it("adds nothing to EntityBuilder", () => {
+    const prototype = core.EntityBuilder.prototype as unknown as Record<string, unknown>;
+    for (const method of ["pixiNode", "renderSprite", "renderCircle", "renderRect", "renderText"]) {
+      expect(prototype[method]).toBeUndefined();
+    }
+  });
 
-    expect(entities.get(entity, twoD.Renderable2D).graphics).toMatchObject({ shape: "circle", data: { radius: 5 } });
+  it("builds Renderable2D values with sprite2D, circle2D, rect2D and text2D, each with its own id", () => {
+    const { EntityBuilder, EntityList } = core;
+    const { Renderable2D, circle2D, rect2D, sprite2D, text2D } = twoD;
+    const entities = new EntityList();
+    const flags = { alpha: 0.5, zIndex: 2 };
+    const sprite = EntityBuilder.create().with(Renderable2D, sprite2D("hero.png", { anchor: [0.5, 1], tint: 0xff00ff, flags })).spawn(entities);
+    const circle = EntityBuilder.create().with(Renderable2D, circle2D(5, { fillColor: 0xff0000, strokeColor: 0x00ff00, strokeWidth: 2 })).spawn(entities);
+    const rect = EntityBuilder.create().with(Renderable2D, rect2D(40, 10, { fillColor: 0x0000ff, flags })).spawn(entities);
+    const text = EntityBuilder.create().with(Renderable2D, text2D("Score: 0", { style: { fontSize: 24, fill: 0xffffff } })).spawn(entities);
+
+    expect(entities.get(sprite, Renderable2D)).toMatchObject({ sprite: { kind: "sprite", texture: "hero.png", anchor: [0.5, 1], tint: 0xff00ff }, flags });
+    expect(entities.get(circle, Renderable2D)).toMatchObject({
+      graphics: { kind: "graphics", shape: "circle", fillColor: 0xff0000, strokeColor: 0x00ff00, strokeWidth: 2, data: { x: 0, y: 0, radius: 5 } },
+    });
+    // A rectangle is centred on the entity's position.
+    expect(entities.get(rect, Renderable2D)).toMatchObject({ graphics: { kind: "graphics", shape: "rect", fillColor: 0x0000ff, data: { x: -20, y: -5, width: 40, height: 10 } }, flags });
+    expect(entities.get(text, Renderable2D)).toMatchObject({ text: { kind: "text", content: "Score: 0", style: { fontSize: 24, fill: 0xffffff } } });
+    const ids = [sprite, circle, rect, text].map((entity) => entities.get(entity, Renderable2D).id);
+    expect(new Set(ids).size).toBe(4);
+    expectTypeOf(circle2D(1)).toEqualTypeOf<import("@/2d").Renderable2D>();
   });
 
   it("mounts a PixiNode in a named layer or the backdrop and writes Transform2D and Display2D to it", async () => {
@@ -67,9 +88,9 @@ describe("fenrir-ts/2d public API", () => {
     await system.init(ctx);
 
     const card = new Container();
-    const entity = EntityBuilder.create().transform2D(30, 40).display2D({ alpha: 0.5 }).pixiNode(card, { layer: "ui" }).spawn(entities);
+    const entity = EntityBuilder.create().transform2D(30, 40).display2D({ alpha: 0.5 }).with(PixiNode, { node: card, layer: "ui" }).spawn(entities);
     const sky = new Container();
-    EntityBuilder.create().pixiNode(sky, { layer: "fenrir.backdrop" }).spawn(entities);
+    EntityBuilder.create().with(PixiNode, { node: sky, layer: "fenrir.backdrop" }).spawn(entities);
     expectTypeOf(entities.get(entity, PixiNode)).toEqualTypeOf<import("@/2d").PixiNode>();
     system.postUpdate(ctx);
     expect(card.parent).toBe(system.renderer.layer("ui"));

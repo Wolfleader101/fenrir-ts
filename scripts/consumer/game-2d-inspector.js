@@ -2,7 +2,7 @@
 // browser-tested build ships it. Its size minus game-2d's is what inspect() costs a game.
 // Bundled, never run.
 import { EntityBuilder, Schedule, createGame, defineEvent, exposeInspector } from "fenrir-ts";
-import { Transform2D, pixi2d } from "fenrir-ts/2d";
+import { PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
 import { Graphics } from "pixi.js";
 
 const Scored = defineEvent("fixture.scored");
@@ -16,7 +16,7 @@ const MOVING = [Transform2D];
 game
   .addSystem(Schedule.Init, function spawn({ entities }) {
     const ball = new Graphics().circle(0, 0, 8).fill(0xffffff);
-    EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0.8 }).pixiNode(ball, { layer: "world" }).spawn(entities);
+    EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0.8 }).with(PixiNode, { node: ball, layer: "world" }).spawn(entities);
   })
   .addSystem(Schedule.Update, function move({ entities, time }) {
     entities.each(MOVING, (_entity, transform) => { transform.x += 60 * time.delta; });

@@ -1,22 +1,22 @@
 /**
  * Fenrir-TS 2D: the `fenrir-ts/2d` entry point. Peer: `pixi.js`.
  *
- * Importing it also adds, for this program:
- * - the 2D EntityBuilder methods (`pixiNode`, `renderSprite`, `renderCircle`, `renderRect`, `renderText`)
- * - the 2D texture methods on AssetStore (`requestTexture2D`, `loadTexture2D`,
- *   `getTexture2D`, `registerTexture2DLoader`) and the default Pixi texture loader
+ * Importing it also adds, for this program, the 2D texture methods on AssetStore
+ * (`requestTexture2D`, `loadTexture2D`, `getTexture2D`, `registerTexture2DLoader`) and the
+ * default Pixi texture loader. It adds nothing to EntityBuilder: give an entity a node with
+ * `with(PixiNode, { node, layer })`, or a shape with `with(Renderable2D, circle2D(16))`.
  */
 
-// Side effects: patch AssetStore and EntityBuilder.
+// Side effect: patch AssetStore.
 import "./core/Assets/Assets2D";
-import "./core/EntityBuilder/extensions/render2DExtensions";
 
 // Asset store: 2D textures
 export type { PixiTextureLoaderConfig, Texture2DHandle, Texture2DState } from "./core/Assets/Assets2D";
 export { createPixiTextureLoader } from "./core/Assets/loaders/pixiTextureLoader";
 
-// Entity builder extensions
-export * from "./core/EntityBuilder/extensions/render2DExtensions";
+// Renderable2D values, for `builder.with(Renderable2D, circle2D(16))`
+export { sprite2D, circle2D, rect2D, text2D } from "./core/Renderer2D";
+export type { Sprite2DOptions, Shape2DOptions, Text2DOptions } from "./core/Renderer2D";
 
 // Renderer2D (PixiJS)
 export { pixi2d, PixiNode, Renderable2D, PixiRenderer, createPixiRendererSystem } from "./core/Renderer2D";
