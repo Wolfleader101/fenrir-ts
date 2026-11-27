@@ -1652,13 +1652,22 @@ export interface AssetDeclaration<Name extends string = string> {
 	 * Every bundle that lists this asset also loads the fallback. A fallback has no fallback.
 	 */
 	readonly fallback?: Name;
+	/**
+	 * `true`: a failure is cosmetic. If it fails (and its fallback, if any, fails too) it is
+	 * `missing`: logged as a warning, counted in `missing`, and its bundle still loads.
+	 * `getAsset` returns `undefined` for it. Default `false`: a failure fails the bundle.
+	 */
+	readonly optional?: boolean;
 }
 /** The assets of a manifest, by name. */
 export type AssetDeclarations = {
 	readonly [name: string]: AssetDeclaration;
 };
-/** Where one asset of a manifest stands. `fallback`: it failed and its fallback is shown instead. */
-export type AssetStatus = "unloaded" | "loading" | "loaded" | "fallback" | "failed";
+/**
+ * Where one asset of a manifest stands. `fallback`: it failed and its fallback is shown instead.
+ * `missing`: an `optional` asset that failed with no fallback to show; `getAsset` returns `undefined`.
+ */
+export type AssetStatus = "unloaded" | "loading" | "loaded" | "fallback" | "missing" | "failed";
 /** Where one bundle stands. `failed`: an asset without a fallback failed; the others loaded. */
 export type BundleStatus = "unloaded" | "loading" | "loaded" | "failed";
 /** One asset in `AssetProgress`. */
@@ -1666,14 +1675,18 @@ export interface AssetState {
 	status: AssetStatus;
 	/** Why it failed, when its status is `failed` or `fallback`. */
 	error: string | null;
-	/** The loading or loaded bundles of this manifest that hold it. It is unloaded when none do. */
+	/** The loading or loaded bundles of this manifest that hold it. It is unloaded when none do and `direct` is false. */
 	bundles: string[];
+	/** Whether `loadAsset` holds it by name (until `unloadAsset`), apart from any bundle. */
+	direct: boolean;
 }
-/** Counts over a set of assets. `fraction` is `loaded / total`, or 1 when `total` is 0. */
+/** Counts over a set of assets. `fraction` is `(loaded + missing) / total`, or 1 when `total` is 0. */
 export interface AssetCounts {
 	/** Assets ready to read: loaded, or showing their fallback. */
 	loaded: number;
-	/** Assets that failed with no fallback. */
+	/** Optional assets that failed with nothing to show. They count as done, not failed. */
+	missing: number;
+	/** Assets that failed with no fallback and are not optional. */
 	failed: number;
 	total: number;
 	fraction: number;
@@ -1685,7 +1698,7 @@ export interface BundleProgress extends AssetCounts {
 /**
  * A manifest's progress, as plain data: the value of `manifest.progress`, a resource, so a HUD
  * reads it each frame with `ctx.resources.get(manifest.progress)` and `inspect(game)` shows it.
- * The top-level counts are over every asset a loading or loaded bundle holds.
+ * The top-level counts are over every asset a loading or loaded bundle, or `loadAsset`, holds.
  */
 export interface AssetProgress<A extends string = string, B extends string = string> extends AssetCounts {
 	bundles: Record<B, BundleProgress>;
@@ -1707,8 +1720,13 @@ export interface AssetManifest<A extends AssetDeclarations = AssetDeclarations, 
 export type AssetName<M extends AssetManifest<any, any>> = keyof M["assets"] & string;
 /** The name of a bundle of `M`. */
 export type BundleName<M extends AssetManifest<any, any>> = keyof M["bundles"] & string;
-/** The loaded type of asset `N` of `M`, from its kind. */
-export type ManifestAsset<A extends AssetDeclarations, N extends keyof A> = AssetKinds[A[N]["kind"]];
+/**
+ * What `getAsset` returns for asset `N`: the loaded type of its kind, plus `undefined` when it is
+ * declared `optional: true` (a missing optional asset has no value).
+ */
+export type ManifestAsset<A extends AssetDeclarations, N extends keyof A> = AssetKinds[A[N]["kind"]] | (A[N] extends {
+	readonly optional: true;
+} ? undefined : never);
 /** What the manifest functions need: a `SystemCtx`, or the `Game` or `TestGame` itself. */
 export type AssetCtx = {
 	readonly assets: AssetStore;
@@ -1722,11 +1740,15 @@ export interface AssetFailure {
 	src: string;
 	error: string;
 }
-/** Sent when a bundle has loaded, every asset ready or showing its fallback. */
+/**
+ * Sent when a bundle has loaded: every asset ready, showing its fallback (`fallbacks`), or an
+ * optional asset that is missing (`missing`).
+ */
 export declare const AssetBundleLoaded: EventType<{
 	manifest: string;
 	bundle: string;
 	fallbacks: string[];
+	missing: string[];
 }>;
 /** Sent when a bundle has settled with at least one asset failed and no fallback for it. */
 export declare const AssetBundleFailed: EventType<{
@@ -1734,6 +1756,26 @@ export declare const AssetBundleFailed: EventType<{
 	bundle: string;
 	failures: AssetFailure[];
 }>;
+/**
+ * Sent when an asset requested by name with `loadAsset` has settled without failing. `status` is
+ * `loaded`, `fallback` (its fallback is shown) or `missing` (optional, nothing to show).
+ */
+export declare const AssetLoaded: EventType<{
+	manifest: string;
+	asset: string;
+	status: "loaded" | "fallback" | "missing";
+}>;
+/** Sent when an asset requested by name with `loadAsset` failed, with no fallback and not optional. */
+export declare const AssetFailed: EventType<{
+	manifest: string;
+} & AssetFailure>;
+/** The rejection of `loadAsset` when the asset failed, with no fallback and not optional. */
+export declare class AssetLoadError extends Error {
+	readonly manifest: string;
+	readonly asset: string;
+	readonly src: string;
+	constructor(manifest: string, failure: AssetFailure, cause: unknown);
+}
 /** The rejection of `loadAssets` when a bundle failed. Every asset of the bundle was tried first. */
 export declare class AssetBundleError extends Error {
 	readonly manifest: string;
@@ -1764,6 +1806,10 @@ export interface ManifestLoader {
  * An asset's name is its key in `game.assets`, so `getTexture2D(name)` and `renderSprite(name)`
  * read it too. Two manifests that use one name must declare the same kind and source.
  *
+ * Mark an asset `optional: true` when a failure is cosmetic: it is then `missing` (a warning, not
+ * an error), its bundle still loads, and `getAsset` returns `undefined` for it. To load assets one
+ * at a time rather than in bundles, use `loadAsset` and `unloadAsset`.
+ *
  * Throws if a bundle lists an unknown asset, a fallback is unknown, of another kind or has its
  * own fallback, or two assets of one kind share a source.
  *
@@ -1773,6 +1819,7 @@ export interface ManifestLoader {
  *     logo: { kind: "texture2d", src: "img/logo.png" },
  *     missing: { kind: "texture2d", src: "img/missing.png" },
  *     reef: { kind: "texture2d", src: "img/reef.webp", fallback: "missing" },
+ *     glow: { kind: "texture2d", src: "img/glow.png", optional: true },
  *   },
  *   bundles: { boot: ["logo"], reef: ["reef", "logo"] },
  * });
@@ -1812,9 +1859,35 @@ export declare function loadAssets<A extends AssetDeclarations, B extends string
  */
 export declare function unloadAssets<A extends AssetDeclarations, B extends string>(ctx: AssetCtx, manifest: AssetManifest<A, B>, bundles: NoInfer<B> | readonly NoInfer<B>[]): void;
 /**
+ * Loads assets of `manifest` by name, with no bundle: for a game that loads images one at a time
+ * as they come into view. Each name is held like a one-asset bundle (with its fallback) until
+ * `unloadAsset`, sharing the load with any bundle that lists it, and shows in `manifest.progress`
+ * as `assets[name].direct` and in the top-level counts, not in `progress.bundles`.
+ *
+ * Safe to call again: a loading or loaded asset returns the same promise, and a failed one is
+ * retried. When an asset settles it sends `AssetLoaded` (status `loaded`, `fallback` or
+ * `missing`) and the promise resolves; one that fails with no fallback and is not `optional` is
+ * logged, sends `AssetFailed` and rejects with an `AssetLoadError`. With several names, the
+ * promise resolves when all have and rejects with the first failure; every name is tried.
+ * `setAssetLoader` replaces its loader as it does for bundles.
+ *
+ * @example
+ * void loadAsset(ctx, Art, "portrait"); // from a sync system; read progress.assets.portrait.status
+ */
+export declare function loadAsset<A extends AssetDeclarations, B extends string>(ctx: AssetCtx, manifest: AssetManifest<A, B>, names: NoInfer<keyof A & string> | readonly NoInfer<keyof A & string>[]): Promise<void>;
+/**
+ * Drops the holds `loadAsset` took on `names`. Each asset no bundle (of any manifest) still holds
+ * is released as `unloadAssets` releases a bundle's: out of the store, and its loader's `unload`
+ * runs. A name `loadAsset` does not hold is a no-op; an asset still loading is unloaded too, and
+ * its `loadAsset` promise rejects.
+ */
+export declare function unloadAsset<A extends AssetDeclarations, B extends string>(ctx: AssetCtx, manifest: AssetManifest<A, B>, names: NoInfer<keyof A & string> | readonly NoInfer<keyof A & string>[]): void;
+/**
  * The loaded asset `name` of `manifest`, typed by its kind: a Pixi `Texture` for `texture2d`.
- * Its fallback's value if it failed and has one. Throws if no bundle holding it has loaded it yet;
- * read `manifest.progress`, or wait for `AssetBundleLoaded`, to know when it has.
+ * Its fallback's value if it failed and has one. `undefined` for an `optional` asset that is
+ * `missing` (its type includes `undefined` only for assets declared `optional: true`).
+ * Throws if it is not loaded yet, or failed; read `manifest.progress`, or wait for
+ * `AssetBundleLoaded` or `AssetLoaded`, to know when it has loaded.
  */
 export declare function getAsset<A extends AssetDeclarations, N extends keyof A & string>(ctx: AssetCtx, manifest: AssetManifest<A, string>, name: N): ManifestAsset<A, N>;
 /**

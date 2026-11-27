@@ -4,7 +4,7 @@ import { assetKey, type Asset, type AssetKind, type AssetStore } from "./AssetSt
 import type { AssetManifest, ManifestLoader } from "./Manifest";
 import type { Resources } from "../Resource";
 
-export type EntryStatus = "loading" | "loaded" | "fallback" | "failed";
+export type EntryStatus = "loading" | "loaded" | "fallback" | "missing" | "failed";
 
 /** One asset loaded into a store, shared by every bundle (of any manifest) that holds it. */
 export interface Entry {
@@ -15,7 +15,7 @@ export interface Entry {
   /** What the loader threw, once it has. */
   error?: unknown;
   promise: Promise<Asset>;
-  /** `manifest/bundle` of each loading or loaded bundle that holds it. */
+  /** `manifest/bundle` of each loading or loaded bundle that holds it, and `manifest#asset` for a `loadAsset` hold. */
   readonly users: Set<string>;
   unload?: (value: Asset) => void;
 }
@@ -29,6 +29,8 @@ export interface ManifestRuntime {
   readonly manifest: AssetManifest;
   readonly resources: Resources;
   readonly bundles: Map<string, BundleState>;
+  /** Assets held by name through `loadAsset`, each like a bundle of that asset and its fallback. */
+  readonly direct: Map<string, BundleState>;
 }
 
 export interface StoreState {
