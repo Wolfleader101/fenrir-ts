@@ -724,7 +724,7 @@ Component pools will be built on top of this.
 Members:
 
 - `createEntity`: Create a new entity (reuses a destroyed id if available).
-- `destroyEntity`: Destroy an entity. Returns false if the handle was already dead/invalid. Note: component removal will be added in Step 3 when pools exist.
+- `destroyEntity`: Destroys an entity, its child entities first, and removes every component it had (each removal is signalled, so a `PixiNode`'s node is destroyed). Returns false if the handle was already dead or invalid.
 - `isAlive`: Checks if an entity handle is currently alive and matches generation.
 - `idOf`: Extract the numeric entity id (index) from a handle
 - `genOf`: Extract the generation/version from a handle
@@ -1571,9 +1571,9 @@ An entity handle. Plain number: store it, compare it, never do arithmetic on it.
 
 ```ts
 interface EntitySnapshot {
-    readonly id: number;
+    readonly id: Entity;
     readonly name: string;
-    readonly parent: number | null;
+    readonly parent: Entity | null;
     readonly components: Readonly<Record<string, JsonValue>>;
 }
 ```

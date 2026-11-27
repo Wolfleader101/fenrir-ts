@@ -90,8 +90,9 @@ export class EntityList {
   }
 
   /**
-   * Destroy an entity. Returns false if the handle was already dead/invalid.
-   * Note: component removal will be added in Step 3 when pools exist.
+   * Destroys an entity, its child entities first, and removes every component it had (each
+   * removal is signalled, so a `PixiNode`'s node is destroyed). Returns false if the handle was
+   * already dead or invalid.
    */
   public destroyEntity(entity: Entity) {
     if (!this.isAlive(entity)) return false;

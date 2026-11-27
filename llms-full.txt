@@ -12,6 +12,12 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 - `api/` has every export of every entry point with its signature and TSDoc: [`fenrir-ts`](api/fenrir-ts.md), [`fenrir-ts/2d`](api/2d.md), [`fenrir-ts/ui`](api/ui.md), [`fenrir-ts/audio`](api/audio.md). Search it before guessing a name or an option. The `.d.ts` files under `dist/` say the same with types.
 - Import only from `fenrir-ts`, `fenrir-ts/2d`, `fenrir-ts/ui`, `fenrir-ts/audio` (and the frozen `fenrir-ts/3d`, `fenrir-ts/physics`). Never from `fenrir-ts/dist/...` or a source path. Peer: `pixi.js` 8 for `/2d` and `/ui`.
 
+## Project setup
+
+- `package.json`: `"type": "module"`; dependencies `fenrir-ts` and `pixi.js` (8.x, for `/2d` and `/ui`); dev dependencies `typescript` and `vitest` (and a bundler such as Vite for the browser build). No other peer is needed for the 2D path.
+- `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable"]`, `"strict": true`.
+- Vitest needs no environment and no config for headless tests: `createTestGame`, `ui({ root })`, Pixi `Container`/`Graphics`/`Sprite` and `Texture.WHITE` all work in the default `node` environment. Use `jsdom` only for code that touches `document` or `window`.
+
 ## The model in one page
 
 - **A game is a schedule of named systems.** A system is a function `(ctx: SystemCtx) => void` added with `game.addSystem(stage, fn, options?)`. Everything the game does happens in a system, a state hook or an event listener, each of which gets a `ctx`.
@@ -214,6 +220,7 @@ Don't: `window.addEventListener("keydown", ...)`, `canvas.onclick`, `sprite.even
 
 - `pixi2d({ design: { width, minHeight }, layers, background })`. With `design`, you draw in **design units**: the width is fixed, the logical height grows from `minHeight` to fill the screen. Read the current size from `ctx.resources.get(Viewport)` (`width`, `height`, `scale`, `insets`...), and redraw on `ViewportResized`. Without `design`, units are CSS pixels.
 - Game content goes in `pixi.renderer.root` (design units) or a named layer, `pixi.renderer.layer("hud")`, declared back to front in `layers`. Full-bleed backgrounds go in `pixi.renderer.backdrop` (CSS pixels, behind everything). Layer names starting with `fenrir.` are reserved.
+- `Transform2D` and `Display2D` are core data, exported by both `fenrir-ts` and `fenrir-ts/2d` (the same values); gameplay that must run headless imports them from `fenrir-ts`.
 - Entities: `EntityBuilder.create().transform2D(x, y).pixiNode(node, { layer }).spawn(ctx.entities)`. Move them by writing `Transform2D` (`x`, `y`, `rotation`, `scaleX`, `scaleY`) and `Display2D` (`alpha`, `visible`); the renderer copies them to the node every frame. Removing the entity or `PixiNode` destroys the node (`keep: true` only unmounts). A node with child entities should be a plain `Container`.
 - Pixi objects you add to `root` yourself are yours: you destroy them.
 
@@ -279,8 +286,11 @@ game.step(1 / 60, 30);
 console.log(finished); // ["myGame.settle", "fenrir.Display2D:alpha"]
 ```
 
-- Timers and tweens are data on the entity (`Timers`, `Tweens` components), advanced by `fenrir.motion.preUpdate` before your `PreUpdate`, `Update` and the renderer. Destroying the entity cancels them.
-- Pause with an entry's `paused`, a group (`MotionSettings.paused[group] = true`) or `MotionSettings.pausedAll`; reduced motion with `MotionSettings.reducedMotion`. `addTimer(..., { state: [Phase, "playing"] })` drops a timer when the state leaves that value.
+- Timers and tweens are data on the entity (`Timers`, `Tweens` components), advanced by `fenrir.motion.preUpdate` before your `PreUpdate`, `Update` and the renderer. Destroying the entity cancels them. A game-level timer (a round clock, a spawner) goes on an entity of its own: `addTimer(ctx, ctx.entities.createEntity(), "myGame.round", { duration: 30, state: [Phase, "playing"] })`.
+- Timing: an entry added in a startup system or before a frame's `fenrir.motion.preUpdate` starts moving that frame; one added later in a frame (in `Update`, an `onActivate`, a state hook run there) starts the next frame. So a 1 s timer added at `Init` fires in the 60th `step(1 / 60)`, and one added in `Update` fires 60 frames after the frame that added it. `TimerFired` is sent inside `fenrir.motion.preUpdate`, so a reader in that frame's `Update` sees it.
+- Read a running timer in a test from `inspect(game)`: `entities[i].components["fenrir.Timers"]["myGame.round"].remaining`.
+- Pause with an entry's `paused`, a group (`MotionSettings.paused[group] = true`) or `MotionSettings.pausedAll`; reduced motion with `MotionSettings.reducedMotion`. `addTimer(..., { state: [Phase, "playing"] })` **removes** a timer when the state leaves that value, so a "paused" value of `Phase` would delete the round clock: keep pause in a state of its own (`defineState("myGame.Pause", { values: ["running", "paused"], initial: "running" })`) and pause timers with `pausedAll`.
+- A pause set from a control's `onActivate`, a scope's `onClose` or a state hook they trigger runs inside `fenrir.ui.preUpdate`, after `fenrir.motion.preUpdate`, so it holds from the next frame; test it with one more `step()`.
 - `addTimer` and `addTween` throw without the plugin. Full rules: [references/motion.md](references/motion.md).
 
 ## Assets: manifests, bundles, one asset at a time
@@ -384,7 +394,8 @@ console.log(activateControl(game, "myGame.buy"), listControls(game)[0]!.bounds);
 ```
 
 - In a browser game: `plugins: [pixi, ui({ pixi })]`, `ui` after `pixi2d` and given it. In a test game: `ui({ root })`.
-- `control(node, { id, label, onActivate?, disabled?, hitArea? })` on a node you drew makes it a button: tap (press and release over it), Tab/arrows to focus, Enter/Space to activate. `modalScope(sheet, { label, onClose })` blocks everything outside the sheet and maps Escape to `onClose`. There is no registry: a control is live while its node is visible under `root`; destroy or hide the node and it is gone. Redraw freely; focus is kept by `id`.
+- `control(node, { id, label, onActivate?, disabled?, hitArea? })` on a node you drew makes it a button: tap (press and release over it), Tab/arrows to focus, Enter/Space to activate. `modalScope(sheet, { label, onClose })` blocks **taps and focus** outside the sheet and maps Escape to `onClose` (consumed). It does not block the game's own key actions: gate gameplay on your own pause state with `runIf`.
+- **Gameplay keys and the kit.** Once a tap or Tab focuses a control, the kit takes the arrows (and Enter/Space) and consumes them, so a game that plays with arrows or Space loses them. Turn the kit's arrows off with `ui({ pixi, keys: { next: [], previous: [] } })`, use `tapFocus: "clear"` so a tap leaves nothing focused, or bind gameplay to other keys. There is no registry: a control is live while its node is visible under `root`; destroy or hide the node and it is gone. Redraw freely; focus is kept by `id`.
 - `fenrir.ui.preUpdate` consumes taps that hit a control (and every tap while a scope is open) before your `PreUpdate`/`Update` systems. A gameplay system that must see such a press first: `{ before: "fenrir.ui.preUpdate" }`; a control that should also let gameplay see its press: `passThrough: true`.
 - React to activation in `onActivate(ctx, via)` or with `ControlActivated` (`{ id, via }`). In tests, `activateControl(game, id)` and `listControls(game)` (ids, labels, focus, logical bounds).
 - Don't: Pixi `eventMode`/`on("pointertap")`, DOM buttons over the canvas, your own focus index or hit tests, `aria-*` on the canvas. Full rules: [references/ui.md](references/ui.md).
@@ -424,6 +435,8 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 
 - `createTestGame({ seed, plugins?, now?, maxFrameDelta? })`: the same systems, states, events and plugins, no canvas. `await game.start()`, `game.step(dt = 1/60, frames = 1)`, `await game.stop()`. `dt` above `maxFrameDelta` throws: step one second as `step(1 / 60, 60)`.
 - `pixi2d` cannot install in a test game (no canvas): that is why gameplay is registered apart from drawing. `ui({ root })`, `audio({ backend: testAudio() })`, `storage({ backend: memoryStorage() })` and `setAssetLoader` make the other plugins headless.
+- Textures in tests: a fake loader may return `Texture.WHITE` (from `pixi.js`), a real texture that needs no renderer, so code that builds a `Sprite` from `getAsset` runs headless too. Pixi `Text` measures itself with a DOM canvas: keep it in browser-only drawing code.
+- A reload: a second `createTestGame` with `storage({ backend })` on the same `memoryStorage()` object reads what the first one stored. Manifest progress is in `inspect(game).resources[manifest.name]`.
 - Assert on `inspect(game)`: plain JSON of `frame`, `time`, `schedule`, `states`, `resources` and `entities` (by the names you gave). In a browser test call `exposeInspector(game)` in the game and read `window.__FENRIR__.inspect()`. Don't assert on pixels or sleep for time. Full rules: [references/testing.md](references/testing.md).
 
 ## Mistakes that look right
@@ -437,6 +450,9 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 | `game.on(...)` inside a system, or `ctx.events.on(...)` at setup | `game.on` at setup; `ctx.events.on` inside a system for one run |
 | `entities.each([A, B] as const, ...)` inline | a module-level `const QUERY = [A, B] as const` |
 | Reading a press in gameplay that the UI kit or another system consumed earlier | order the reader `before` the consumer, or use `passThrough` |
+| Gameplay on the arrows or Space next to UI controls with default `ui()` keys | `ui({ pixi, keys: { next: [], previous: [] }, tapFocus: "clear" })`, or other gameplay keys |
+| Expecting an open `modalScope` to stop gameplay keys | `runIf` on your own pause state |
+| A "paused" value in the state a timer's `state` option names | a separate pause state, and `MotionSettings.pausedAll` |
 | A `PostUpdate` system that moves sprites | move them in `Update`, or `{ before: "fenrir.pixi.postUpdate" }` |
 | Touching `pixi.renderer` in `PreInit` or an initial state's enter hook | `Init` or later |
 | `localStorage.getItem("best")` | `defineStorageKey` + `getStored` |
@@ -813,17 +829,13 @@ import { pixi2d } from "fenrir-ts/2d";
 const Tap = defineAction("myGame.tap", ["pointer.primary", "Space", "Enter"]);
 const Left = defineAction("myGame.left", ["ArrowLeft", "KeyA"]);
 
-const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
-canvas.tabIndex = 0; // keys reach the canvas only while it has focus
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!; // the engine makes it focusable
 const game = await createGame({ canvas, plugins: [pixi2d({ design: { width: 390, minHeight: 520 } })] });
 
-const pauseButton = { x: 330, y: 10, width: 50, height: 50 }; // design units
-
-// UI runs first and swallows a tap that landed on its button.
-function ui({ input }: SystemCtx): void {
-  const { x, y } = input.pointer;
-  const onButton = x >= pauseButton.x && x <= pauseButton.x + pauseButton.width && y >= pauseButton.y && y <= pauseButton.y + pauseButton.height;
-  if (input.pressed(Tap) && onButton) input.consumePointer();
+// A region that swallows taps, such as a top bar drawn over the playfield. Buttons are
+// controls from fenrir-ts/ui, which consume their own taps; this is for everything else.
+function topBar({ input }: SystemCtx): void {
+  if (input.pressed(Tap) && input.pointer.y < 60) input.consumePointer();
 }
 
 function play({ input, logger }: SystemCtx): void {
@@ -832,7 +844,7 @@ function play({ input, logger }: SystemCtx): void {
 }
 
 game
-  .addSystem(Schedule.Update, ui, { before: "play" })
+  .addSystem(Schedule.Update, topBar, { before: "play" })
   .addSystem(Schedule.Update, play);
 await game.run();
 ```
@@ -1192,7 +1204,7 @@ await game.run();
 - `addTween(ctx, entity, Component, options)` tweens numeric fields of a component on the same entity: `Transform2D`, `Display2D` or any game component of plain numbers. Fields are the keys of `to` (and `from`), checked by TypeScript against the component's number fields, so there are no string paths. Options: `duration` (seconds per play), `from` (default: the component's values when the delay ends), `delay`, `ease`, `repeat` (plays after the first; `Infinity` loops), `yoyo`, `name` and `group`. The entity must have the component when the tween is added.
 - `ease` is a name, so tween data stays JSON: `linear` (the default), `quadIn`, `quadOut`, `quadInOut`, `cubicIn`, `cubicOut`, `cubicInOut`, `sineIn`, `sineOut`, `sineInOut` and `backOut`, which overshoots and settles. The functions are on `easings`; `defineEasing("myGame.steps", fn)` adds one by name.
 - A tween is named after its component and fields unless given a `name`, such as `fenrir.Transform2D:x,y`. Adding a tween with a running one's name replaces it, and the newest tween of a field takes that field from any older tween, so tweening `x` again mid-move just works. A replaced or cancelled tween sends nothing.
-- `addTimer(ctx, entity, name, { duration, repeat?, group?, state? })` sends `TimerFired { entity, name, count, last }` each time it fires. `state: [Phase, "playing"]` removes it, unfired, once `Phase` leaves that value. For how long a state has had its value, use `states.timeIn`; a timer is for something that must happen at a time.
+- `addTimer(ctx, entity, name, { duration, repeat?, group?, state? })` sends `TimerFired { entity, name, count, last }` each time it fires. `state: [Phase, "playing"]` removes it, unfired, once `Phase` leaves that value, so do not make "paused" a value of that state: keep pause in a state of its own, or pause the timer (`paused`, a group or `pausedAll`, below). For how long a state has had its value, use `states.timeIn`; a timer is for something that must happen at a time.
 - A tween ends exactly on its end values (on its start values after an even number of yoyo plays) and sends `TweenDone { entity, name }`. A frame that runs past the end of a play carries the rest into the next play, and a long frame fires a repeating timer as many times as it holds. Finished timers and tweens are removed, so a running one is one that is present.
 - Both live in components, `Timers` and `Tweens` (records by name), that `inspect(game)` shows as plain JSON with their `elapsed` time. Each entry has a `paused` field to pause and resume it; `MotionSettings.paused[group] = true` pauses a group of them; `cancelTimer` and `cancelTween` remove one; removing the component or destroying the entity removes them all. If the tweened component is removed, its tweens are dropped without `TweenDone`.
 - `motion()` registers `fenrir.motion.preUpdate`. Plugins install before the game adds systems, so it runs first in `PreUpdate`: `Update` systems and the renderer see this frame's values, and `TimerFired` and `TweenDone` are read in the same frame. Timers and tweens added in `Update` start moving the next frame.
@@ -1381,16 +1393,16 @@ function finishRound(ctx: SystemCtx, score: number): void {
 }
 ```
 
-- **Keys.** `defineStorageKey(name, { default, parse?, version?, migrate? })`. The name is namespaced, like a component's (`myGame.muted`), and is the key in `localStorage`, so two games on one origin do not collide; `storage({ prefix: "slot2:" })` adds a prefix for save slots or players. Values are stored as JSON with their version: `{"v":2,"value":{"best":40,"level":1}}`. Without `parse`, a stored value must have the default's `typeof`; pass `parse` for objects.
+- **Keys.** `defineStorageKey(name, { default, parse?, version?, migrate? })`; `version` defaults to 1. The name is namespaced, like a component's (`myGame.muted`), and is the key in `localStorage`, so two games on one origin do not collide; `storage({ prefix: "slot2:" })` adds a prefix for save slots or players. Values are stored as JSON with their version: `{"v":2,"value":{"best":40,"level":1}}`. Without `parse`, a stored value must have the default's `typeof`; pass `parse` for objects.
 - **Reads.** `getStored(ctx, key)` returns the value set this session, else the stored value if it parses, else the default (objects copied). A missing key, unreadable storage, text that is not JSON, a value from a newer version and a value that does not parse all give the default; all but the first log one warning per key. Reads are cached, so reading every frame is cheap; mutating a returned object changes the cache only, so call `setStored` to save it.
 - **Writes.** `setStored`, `updateStored` and `removeStored` never throw. A write the backend refuses (quota, storage blocked in a webview) keeps the value in memory for the session, logs once per key and returns false.
 - **Migration.** A value stored with an older `version` goes through `migrate(value, from)`, then `parse`, and is written back. A value not written by Fenrir is version 0: its JSON, or its raw text if it is not JSON, so a game can adopt the keys its own code wrote before.
 - **Status.** `StorageStatus` (`fenrir.StorageStatus`, shown by `inspect(game)`) is `{ backend, persistent, lastError }`: `persistent` is false when `localStorage` was unavailable at install (one warning, then memory), and `lastError` is the latest failure with its key.
 - **Backends.** `localStorage` by default. `storage({ backend: memoryStorage() })` in tests, where `backend.items` is the `Map` written to. A backend is synchronous (`getItem`, `setItem`, `removeItem`), so systems read without awaiting; one backed by an asynchronous store, such as a host app's bridge in a webview, adds `hydrate()`, which the plugin awaits once in `fenrir.storage.preInit` before the game's startup systems.
-- **Lifetime.** Values are not tied to a run: they stay across `stop()` and `run()`. Changes from another tab are not picked up while a value is cached.
+- **Lifetime.** Values are not tied to a run: they stay across `stop()` and `run()`. Changes from another tab are not picked up while a value is cached. To test a reload, build a second `createTestGame` with `storage({ backend })` on the same `memoryStorage()` object.
 - **Families.** `defineStorageKeyFamily(prefix, options)` takes the options of `defineStorageKey` and returns `family(suffix)`: the key named `prefix + suffix`, made once and the same object on every call after, for keys per player, level or save slot. The prefix is used as given, so end it with its separator.
 - **Keeping old builds working.** By default a migrated value is written back on its first read. `writeMigrated: false` keeps it in memory and leaves the old value stored until the game next writes the key, so an older build can still read it: a release can be rolled back. Each session then migrates on its first read.
-- **Resource fields.** `persistResource(game, Resource, field, key)` keeps one field of a resource in a key: it loads the field at once (after `hydrate`, with a backend that has one), and saves it with `setStored` at the end of each frame it changed in and when the run stops. Objects compare as JSON, so an edit in place counts. Call it after `createGame`, once the plugin that adds the resource is installed; it throws if the resource has no value or the key is already bound, and returns a function that ends the binding. The engine binds nothing by default.
+- **Resource fields.** `persistResource(game, Resource, field, key)` keeps one field of a resource in a key: it loads the field at once (after `hydrate`, with a backend that has one), and saves it with `setStored` at the end of each frame it changed in and when the run stops. Objects compare as JSON, so an edit in place counts. Call it after `createGame`, once the plugin that adds the resource is installed; a resource with a factory counts as having a value (the factory runs at the call), and it throws if the resource has neither a value nor a factory or the key is already bound, and returns a function that ends the binding. The engine binds nothing by default.
 
 ```ts
 import { createGame, defineResource, defineStorageKey, defineStorageKeyFamily, getStored, persistResource, setStored, storage, type SystemCtx } from "fenrir-ts";
@@ -1584,8 +1596,9 @@ await game.run();
 - **Focus.** `UiFocus` (`fenrir.UiFocus`) is `{ id, visible }`: set `id` to move focus. It survives a redraw when a control with the same id is live again by the next frame, and is cleared otherwise. It is also cleared each time the kit reads the display tree (after each activation, `onClose` and `onAction`, and at the start and end of the pass) and finds its control blocked by a modal scope, so a HUD control's Enter that opens a sheet and an Escape that closes it in one frame leave nothing focused, as they would a frame apart. A tap focuses the control without showing the ring (`visible: false`), and a tap elsewhere keeps focus; `tapFocus: "clear"` makes every press clear focus instead, so Enter after a tap is the game's again. While the canvas lacks keyboard focus, focus is kept and the ring hidden; `blurFocus: "clear"` clears it instead, in every frame that starts blurred, so returning to the canvas starts from no focus. A key shows the ring. `moveFocus(game, delta, wrap?)` moves focus as an arrow does, from a system (`moveFocus(ctx, 1)`) or a test, and returns the focused id. The default ring is a rounded rectangle drawn above everything in `root` while the canvas has keyboard focus; `focusRing: (ring, bounds, control) => ...` draws your own into a cleared `Graphics`, and `focusRing: false` draws none.
 - **Disabled controls** take focus and taps (so a tap on a greyed button does not fall through to the game) and never activate: no `onActivate`, no `ControlActivated`. Screen readers hear ", unavailable".
 - **Duplicate ids.** Ids must be unique among live controls. A later live control with an id already seen, in display order, is ignored, and the kit warns once per id.
-- **Modal scopes.** `modalScope(node, { label, onClose? })` makes a container modal while it is live: only controls inside it take taps, focus and `activateControl`; every tap, inside or out, is kept from the game; Escape calls `onClose` (the game hides or destroys the node). Scopes nest: the one that became live last is on top, and the one below takes over when it ends. Focus belongs to the scope it was in: when another scope comes on top, a control there with the same id (a shared `close`, say) does not inherit it. `modalScope(node, { focus: "close" })` focuses that control each time the scope comes on top; setting `UiFocus.id` to a different id after the change also works. Redrawing the same scope node keeps focus.
-- **Activation.** `onActivate(ctx, via)` runs first, then `ControlActivated { id, via }` is sent, where `via` is `"pointer"`, `"key"` or `"call"`. Both run inside `fenrir.ui.preUpdate`.
+- **Modal scopes.** `modalScope(node, { label, onClose? })` makes a container modal while it is live: only controls inside it take taps, focus and `activateControl`; every tap, inside or out, is kept from the game; Escape calls `onClose` (the game hides or destroys the node) and is consumed. Keys are not blocked: the game's own key actions still reach gameplay while a scope is open, so gate them on the game's own state (`runIf: inState(Pause, "running")`).
+- **Gameplay keys next to controls.** The kit's keys are Tab, the arrows (once a control has focus or a scope is open), and Enter, NumpadEnter and Space (while a control has focus), and it consumes each one it acts on. A game that also plays with the arrows or Space loses them once a tap or Tab has focused a HUD control. Give the kit other keys or none (`ui({ pixi, keys: { next: [], previous: [] } })`), clear focus on taps (`tapFocus: "clear"`) or when the canvas loses focus (`blurFocus: "clear"`), or mark a gameplay button `passThrough`. Scopes nest: the one that became live last is on top, and the one below takes over when it ends. Focus belongs to the scope it was in: when another scope comes on top, a control there with the same id (a shared `close`, say) does not inherit it. `modalScope(node, { focus: "close" })` focuses that control each time the scope comes on top; setting `UiFocus.id` to a different id after the change also works. Redrawing the same scope node keeps focus.
+- **Activation.** `onActivate(ctx, via)` runs first, then `ControlActivated { id, via }` is sent, where `via` is `"pointer"`, `"key"` or `"call"`. Both run inside `fenrir.ui.preUpdate`, as do `onClose` and the state hooks a `states.set` there triggers, so they run after `fenrir.motion.preUpdate` (when `motion()` is listed first): a pause they set (`MotionSettings.pausedAll`) holds from the next frame.
 - **Order against game systems.** `fenrir.ui.preUpdate` runs in `PreUpdate`, before the game's own `PreUpdate` systems, so taps on controls are consumed before gameplay reads them. A game system that must see a press first passes `{ before: "fenrir.ui.preUpdate" }`. Controls drawn in `Update` are hit-tested from the next frame, where they are what the player sees. The ring, cursor and accessibility output are written by `fenrir.ui.postUpdate`, after `Update` and before the renderer, and by `fenrir.ui.postInit`, before the game's `PostInit` systems, so a scope opened or focus moved in `Update`, and controls drawn at `Init`, are in the frame that is drawn. A game that draws controls later and renders itself, such as in a `PostInit` system that draws the first frame, calls `syncUi(ctx)` before rendering.
 - **Accessibility** goes through the canvas only: `aria-label` is the top modal scope's label, else `summary` (a string, or `(ctx) => string | undefined` read each frame, which returns nothing to fall back), else the canvas's own; `aria-description` is `Focused: <label>` or, while nothing has focus, `hint`. Both are restored when the run stops. The engine already makes the canvas focusable (`tabindex="0"`) when a run starts.
 - **Paging.** `paginate(rows, capacity, page)` returns `{ rows, page, pages }` with `page` clamped into range, so a list that shrank shows its last page.
@@ -2373,7 +2386,7 @@ Component pools will be built on top of this.
 Members:
 
 - `createEntity`: Create a new entity (reuses a destroyed id if available).
-- `destroyEntity`: Destroy an entity. Returns false if the handle was already dead/invalid. Note: component removal will be added in Step 3 when pools exist.
+- `destroyEntity`: Destroys an entity, its child entities first, and removes every component it had (each removal is signalled, so a `PixiNode`'s node is destroyed). Returns false if the handle was already dead or invalid.
 - `isAlive`: Checks if an entity handle is currently alive and matches generation.
 - `idOf`: Extract the numeric entity id (index) from a handle
 - `genOf`: Extract the generation/version from a handle
@@ -3220,9 +3233,9 @@ An entity handle. Plain number: store it, compare it, never do arithmetic on it.
 
 ```ts
 interface EntitySnapshot {
-    readonly id: number;
+    readonly id: Entity;
     readonly name: string;
-    readonly parent: number | null;
+    readonly parent: Entity | null;
     readonly components: Readonly<Record<string, JsonValue>>;
 }
 ```

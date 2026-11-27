@@ -15,17 +15,13 @@ import { pixi2d } from "fenrir-ts/2d";
 const Tap = defineAction("myGame.tap", ["pointer.primary", "Space", "Enter"]);
 const Left = defineAction("myGame.left", ["ArrowLeft", "KeyA"]);
 
-const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
-canvas.tabIndex = 0; // keys reach the canvas only while it has focus
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!; // the engine makes it focusable
 const game = await createGame({ canvas, plugins: [pixi2d({ design: { width: 390, minHeight: 520 } })] });
 
-const pauseButton = { x: 330, y: 10, width: 50, height: 50 }; // design units
-
-// UI runs first and swallows a tap that landed on its button.
-function ui({ input }: SystemCtx): void {
-  const { x, y } = input.pointer;
-  const onButton = x >= pauseButton.x && x <= pauseButton.x + pauseButton.width && y >= pauseButton.y && y <= pauseButton.y + pauseButton.height;
-  if (input.pressed(Tap) && onButton) input.consumePointer();
+// A region that swallows taps, such as a top bar drawn over the playfield. Buttons are
+// controls from fenrir-ts/ui, which consume their own taps; this is for everything else.
+function topBar({ input }: SystemCtx): void {
+  if (input.pressed(Tap) && input.pointer.y < 60) input.consumePointer();
 }
 
 function play({ input, logger }: SystemCtx): void {
@@ -34,7 +30,7 @@ function play({ input, logger }: SystemCtx): void {
 }
 
 game
-  .addSystem(Schedule.Update, ui, { before: "play" })
+  .addSystem(Schedule.Update, topBar, { before: "play" })
   .addSystem(Schedule.Update, play);
 await game.run();
 ```

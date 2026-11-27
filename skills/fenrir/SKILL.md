@@ -11,6 +11,12 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 - `api/` has every export of every entry point with its signature and TSDoc: [`fenrir-ts`](api/fenrir-ts.md), [`fenrir-ts/2d`](api/2d.md), [`fenrir-ts/ui`](api/ui.md), [`fenrir-ts/audio`](api/audio.md). Search it before guessing a name or an option. The `.d.ts` files under `dist/` say the same with types.
 - Import only from `fenrir-ts`, `fenrir-ts/2d`, `fenrir-ts/ui`, `fenrir-ts/audio` (and the frozen `fenrir-ts/3d`, `fenrir-ts/physics`). Never from `fenrir-ts/dist/...` or a source path. Peer: `pixi.js` 8 for `/2d` and `/ui`.
 
+## Project setup
+
+- `package.json`: `"type": "module"`; dependencies `fenrir-ts` and `pixi.js` (8.x, for `/2d` and `/ui`); dev dependencies `typescript` and `vitest` (and a bundler such as Vite for the browser build). No other peer is needed for the 2D path.
+- `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable"]`, `"strict": true`.
+- Vitest needs no environment and no config for headless tests: `createTestGame`, `ui({ root })`, Pixi `Container`/`Graphics`/`Sprite` and `Texture.WHITE` all work in the default `node` environment. Use `jsdom` only for code that touches `document` or `window`.
+
 ## The model in one page
 
 - **A game is a schedule of named systems.** A system is a function `(ctx: SystemCtx) => void` added with `game.addSystem(stage, fn, options?)`. Everything the game does happens in a system, a state hook or an event listener, each of which gets a `ctx`.
@@ -213,6 +219,7 @@ Don't: `window.addEventListener("keydown", ...)`, `canvas.onclick`, `sprite.even
 
 - `pixi2d({ design: { width, minHeight }, layers, background })`. With `design`, you draw in **design units**: the width is fixed, the logical height grows from `minHeight` to fill the screen. Read the current size from `ctx.resources.get(Viewport)` (`width`, `height`, `scale`, `insets`...), and redraw on `ViewportResized`. Without `design`, units are CSS pixels.
 - Game content goes in `pixi.renderer.root` (design units) or a named layer, `pixi.renderer.layer("hud")`, declared back to front in `layers`. Full-bleed backgrounds go in `pixi.renderer.backdrop` (CSS pixels, behind everything). Layer names starting with `fenrir.` are reserved.
+- `Transform2D` and `Display2D` are core data, exported by both `fenrir-ts` and `fenrir-ts/2d` (the same values); gameplay that must run headless imports them from `fenrir-ts`.
 - Entities: `EntityBuilder.create().transform2D(x, y).pixiNode(node, { layer }).spawn(ctx.entities)`. Move them by writing `Transform2D` (`x`, `y`, `rotation`, `scaleX`, `scaleY`) and `Display2D` (`alpha`, `visible`); the renderer copies them to the node every frame. Removing the entity or `PixiNode` destroys the node (`keep: true` only unmounts). A node with child entities should be a plain `Container`.
 - Pixi objects you add to `root` yourself are yours: you destroy them.
 
@@ -278,8 +285,11 @@ game.step(1 / 60, 30);
 console.log(finished); // ["myGame.settle", "fenrir.Display2D:alpha"]
 ```
 
-- Timers and tweens are data on the entity (`Timers`, `Tweens` components), advanced by `fenrir.motion.preUpdate` before your `PreUpdate`, `Update` and the renderer. Destroying the entity cancels them.
-- Pause with an entry's `paused`, a group (`MotionSettings.paused[group] = true`) or `MotionSettings.pausedAll`; reduced motion with `MotionSettings.reducedMotion`. `addTimer(..., { state: [Phase, "playing"] })` drops a timer when the state leaves that value.
+- Timers and tweens are data on the entity (`Timers`, `Tweens` components), advanced by `fenrir.motion.preUpdate` before your `PreUpdate`, `Update` and the renderer. Destroying the entity cancels them. A game-level timer (a round clock, a spawner) goes on an entity of its own: `addTimer(ctx, ctx.entities.createEntity(), "myGame.round", { duration: 30, state: [Phase, "playing"] })`.
+- Timing: an entry added in a startup system or before a frame's `fenrir.motion.preUpdate` starts moving that frame; one added later in a frame (in `Update`, an `onActivate`, a state hook run there) starts the next frame. So a 1 s timer added at `Init` fires in the 60th `step(1 / 60)`, and one added in `Update` fires 60 frames after the frame that added it. `TimerFired` is sent inside `fenrir.motion.preUpdate`, so a reader in that frame's `Update` sees it.
+- Read a running timer in a test from `inspect(game)`: `entities[i].components["fenrir.Timers"]["myGame.round"].remaining`.
+- Pause with an entry's `paused`, a group (`MotionSettings.paused[group] = true`) or `MotionSettings.pausedAll`; reduced motion with `MotionSettings.reducedMotion`. `addTimer(..., { state: [Phase, "playing"] })` **removes** a timer when the state leaves that value, so a "paused" value of `Phase` would delete the round clock: keep pause in a state of its own (`defineState("myGame.Pause", { values: ["running", "paused"], initial: "running" })`) and pause timers with `pausedAll`.
+- A pause set from a control's `onActivate`, a scope's `onClose` or a state hook they trigger runs inside `fenrir.ui.preUpdate`, after `fenrir.motion.preUpdate`, so it holds from the next frame; test it with one more `step()`.
 - `addTimer` and `addTween` throw without the plugin. Full rules: [references/motion.md](references/motion.md).
 
 ## Assets: manifests, bundles, one asset at a time
@@ -383,7 +393,8 @@ console.log(activateControl(game, "myGame.buy"), listControls(game)[0]!.bounds);
 ```
 
 - In a browser game: `plugins: [pixi, ui({ pixi })]`, `ui` after `pixi2d` and given it. In a test game: `ui({ root })`.
-- `control(node, { id, label, onActivate?, disabled?, hitArea? })` on a node you drew makes it a button: tap (press and release over it), Tab/arrows to focus, Enter/Space to activate. `modalScope(sheet, { label, onClose })` blocks everything outside the sheet and maps Escape to `onClose`. There is no registry: a control is live while its node is visible under `root`; destroy or hide the node and it is gone. Redraw freely; focus is kept by `id`.
+- `control(node, { id, label, onActivate?, disabled?, hitArea? })` on a node you drew makes it a button: tap (press and release over it), Tab/arrows to focus, Enter/Space to activate. `modalScope(sheet, { label, onClose })` blocks **taps and focus** outside the sheet and maps Escape to `onClose` (consumed). It does not block the game's own key actions: gate gameplay on your own pause state with `runIf`.
+- **Gameplay keys and the kit.** Once a tap or Tab focuses a control, the kit takes the arrows (and Enter/Space) and consumes them, so a game that plays with arrows or Space loses them. Turn the kit's arrows off with `ui({ pixi, keys: { next: [], previous: [] } })`, use `tapFocus: "clear"` so a tap leaves nothing focused, or bind gameplay to other keys. There is no registry: a control is live while its node is visible under `root`; destroy or hide the node and it is gone. Redraw freely; focus is kept by `id`.
 - `fenrir.ui.preUpdate` consumes taps that hit a control (and every tap while a scope is open) before your `PreUpdate`/`Update` systems. A gameplay system that must see such a press first: `{ before: "fenrir.ui.preUpdate" }`; a control that should also let gameplay see its press: `passThrough: true`.
 - React to activation in `onActivate(ctx, via)` or with `ControlActivated` (`{ id, via }`). In tests, `activateControl(game, id)` and `listControls(game)` (ids, labels, focus, logical bounds).
 - Don't: Pixi `eventMode`/`on("pointertap")`, DOM buttons over the canvas, your own focus index or hit tests, `aria-*` on the canvas. Full rules: [references/ui.md](references/ui.md).
@@ -423,6 +434,8 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 
 - `createTestGame({ seed, plugins?, now?, maxFrameDelta? })`: the same systems, states, events and plugins, no canvas. `await game.start()`, `game.step(dt = 1/60, frames = 1)`, `await game.stop()`. `dt` above `maxFrameDelta` throws: step one second as `step(1 / 60, 60)`.
 - `pixi2d` cannot install in a test game (no canvas): that is why gameplay is registered apart from drawing. `ui({ root })`, `audio({ backend: testAudio() })`, `storage({ backend: memoryStorage() })` and `setAssetLoader` make the other plugins headless.
+- Textures in tests: a fake loader may return `Texture.WHITE` (from `pixi.js`), a real texture that needs no renderer, so code that builds a `Sprite` from `getAsset` runs headless too. Pixi `Text` measures itself with a DOM canvas: keep it in browser-only drawing code.
+- A reload: a second `createTestGame` with `storage({ backend })` on the same `memoryStorage()` object reads what the first one stored. Manifest progress is in `inspect(game).resources[manifest.name]`.
 - Assert on `inspect(game)`: plain JSON of `frame`, `time`, `schedule`, `states`, `resources` and `entities` (by the names you gave). In a browser test call `exposeInspector(game)` in the game and read `window.__FENRIR__.inspect()`. Don't assert on pixels or sleep for time. Full rules: [references/testing.md](references/testing.md).
 
 ## Mistakes that look right
@@ -436,6 +449,9 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 | `game.on(...)` inside a system, or `ctx.events.on(...)` at setup | `game.on` at setup; `ctx.events.on` inside a system for one run |
 | `entities.each([A, B] as const, ...)` inline | a module-level `const QUERY = [A, B] as const` |
 | Reading a press in gameplay that the UI kit or another system consumed earlier | order the reader `before` the consumer, or use `passThrough` |
+| Gameplay on the arrows or Space next to UI controls with default `ui()` keys | `ui({ pixi, keys: { next: [], previous: [] }, tapFocus: "clear" })`, or other gameplay keys |
+| Expecting an open `modalScope` to stop gameplay keys | `runIf` on your own pause state |
+| A "paused" value in the state a timer's `state` option names | a separate pause state, and `MotionSettings.pausedAll` |
 | A `PostUpdate` system that moves sprites | move them in `Update`, or `{ before: "fenrir.pixi.postUpdate" }` |
 | Touching `pixi.renderer` in `PreInit` or an initial state's enter hook | `Init` or later |
 | `localStorage.getItem("best")` | `defineStorageKey` + `getStored` |

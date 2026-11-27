@@ -237,8 +237,9 @@ export declare class EntityList {
 	 */
 	createEntity(): Entity;
 	/**
-	 * Destroy an entity. Returns false if the handle was already dead/invalid.
-	 * Note: component removal will be added in Step 3 when pools exist.
+	 * Destroys an entity, its child entities first, and removes every component it had (each
+	 * removal is signalled, so a `PixiNode`'s node is destroyed). Returns false if the handle was
+	 * already dead or invalid.
 	 */
 	destroyEntity(entity: Entity): boolean;
 	/**
@@ -1094,11 +1095,11 @@ export type JsonValue = null | boolean | number | string | readonly JsonValue[] 
 /** One entity of the active scene, as `inspect(game)` reports it. */
 export interface EntitySnapshot {
 	/** The entity handle: the value `entities.get` and `entities.set` take. */
-	readonly id: number;
+	readonly id: Entity;
 	/** From the engine's `fenrir.Name` component. */
 	readonly name: string;
 	/** The parent's handle, from the engine's `fenrir.Relationship` component; null for a root. */
-	readonly parent: number | null;
+	readonly parent: Entity | null;
 	/** Every other component, `fenrir.Transform` included, by the name given to `defineComponent`. */
 	readonly components: Readonly<Record<string, JsonValue>>;
 }
