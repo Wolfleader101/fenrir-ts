@@ -1,8 +1,25 @@
 # Changelog
 
-Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here with a migration line.
+Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here with a migration line. Until the API is declared stable, a release with a breaking change bumps the minor version (0.2.0 to 0.3.0) and any other release the patch (0.2.0 to 0.2.1). How a release is made: [RELEASING.md](https://github.com/Wolfleader101/fenrir-ts/blob/main/RELEASING.md).
 
 ## Unreleased
+
+## 0.2.0
+
+The first release on npm. Before it, games built the engine from a checkout; `0.1.0` was never published, and the breaking changes below are against the code at that version.
+
+### Published to npm (#13, #15, #18, #24, part of #25)
+
+- **Install from the registry**: `npm install fenrir-ts pixi.js` for a 2D game. README "Installation" lists the peers per entry point.
+- **Every peer is optional** (`pixi.js`, `three`, `jolt-physics`, `monaco-editor`), so installing `fenrir-ts` installs only what you list. Before, npm and pnpm installed all of them, plus Tailwind, for every game: 106 packages and 358 MB for a game with no peers, now 1 package.
+- **No runtime dependencies.** `lit`, `lucide` and the signals packages were always bundled into `fenrir-ts/editor`; they are no longer installed beside it. `tailwindcss`, `@tailwindcss/vite`, `@tailwindcss/postcss` and `postcss` are build tools of this repository only, and the unused `signal-utils` is gone.
+- **`pixi.js` peer `^8.16.0`**: one Pixi major, the one the engine is built and tested with. A new Pixi major arrives in an engine release.
+- **Declarations work with `"moduleResolution": "node16"` and `"nodenext"`**: their relative imports and `declare module` augmentations now name files (`./core/Game.js`). Before, a `nodenext` project saw no exports at all. Some editor and 3D declarations also imported the build machine's `src/` by absolute path; they no longer do.
+- **Smaller package**: 483 kB packed, 1.49 MB unpacked, down from 866 kB and 2.78 MB. Source maps no longer ship (the code is not minified, so stack traces read as they did), and the published files carry no `sourceMappingURL`.
+- **`fenrir-ts/package.json`** is exported, and the manifest has `repository`, `homepage`, `bugs`, `author`, `engines` (Node 20 or later) and `publishConfig`.
+- For contributors: `pnpm check:package` (in CI) fails when the tarball holds a file outside its allowed list, passes its size budget in `size-budget.json`, lists a runtime dependency or a required peer, or fails publint or `@arethetypeswrong/cli`. Releases are tagged and published by `.github/workflows/release.yml`, as RELEASING.md says.
+
+Breaking: a game that imports `fenrir-ts/3d`, `/physics` or `/editor` must now list `three`, `jolt-physics` or `monaco-editor` in its own `package.json`, since they are no longer installed for it. Migration: `npm install three` (and `jolt-physics`, `monaco-editor` as needed). A game that relied on `lit` or `lucide` arriving with Fenrir installs them itself.
 
 ### Agent docs ship in the package (part of #39)
 

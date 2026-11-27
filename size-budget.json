@@ -41,5 +41,9 @@
       "minified": 62700,
       "gzip": 20700
     }
+  },
+  "package": {
+    "packed": 508000,
+    "unpacked": 1561000
   }
 }

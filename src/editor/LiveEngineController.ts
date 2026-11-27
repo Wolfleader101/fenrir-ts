@@ -1,8 +1,8 @@
-import type { Engine } from "@/core/Engine";
-import type { UserScript, EngineState, OperationResult } from "@/editor/types";
+import type { Engine } from "../core/Engine";
+import type { UserScript, EngineState, OperationResult } from "./types";
 import type { IEngineController } from "./interfaces";
-import { Schedule } from "@/core/Scheduler";
-import type { ScheduleStage } from "@/core/Scheduler";
+import { Schedule } from "../core/Scheduler";
+import type { ScheduleStage } from "../core/Scheduler";
 
 export class LiveEngineController implements IEngineController {
   private state: EngineState = "stopped";

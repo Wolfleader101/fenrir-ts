@@ -1,9 +1,9 @@
 import * as monaco from "monaco-editor";
 import { typescript } from "monaco-editor";
-import type { Engine } from "@/core/Engine";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
-import type { ILogger } from "@/core/ILogger";
-import type { SandboxContext } from "@/editor/types";
+import type { Engine } from "../core/Engine";
+import type { IAssetStore } from "../core/Assets/AssetStore";
+import type { ILogger } from "../core/ILogger";
+import type { SandboxContext } from "./types";
 import {
   TypeScriptTranspiler,
   CodeExecutor,
@@ -14,11 +14,11 @@ import {
   LiveEngineController,
   createErrorBus,
   type SandboxPlugin,
-} from "@/editor";
+} from "./index";
 // Import and register Web Components
-import "@/editor/ui/components";
-import { EditorStore } from "@/editor/ui/stores";
-import { MainEditorPresenter } from "@/editor/ui/presenters";
+import "./ui/components";
+import { EditorStore } from "./ui/stores";
+import { MainEditorPresenter } from "./ui/presenters";
 
 // Import type definition resources as raw strings
 import fenrirDts from "./resources/fenrir.d.ts?raw";

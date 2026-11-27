@@ -1,5 +1,5 @@
-import type { AssetKey } from "@/core/Assets/AssetStore";
-import { Animation } from "@/core/Animation";
+import type { AssetKey } from "../../Assets/AssetStore";
+import { Animation } from "../../Animation";
 import { EntityBuilder } from "..";
 
 export type AnimateOpts = Partial<{

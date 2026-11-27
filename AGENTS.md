@@ -43,6 +43,7 @@ pnpm build:lib
 pnpm check:size   # each entry in dist/ stays within size-budget.json
 pnpm check:imports  # core loads no renderer, physics or editor package; other entries only their own peers
 pnpm check:consumer  # bundles the fixture games in scripts/consumer/ the way a consumer would and checks their size
+pnpm check:package   # the npm tarball: allowed files only, size budget, manifest rules, publint and attw
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. Examples import only `fenrir-ts`, its entry points and peer packages, never `@/` or `src/`. A README or reference fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`; a `skills/fenrir/SKILL.md` block gets nothing and must compile on its own.
@@ -54,6 +55,10 @@ If `check:editor-types` fails, run `pnpm types:bundle` and commit `src/editor/re
 If `check:imports` fails, it names the entry, the chunk and the package or file it reached. Move the import into the entry that owns that package; do not add an exception.
 
 If `check:size` fails, find what grew before raising the budget. Raise it with `node scripts/check-size.mjs --update` only when the growth is intended, and say so in the PR.
+
+If `check:package` fails, it names the rule. A file outside its allowed list means `files` in `package.json` or the build put something in the tarball a consumer does not need; widen `ALLOWED` in `scripts/check-package.mjs` only for a file a consumer reads. The package has no runtime `dependencies` (the editor bundles lit and lucide; build tools are dev dependencies) and every peer is optional (`peerDependenciesMeta`). Do not add `"sideEffects"`: it was measured to save nothing and broke consumers twice (publint suggests it; that suggestion is expected). The build writes source maps as `"hidden"` for `check:imports` and `check:consumer`; they do not ship. Declarations are post-processed in `vite.config.lib.ts` so every relative import names its `.js` file, which `node16` and `nodenext` consumers need; published sources use relative imports, not `@/`.
+
+Releases: [`RELEASING.md`](RELEASING.md). A PR adds its notes under `## Unreleased` in `CHANGELOG.md` and does not change the version; a release PR does.
 
 ## Entry points
 

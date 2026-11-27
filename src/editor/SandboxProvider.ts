@@ -1,9 +1,9 @@
-import type { SandboxContext } from "@/editor/types";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
+import type { SandboxContext } from "./types";
+import type { IAssetStore } from "../core/Assets/AssetStore";
 import type { ISandboxProvider } from "./interfaces";
 import { Vector3, Quaternion, Color } from "three";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import { SkyboxUtils } from "@/core/Skybox";
+import { EntityBuilder } from "../core/EntityBuilder/EntityBuilder";
+import { SkyboxUtils } from "../core/Skybox";
 
 export interface SandboxPlugin {
   readonly name: string;

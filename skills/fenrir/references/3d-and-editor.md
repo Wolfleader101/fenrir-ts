@@ -1,6 +1,6 @@
 # 3D, physics and the editor (frozen)
 
-These entry points are kept working and tested but get no new features: `fenrir-ts/3d` (Three.js), `fenrir-ts/physics` (Jolt) and `fenrir-ts/editor` (Monaco). New games should use the 2D path in [SKILL.md](../SKILL.md). Signatures are in [api/3d.md](../api/3d.md), [api/physics.md](../api/physics.md) and [api/editor.md](../api/editor.md).
+These entry points are kept working and tested but get no new features: `fenrir-ts/3d` (Three.js), `fenrir-ts/physics` (Jolt) and `fenrir-ts/editor` (Monaco). Their peers are optional, so a game lists them itself: `npm install three` for `/3d` (and `@types/three` for TypeScript), `three jolt-physics` for `/physics`, and `monaco-editor three jolt-physics` for `/editor`. Without its peer, importing the entry fails naming the package. New games should use the 2D path in [SKILL.md](../SKILL.md). Signatures are in [api/3d.md](../api/3d.md), [api/physics.md](../api/physics.md) and [api/editor.md](../api/editor.md).
 
 ## Basic example (3D)
 
@@ -38,10 +38,10 @@ Fenrir TS includes a built-in live code editor powered by Monaco Editor. The wor
 
 **Note:** Monaco Editor workers must be imported using your bundler's worker loading mechanism. The examples below use Vite's `?worker` syntax. For other bundlers, see the [Monaco ESM Integration Guide](https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md).
 
-**Step 1: Install Monaco Editor**
+**Step 1: Install Monaco Editor and the 3D peers**
 
 ```bash
-npm install monaco-editor
+npm install monaco-editor three jolt-physics
 ```
 
 **Step 2: Import Workers and Bootstrap Editor (Vite example)**

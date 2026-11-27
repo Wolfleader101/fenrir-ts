@@ -4,9 +4,9 @@ import type { IEngineController } from "../../interfaces";
 import type { ITranspiler } from "../../interfaces";
 import type { ICodeExecutor } from "../../interfaces";
 import type { ISandboxProvider } from "../../interfaces";
-import type { SandboxContext } from "@/editor/types";
-import type { IAssetStore } from "@/core/Assets/AssetStore";
-import type { ILogger } from "@/core/ILogger";
+import type { SandboxContext } from "../../types";
+import type { IAssetStore } from "../../../core/Assets/AssetStore";
+import type { ILogger } from "../../../core/ILogger";
 import type { ErrorBus } from "../../events";
 import {
   ControlBarPresenter,

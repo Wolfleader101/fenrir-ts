@@ -1,10 +1,10 @@
-import type { AssetKey } from "@/core/Assets/AssetStore";
-import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
+import type { AssetKey } from "../../Assets/AssetStore";
+import { EntityBuilder } from "../EntityBuilder";
 import {
   Renderable,
   type MaterialDesc,
   type RenderFlags,
-} from "@/core/Renderer/renderComponents";
+} from "../../Renderer/renderComponents";
 
 export type ModelRenderableOpts = {
   readonly id?: number;

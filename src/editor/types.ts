@@ -1,4 +1,4 @@
-import type { SyncSystemFn, AsyncSystemFn, GameServices, SystemCtx } from "@/core/SystemCtx";
+import type { SyncSystemFn, AsyncSystemFn, GameServices, SystemCtx } from "../core/SystemCtx";
 
 export type EngineState = "stopped" | "running" | "paused";
 
