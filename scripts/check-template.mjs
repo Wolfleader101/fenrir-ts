@@ -4,7 +4,10 @@
 // folder, and checks the created package.json: `fenrir-ts` is `~` the packed version, `pixi.js`
 // is the peer range, and the template's typescript and vitest majors are the engine's (the
 // versions this repository tests with). Then installs it with npm, with fenrir-ts from the
-// tarball, and runs the game's `type-check`, `test` and `build`. Needs the network.
+// tarball, and runs the game's `type-check`, `test` and `build`. Needs the network. CI runs it
+// with the runner's npm 10.9 on purpose: npm before 11.6 crashes on vitest 4.1's peers
+// ("reading 'edgesOut'"), which is why the template pins vitest ~4.0, and a user on Node 22's
+// npm must be able to install the game.
 //   --e2e    also install Chromium for Playwright (with its system packages when CI is set) and
 //            run the game's browser test, `npm run test:e2e`
 //   --keep   leave the temporary folder in place and print where it is
@@ -30,14 +33,6 @@ const run = (command, args, cwd, stdio = "pipe") => {
   });
 };
 const major = (range) => /\d+/.exec(range ?? "")?.[0];
-
-// npm 11.3 crashes resolving vitest 4's peers ("Cannot read properties of null (reading
-// 'edgesOut')"); 11.6 and later install the template.
-const [npmMajor, npmMinor] = run("npm", ["--version"], root).trim().split(".").map(Number);
-if (npmMajor < 11 || (npmMajor === 11 && npmMinor < 6)) {
-  console.error(`npm ${npmMajor}.${npmMinor} cannot install the template's vitest 4: use npm 11.6 or later (npm install --global npm@11).`);
-  process.exit(1);
-}
 
 const work = mkdtempSync(join(tmpdir(), "fenrir-template-"));
 const failures = [];
