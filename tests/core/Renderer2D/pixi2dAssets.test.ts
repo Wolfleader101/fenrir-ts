@@ -79,4 +79,35 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
     await settle();
     expect(unload.mock.calls.map(([url]) => url).sort()).toEqual(["img/hero.webp", "img/logo.png"]);
   });
+
+  it("loads an .svg source through the default Pixi loader, by manifest and with sprite2D", async () => {
+    const { frame } = stubFrames();
+    const icon = new Texture();
+    const load = vi.spyOn(Assets, "load").mockImplementation((async () => icon) as typeof Assets.load);
+    vi.spyOn(Assets, "unload").mockResolvedValue(undefined);
+    const Icons = defineAssets("test.pixiSvg", {
+      assets: { icon: { kind: "texture2d", src: "img/icon.svg" } },
+      bundles: { boot: ["icon"] },
+    });
+
+    const canvas = document.createElement("canvas");
+    const pixi = pixi2d({ application: adoptedApplication(canvas) });
+    const game = await createGame({ canvas, logger: new NullLogger(), plugins: [pixi] });
+    game
+      .addSystem(Schedule.PreInit, async function loadIcons(ctx) {
+        await loadAssets(ctx, Icons, "boot");
+      })
+      .addSystem(Schedule.Init, function spawn(ctx) {
+        EntityBuilder.create().with(Renderable2D, sprite2D("icon")).spawn(ctx.entities);
+      });
+
+    await game.run();
+    expect(load.mock.calls.map(([url]) => url)).toEqual(["img/icon.svg"]);
+    expect(getAsset(game, Icons, "icon")).toBe(icon);
+    frame();
+    await settle();
+    expect(sprites(pixi.renderer.root).map((sprite) => sprite.texture)).toEqual([icon]);
+    expect(inspect(game).resources["test.pixiSvg"]).toMatchObject({ loaded: 1, failed: 0, total: 1 });
+    await game.stop();
+  });
 });
