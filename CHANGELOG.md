@@ -4,6 +4,13 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Docs: limits that stay as they are
+
+No code change. The guide now states these limits, which are staying as they are:
+
+- UI controls: a node that is not a control, drawn over one, does not block its taps (use a `modalScope`); a control hidden through `Display2D.visible` leaves the ring and accessibility output one frame behind (set `node.visible` for the same frame); the kit is tested in jsdom and desktop Chromium only, not with screen readers or on real phones. See `skills/fenrir/references/ui.md`.
+- Timers and tweens: they follow the game-wide `maxFrameDelta`, with no cap per group, and there is one motion system, so a tween that follows a value computed in `Update` follows it from the next frame. See `skills/fenrir/references/motion.md`.
+
 ## 0.2.1
 
 The first release staged by the release workflow. No change to the package's code: games can stay on 0.2.0.
