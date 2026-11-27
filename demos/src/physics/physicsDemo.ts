@@ -1,7 +1,7 @@
 import { Vector3 } from "three";
 import type { AsyncSystemFn, SyncSystemFn } from "fenrir-ts";
 import { EntityBuilder } from "fenrir-ts";
-import { MotionType } from "fenrir-ts/physics";
+import { PhysicsBody, createPhysicsBody, MotionType, PhysicsShape, ShapeBuilder, PhysicsMaterial, CommonMaterials, dynamicBox, dynamicSphere, staticBox } from "fenrir-ts/physics";
 import { SkyboxUtils } from "fenrir-ts/3d";
 import type { IAssetStore } from "fenrir-ts";
 
@@ -31,10 +31,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
     }
 
     // Create static ground plane (large box)
-    const ground = EntityBuilder.create()
+    const ground = staticBox(EntityBuilder.create(), new Vector3(20, 1, 20)) // Large flat box as ground
       .name("Ground")
       .transform(new Vector3(0, -5, 0)) // Position ground below origin
-      .staticBox(new Vector3(20, 1, 20)) // Large flat box as ground
       .renderBox([40, 2, 40], {
         material: {
           kind: "standard",
@@ -48,10 +47,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
     // Create dynamic falling objects with different materials
     const fallingObjects = [
       // Bouncy rubber balls
-      EntityBuilder.create()
+      dynamicSphere(EntityBuilder.create(), 0.5, 1.0) // radius, mass
         .name("Bouncy Ball 1")
         .transform(new Vector3(-3, 10, 0))
-        .dynamicSphere(0.5, 1.0) // radius, mass
         .renderSphere(0.5, 32, 16, {
           material: {
             kind: "standard",
@@ -61,10 +59,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
           },
         }),
 
-      EntityBuilder.create()
+      dynamicSphere(EntityBuilder.create(), 0.7, 1.5)
         .name("Bouncy Ball 2")
         .transform(new Vector3(-1, 12, 0))
-        .dynamicSphere(0.7, 1.5)
         .renderSphere(0.7, 32, 16, {
           material: {
             kind: "standard",
@@ -78,9 +75,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Metal Box 1")
         .transform(new Vector3(1, 8, 0))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 5.0 })
-        .physicsBox(new Vector3(0.5, 0.5, 0.5))
-        .physicsMaterial("metal")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 5.0 }))
+        .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.5, 0.5, 0.5)))
+        .with(PhysicsMaterial, CommonMaterials.metal())
         .renderBox([1.0, 1.0, 1.0], {
           material: {
             kind: "standard",
@@ -93,9 +90,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Metal Box 2")
         .transform(new Vector3(3, 11, 0))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 3.0 })
-        .physicsBox(new Vector3(0.4, 0.8, 0.4))
-        .physicsMaterial("metal")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 3.0 }))
+        .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.4, 0.8, 0.4)))
+        .with(PhysicsMaterial, CommonMaterials.metal())
         .renderBox([0.8, 1.6, 0.8], {
           material: {
             kind: "standard",
@@ -109,9 +106,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Wood Box 1")
         .transform(new Vector3(-2, 14, 1))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 2.0 })
-        .physicsBox(new Vector3(0.6, 0.3, 0.6))
-        .physicsMaterial("wood")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 2.0 }))
+        .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.6, 0.3, 0.6)))
+        .with(PhysicsMaterial, CommonMaterials.wood())
         .renderBox([1.2, 0.6, 1.2], {
           material: {
             kind: "standard",
@@ -124,9 +121,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Wood Box 2")
         .transform(new Vector3(0, 16, -1))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 2.5 })
-        .physicsBox(new Vector3(0.4, 0.6, 0.4))
-        .physicsMaterial("wood")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 2.5 }))
+        .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.4, 0.6, 0.4)))
+        .with(PhysicsMaterial, CommonMaterials.wood())
         .renderBox([0.8, 1.2, 0.8], {
           material: {
             kind: "standard",
@@ -140,9 +137,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Glass Sphere")
         .transform(new Vector3(2, 13, 1))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 1.2 })
-        .physicsSphere(0.4)
-        .physicsMaterial("glass")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 1.2 }))
+        .with(PhysicsShape, ShapeBuilder.sphere(0.4))
+        .with(PhysicsMaterial, CommonMaterials.glass())
         .renderSphere(0.4, 32, 16, {
           material: {
             kind: "standard",
@@ -156,9 +153,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Foam Block")
         .transform(new Vector3(-1, 15, -1))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 0.3 })
-        .physicsBox(new Vector3(0.8, 0.2, 0.8))
-        .physicsMaterial("foam")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 0.3 }))
+        .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.8, 0.2, 0.8)))
+        .with(PhysicsMaterial, CommonMaterials.foam())
         .renderBox([1.6, 0.4, 1.6], {
           material: {
             kind: "standard",
@@ -172,9 +169,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Large Metal Sphere")
         .transform(new Vector3(4, 18, 0))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 8.0 })
-        .physicsSphere(0.8)
-        .physicsMaterial("metal")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 8.0 }))
+        .with(PhysicsShape, ShapeBuilder.sphere(0.8))
+        .with(PhysicsMaterial, CommonMaterials.metal())
         .renderSphere(0.8, 32, 16, {
           material: {
             kind: "standard",
@@ -187,9 +184,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
       EntityBuilder.create()
         .name("Small Wood Block")
         .transform(new Vector3(-4, 9, 0))
-        .physicsBody({ motionType: MotionType.Dynamic, mass: 1.0 })
-        .physicsBox(new Vector3(0.2, 0.2, 0.2))
-        .physicsMaterial("wood")
+        .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 1.0 }))
+        .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.2, 0.2, 0.2)))
+        .with(PhysicsMaterial, CommonMaterials.wood())
         .renderBox([0.4, 0.4, 0.4], {
           material: {
             kind: "standard",
@@ -203,10 +200,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
     // Create some stacked objects to demonstrate collision
     const stackedObjects = [
       // Bottom level
-      EntityBuilder.create()
+      staticBox(EntityBuilder.create(), new Vector3(1, 0.5, 1))
         .name("Stack Base 1")
         .transform(new Vector3(8, -3.5, 0))
-        .staticBox(new Vector3(1, 0.5, 1))
         .renderBox([2, 1, 2], {
           material: {
             kind: "standard",
@@ -217,10 +213,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
           flags: { castShadow: false, receiveShadow: true },
         }),
 
-      EntityBuilder.create()
+      staticBox(EntityBuilder.create(), new Vector3(1, 0.5, 1))
         .name("Stack Base 2")
         .transform(new Vector3(8, -3.5, 2))
-        .staticBox(new Vector3(1, 0.5, 1))
         .renderBox([2, 1, 2], {
           material: {
             kind: "standard",
@@ -232,10 +227,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
         }),
 
       // Middle level - dynamic objects
-      EntityBuilder.create()
+      dynamicBox(EntityBuilder.create(), new Vector3(0.8, 0.4, 0.8), 2.0)
         .name("Stack Middle 1")
         .transform(new Vector3(8, -2, 0))
-        .dynamicBox(new Vector3(0.8, 0.4, 0.8), 2.0)
         .renderBox([1.6, 0.8, 1.6], {
           material: {
             kind: "standard",
@@ -245,10 +239,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
           },
         }),
 
-      EntityBuilder.create()
+      dynamicBox(EntityBuilder.create(), new Vector3(0.8, 0.4, 0.8), 2.0)
         .name("Stack Middle 2")
         .transform(new Vector3(8, -2, 2))
-        .dynamicBox(new Vector3(0.8, 0.4, 0.8), 2.0)
         .renderBox([1.6, 0.8, 1.6], {
           material: {
             kind: "standard",
@@ -259,10 +252,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
         }),
 
       // Top level
-      EntityBuilder.create()
+      dynamicSphere(EntityBuilder.create(), 0.6, 1.5)
         .name("Stack Top")
         .transform(new Vector3(8, -0.5, 1))
-        .dynamicSphere(0.6, 1.5)
         .renderSphere(0.6, 32, 16, {
           material: {
             kind: "standard",
@@ -311,10 +303,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
           case 0: {
             const radius = 0.3 + Math.random() * 0.4;
             const randomColor = Math.floor(Math.random() * 0xffffff);
-            newObject = EntityBuilder.create()
+            newObject = dynamicSphere(EntityBuilder.create(), radius, 0.5 + Math.random() * 2)
               .name(`Random Sphere ${spawnCount}`)
               .transform(new Vector3(x, y, z))
-              .dynamicSphere(radius, 0.5 + Math.random() * 2)
               .renderSphere(radius, 32, 16, {
                 material: {
                   kind: "standard",
@@ -332,10 +323,9 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
               0.2 + Math.random() * 0.4
             );
             const randomColor = Math.floor(Math.random() * 0xffffff);
-            newObject = EntityBuilder.create()
+            newObject = dynamicBox(EntityBuilder.create(), size, 0.5 + Math.random() * 2)
               .name(`Random Box ${spawnCount}`)
               .transform(new Vector3(x, y, z))
-              .dynamicBox(size, 0.5 + Math.random() * 2)
               .renderBox([size.x * 2, size.y * 2, size.z * 2], {
                 material: {
                   kind: "standard",
@@ -351,12 +341,12 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
             newObject = EntityBuilder.create()
               .name(`Random Metal ${spawnCount}`)
               .transform(new Vector3(x, y, z))
-              .physicsBody({
+              .with(PhysicsBody, createPhysicsBody({
                 motionType: MotionType.Dynamic,
                 mass: 2 + Math.random() * 4,
-              })
-              .physicsSphere(radius)
-              .physicsMaterial("metal")
+              }))
+              .with(PhysicsShape, ShapeBuilder.sphere(radius))
+              .with(PhysicsMaterial, CommonMaterials.metal())
               .renderSphere(radius, 32, 16, {
                 material: {
                   kind: "standard",
@@ -371,12 +361,12 @@ export function createPhysicsDemo(assetStore?: IAssetStore) {
             newObject = EntityBuilder.create()
               .name(`Random Rubber ${spawnCount}`)
               .transform(new Vector3(x, y, z))
-              .physicsBody({
+              .with(PhysicsBody, createPhysicsBody({
                 motionType: MotionType.Dynamic,
                 mass: 0.5 + Math.random(),
-              })
-              .physicsBox(new Vector3(0.3, 0.3, 0.3))
-              .physicsMaterial("rubber")
+              }))
+              .with(PhysicsShape, ShapeBuilder.box(new Vector3(0.3, 0.3, 0.3)))
+              .with(PhysicsMaterial, CommonMaterials.rubber())
               .renderBox([0.6, 0.6, 0.6], {
                 material: {
                   kind: "standard",

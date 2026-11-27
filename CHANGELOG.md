@@ -4,6 +4,28 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Breaking: `fenrir-ts/physics` adds no methods to `EntityBuilder` (#89)
+
+- Importing `fenrir-ts/physics` no longer patches `EntityBuilder.prototype`. Its 14 builder methods are gone, and every builder chain that calls one stops compiling. It still makes default transforms out of Three objects and adds `ctx.physics`. Physics behaviour is unchanged: each replacement builds the same components the method did.
+  - Dropped, replaced by the builder's own `with` and exports `fenrir-ts/physics` already had: `physicsBody(config)` is `with(PhysicsBody, createPhysicsBody(config))`; `collisionLayer(layer)`, `collisionMask(mask)` and `collidesWith(...layers)` are the `collisionLayer` and `collisionMask` options of `createPhysicsBody` (`collisionMask: CollisionUtils.createMask(...layers)` for `collidesWith`); `physicsBox`, `physicsSphere`, `physicsCapsule` and `physicsCylinder` are `with(PhysicsShape, ShapeBuilder.box(...))` and its `sphere`, `capsule` and `cylinder`, with the same arguments; `physicsMaterial(preset)` is `with(PhysicsMaterial, CommonMaterials[preset]())`.
+  - Replaced by functions that take the builder and return it, since each adds a body, a shape and a material: `dynamicBox(builder, halfExtents, mass)`, `dynamicSphere(builder, radius, mass)`, `staticBox(builder, halfExtents)`, `staticSphere(builder, radius)` and `kinematicBox(builder, halfExtents)`, exported from `fenrir-ts/physics`, with the same shapes and materials as before.
+
+  ```ts
+  // 0.2.x
+  EntityBuilder.create().transform(new Vector3(0, 5, 0)).dynamicBox(new Vector3(1, 1, 1), 2).spawn(entities);
+  EntityBuilder.create().physicsBody({ motionType: MotionType.Dynamic, mass: 5 }).physicsSphere(0.5).physicsMaterial("metal").spawn(entities);
+
+  // 0.3.0
+  dynamicBox(EntityBuilder.create().transform(new Vector3(0, 5, 0)), new Vector3(1, 1, 1), 2).spawn(entities);
+  EntityBuilder.create()
+    .with(PhysicsBody, createPhysicsBody({ motionType: MotionType.Dynamic, mass: 5 }))
+    .with(PhysicsShape, ShapeBuilder.sphere(0.5))
+    .with(PhysicsMaterial, CommonMaterials.metal())
+    .spawn(entities);
+  ```
+
+- `fenrir-ts/3d` is now the only entry that adds methods to `EntityBuilder`.
+
 ### Breaking: `fenrir-ts/2d` adds no methods to `AssetStore` (#94)
 
 - Importing `fenrir-ts/2d` no longer patches `AssetStore.prototype`, and its `IAssetStore` and `AssetStore` augmentation is gone. `requestTexture2D`, `loadTexture2D`, `getTexture2D`, `registerTexture2DLoader` and `getSupportedTexture2DExtensions` are now functions exported from `fenrir-ts/2d` that take a `SystemCtx`, the game, or anything with its `assets` (`{ assets }`), as `getAsset(ctx, manifest, name)` does, then the old arguments. Every `assets.*Texture2D` call stops compiling; move the receiver into the first argument. Behaviour is unchanged: `pixi2d` still registers the default Pixi loader, and manifests and `sprite2D(name)` still find textures by name.
@@ -35,7 +57,7 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
   EntityBuilder.create().transform2D(195, 320).with(Renderable2D, circle2D(16, { fillColor: 0xff6600 })).spawn(entities);
   ```
 
-- A 2D game ships only the value functions it calls: the `game-2d` fixture's engine code went from 55.28 kB to 54.46 kB minified (17.51 kB to 17.29 kB gzip). The frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their builder methods.
+- A 2D game ships only the value functions it calls: the `game-2d` fixture's engine code went from 55.28 kB to 54.46 kB minified (17.51 kB to 17.29 kB gzip).
 
 ### A starter game: `npx fenrir-ts create`
 

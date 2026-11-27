@@ -8,7 +8,7 @@ Peer packages: `jolt-physics`, `three`. Import from `fenrir-ts/physics` only, ne
 
 ## Contents
 
-- Functions: [`createPhysicsBody`](#createphysicsbody), [`createPhysicsMaterial`](#createphysicsmaterial), [`createPhysicsSystem`](#createphysicssystem), [`isDebugJolt`](#isdebugjolt)
+- Functions: [`createPhysicsBody`](#createphysicsbody), [`createPhysicsMaterial`](#createphysicsmaterial), [`createPhysicsSystem`](#createphysicssystem), [`dynamicBox`](#dynamicbox), [`dynamicSphere`](#dynamicsphere), [`isDebugJolt`](#isdebugjolt), [`kinematicBox`](#kinematicbox), [`staticBox`](#staticbox), [`staticSphere`](#staticsphere)
 - Classes: [`CollisionUtils`](#collisionutils), [`JoltUtils`](#joltutils), [`PhysicsHelpers`](#physicshelpers), [`PhysicsLayerManager`](#physicslayermanager)
 - Constants: [`CollisionMasks`](#collisionmasks), [`CombineMode`](#combinemode), [`CommonLayers`](#commonlayers), [`CommonMaterials`](#commonmaterials), [`DefaultLayers`](#defaultlayers), [`MotionType`](#motiontype), [`PhysicsBody`](#physicsbody), [`PhysicsBodyPresets`](#physicsbodypresets), [`PhysicsMaterial`](#physicsmaterial), [`PhysicsShape`](#physicsshape), [`ShapeBuilder`](#shapebuilder), [`ShapeType`](#shapetype), [`SyncMode`](#syncmode)
 - Types: [`BoxShapeParams`](#boxshapeparams), [`CapsuleShapeParams`](#capsuleshapeparams), [`CollisionLayer`](#collisionlayer), [`CollisionMask`](#collisionmask), [`CompoundShapeParams`](#compoundshapeparams), [`ConvexHullShapeParams`](#convexhullshapeparams), [`CylinderShapeParams`](#cylindershapeparams), [`HeightFieldShapeParams`](#heightfieldshapeparams), [`JoltAllowedDOFs`](#joltalloweddofs), [`JoltBody`](#joltbody), [`JoltBodyCreationSettings`](#joltbodycreationsettings), [`JoltBodyID`](#joltbodyid), [`JoltBodyInterface`](#joltbodyinterface), [`JoltBoxShape`](#joltboxshape), [`JoltCapsuleShape`](#joltcapsuleshape), [`JoltColor`](#joltcolor), [`JoltCylinderShape`](#joltcylindershape), [`JoltDebugModule`](#joltdebugmodule), [`JoltDebugRendererJS`](#joltdebugrendererjs), [`JoltEActivation`](#jolteactivation), [`JoltEMotionType`](#joltemotiontype), [`JoltInterface`](#joltinterface), [`JoltModule`](#joltmodule), [`JoltPhysicsSystem`](#joltphysicssystem), [`JoltQuat`](#joltquat), [`JoltRMat44`](#joltrmat44), [`JoltRVec3`](#joltrvec3), [`JoltSettings`](#joltsettings), [`JoltShape`](#joltshape), [`JoltSphereShape`](#joltsphereshape), [`JoltVec3`](#joltvec3), [`MeshShapeParams`](#meshshapeparams), [`ShapeParams`](#shapeparams), [`SimplePhysicsWorld`](#simplephysicsworld), [`SphereShapeParams`](#sphereshapeparams)
@@ -65,6 +65,29 @@ function createPhysicsSystem(): { readonly init: AsyncSystemFn; readonly tick: S
 Factory function that creates a physics system using the class + factory pattern
 Provides clean system interface while encapsulating complex state in a private class
 
+### dynamicBox
+
+```ts
+function dynamicBox<B extends EntityBuilder>(builder: B, halfExtents: Vector3, mass?: number): B;
+```
+
+Adds a dynamic `PhysicsBody` of `mass`, a box `PhysicsShape` of `halfExtents` and the `default`
+material to `builder`, and returns it:
+
+```ts
+dynamicBox(EntityBuilder.create().transform(new Vector3(0, 5, 0)), new Vector3(0.5, 0.5, 0.5), 2).spawn(entities);
+```
+
+Add `with(PhysicsMaterial, CommonMaterials.wood())` after it to change the material.
+
+### dynamicSphere
+
+```ts
+function dynamicSphere<B extends EntityBuilder>(builder: B, radius: number, mass?: number): B;
+```
+
+Adds a dynamic `PhysicsBody` of `mass`, a sphere `PhysicsShape` of `radius` and the `rubber` material to `builder`, and returns it.
+
 ### isDebugJolt
 
 ```ts
@@ -72,6 +95,30 @@ function isDebugJolt(jolt: JoltModule): jolt is JoltDebugModule;
 ```
 
 Type guard to check if Jolt module has debug renderer
+
+### kinematicBox
+
+```ts
+function kinematicBox<B extends EntityBuilder>(builder: B, halfExtents: Vector3): B;
+```
+
+Adds a kinematic `PhysicsBody`, a box `PhysicsShape` of `halfExtents` and the `default` material to `builder`, and returns it.
+
+### staticBox
+
+```ts
+function staticBox<B extends EntityBuilder>(builder: B, halfExtents: Vector3): B;
+```
+
+Adds a static `PhysicsBody`, a box `PhysicsShape` of `halfExtents` and the `stone` material to `builder`, and returns it.
+
+### staticSphere
+
+```ts
+function staticSphere<B extends EntityBuilder>(builder: B, radius: number): B;
+```
+
+Adds a static `PhysicsBody`, a sphere `PhysicsShape` of `radius` and the `stone` material to `builder`, and returns it.
 
 ## Classes
 
@@ -680,48 +727,3 @@ interface SystemCtx {
 ```
 
 - `physics`: Physics helpers, set by the physics system's init. Added by `fenrir-ts/physics`.
-
-### EntityBuilder
-
-```ts
-interface EntityBuilder {
-    physicsBody(config: {
-        motionType: MotionType;
-        collisionLayer?: CollisionLayer;
-        collisionMask?: CollisionMask;
-        syncMode?: SyncMode;
-        mass?: number;
-        gravityFactor?: number;
-        allowSleeping?: boolean;
-        isSensor?: boolean;
-    }): EntityBuilder;
-    collisionLayer(layer: CollisionLayer): EntityBuilder;
-    collisionMask(mask: CollisionMask): EntityBuilder;
-    collidesWith(...layers: CollisionLayer[]): EntityBuilder;
-    physicsBox(halfExtents: Vector3, convexRadius?: number): EntityBuilder;
-    physicsSphere(radius: number): EntityBuilder;
-    physicsCapsule(halfHeight: number, radius: number): EntityBuilder;
-    physicsCylinder(halfHeight: number, radius: number, convexRadius?: number): EntityBuilder;
-    physicsMaterial(preset?: keyof typeof CommonMaterials): EntityBuilder;
-    dynamicBox(halfExtents: Vector3, mass?: number): EntityBuilder;
-    dynamicSphere(radius: number, mass?: number): EntityBuilder;
-    staticBox(halfExtents: Vector3): EntityBuilder;
-    staticSphere(radius: number): EntityBuilder;
-    kinematicBox(halfExtents: Vector3): EntityBuilder;
-}
-```
-
-- `physicsBody`: Adds a physics body with the specified motion type and collision layers
-- `collisionLayer`: Set collision layer for physics body (Godot-style)
-- `collisionMask`: Set collision mask for physics body (Godot-style)
-- `collidesWith`: Set which layers this body can collide with (convenience method)
-- `physicsBox`: Adds a box physics shape
-- `physicsSphere`: Adds a sphere physics shape
-- `physicsCapsule`: Adds a capsule physics shape
-- `physicsCylinder`: Adds a cylinder physics shape
-- `physicsMaterial`: Adds a physics material
-- `dynamicBox`: Creates a dynamic physics body with box shape (common pattern)
-- `dynamicSphere`: Creates a dynamic physics body with sphere shape (common pattern)
-- `staticBox`: Creates a static physics body with box shape (common pattern)
-- `staticSphere`: Creates a static physics body with sphere shape (common pattern)
-- `kinematicBox`: Creates a kinematic physics body with box shape (common pattern)

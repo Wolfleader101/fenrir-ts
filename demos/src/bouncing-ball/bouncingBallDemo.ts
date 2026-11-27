@@ -1,9 +1,9 @@
 import { Vector3 } from "three";
 import type { AsyncSystemFn, SyncSystemFn } from "fenrir-ts";
 import { EntityBuilder } from "fenrir-ts";
+import { PhysicsBody, PhysicsMaterial, CommonMaterials, dynamicSphere, staticBox } from "fenrir-ts/physics";
 import type { IAssetStore } from "fenrir-ts";
 import { SkyboxUtils } from "fenrir-ts/3d";
-import { PhysicsBody } from "fenrir-ts/physics";
 import { InputEvent } from "fenrir-ts/3d";
 
 /**
@@ -25,10 +25,9 @@ export function createBouncingBallDemo(assetStore: IAssetStore) {
     await SkyboxUtils.setupCubemapSkybox(ctx.scene, assetStore, { basePath: "/textures/skybox" });
 
     // Create ground
-    EntityBuilder.create()
+    staticBox(EntityBuilder.create(), new Vector3(15, 0.5, 15))
       .name("Ground")
       .transform(new Vector3(0, -2, 0))
-      .staticBox(new Vector3(15, 0.5, 15))
       .renderBox([30, 1, 30], {
         material: {
           kind: "standard",
@@ -59,11 +58,10 @@ export function createBouncingBallDemo(assetStore: IAssetStore) {
       const z = Math.sin(angle) * radius;
       const y = 5 + i * 1.5;
 
-      EntityBuilder.create()
+      dynamicSphere(EntityBuilder.create(), 0.5, 1.0)
         .name(`Ball ${i + 1}`)
         .transform(new Vector3(x, y, z))
-        .dynamicSphere(0.5, 1.0)
-        .physicsMaterial("rubber")
+        .with(PhysicsMaterial, CommonMaterials.rubber())
         .renderSphere(0.5, 32, 16, {
           material: {
             kind: "standard",
@@ -76,11 +74,10 @@ export function createBouncingBallDemo(assetStore: IAssetStore) {
     }
 
     // Add a few larger balls
-    EntityBuilder.create()
+    dynamicSphere(EntityBuilder.create(), 1.0, 3.0)
       .name("Big Ball 1")
       .transform(new Vector3(0, 15, 0))
-      .dynamicSphere(1.0, 3.0)
-      .physicsMaterial("rubber")
+      .with(PhysicsMaterial, CommonMaterials.rubber())
       .renderSphere(1.0, 32, 16, {
         material: {
           kind: "standard",
@@ -91,11 +88,10 @@ export function createBouncingBallDemo(assetStore: IAssetStore) {
       })
       .spawn(entities);
 
-    EntityBuilder.create()
+    dynamicSphere(EntityBuilder.create(), 0.8, 2.0)
       .name("Big Ball 2")
       .transform(new Vector3(2, 18, 2))
-      .dynamicSphere(0.8, 2.0)
-      .physicsMaterial("rubber")
+      .with(PhysicsMaterial, CommonMaterials.rubber())
       .renderSphere(0.8, 32, 16, {
         material: {
           kind: "standard",

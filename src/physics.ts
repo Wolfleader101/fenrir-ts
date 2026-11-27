@@ -5,14 +5,16 @@
  *
  * Importing it also, for this program:
  * - adds `physics?: PhysicsHelpers` to SystemCtx (set by the physics system's init)
- * - adds the physics EntityBuilder methods
  * - makes every default `Transform` out of Three objects, which the physics
  *   system writes into
+ *
+ * It patches no `EntityBuilder` method: entities get physics with the builder's `with`, as
+ * `with(PhysicsBody, createPhysicsBody({ motionType }))`, `with(PhysicsShape, ShapeBuilder.box(halfExtents))`
+ * and `with(PhysicsMaterial, CommonMaterials.stone())`, or with a preset such as
+ * `dynamicBox(builder, halfExtents, mass)`.
  */
 
-// Side effects: Three default transforms and EntityBuilder patches.
+// Side effect: Three default transforms.
 import "./core/Transform3D";
-import "./core/EntityBuilder/extensions/physicsExtensions";
 
-export * from "./core/EntityBuilder/extensions/physicsExtensions";
 export * from "./core/Physics";

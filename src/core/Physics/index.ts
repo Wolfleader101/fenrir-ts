@@ -5,6 +5,9 @@ export * from "./utils";
 // Export the new unified PhysicsSystem
 export { createPhysicsSystem, PhysicsBodyPresets } from "./PhysicsSystem";
 
+// Body presets, for `dynamicBox(builder, halfExtents, mass)`
+export { dynamicBox, dynamicSphere, staticBox, staticSphere, kinematicBox } from "./BodyPresets";
+
 // Export PhysicsHelpers class
 export { PhysicsHelpers } from "./PhysicsHelpers";
 

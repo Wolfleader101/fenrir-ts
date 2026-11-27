@@ -92,11 +92,11 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 | `fenrir-ts` | Core: `createGame`, plugins, named systems, scenes, ECS, `Transform2D`, `Display2D`, events, time, logging, input actions (`defineAction`, `ctx.input`), `EntityBuilder`, `AssetStore`, asset manifests (`defineAssets`, `loadAssets`), `inspect(game)` |
 | `fenrir-ts/2d` | The `pixi2d` renderer plugin with named layers, the `Viewport` resource and `ViewportResized` event, `PixiNode` (an app-built Pixi node on an entity), `Renderable2D` and its values (`sprite2D`, `circle2D`, `rect2D`, `text2D`), 2D texture loading |
 | `fenrir-ts/3d` | Three.js renderer, camera, skybox, animation, model loading, `bootstrapEngine`, and the window-level keyboard and mouse input it registers (`createDomInputSystems`, `InputState`, `InputEvent`) |
-| `fenrir-ts/physics` | Jolt physics system, components and builder methods |
+| `fenrir-ts/physics` | Jolt physics system, components, and body presets (`dynamicBox`, `staticBox`, ...) |
 | `fenrir-ts/audio` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound` |
 | `fenrir-ts/ui` | UI controls on Pixi nodes: the `ui()` plugin, `control`, `modalScope`, `UiFocus`, `ControlActivated`, `paginate`, `activateControl`, `listControls` |
 
-Importing `fenrir-ts/2d` adds the `texture2d` asset kind and its default loader, and patches no class. Its texture calls are functions that take a `ctx` or the game, as `getAsset` does: `requestTexture2D(game, "hero", "/sprites/hero.png")`. Give an entity a 2D component with `with(PixiNode, { node, layer })` or `with(Renderable2D, circle2D(16))`. The frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their own methods to `EntityBuilder` when imported.
+Importing `fenrir-ts/2d` adds the `texture2d` asset kind and its default loader, and patches no class. Its texture calls are functions that take a `ctx` or the game, as `getAsset` does: `requestTexture2D(game, "hero", "/sprites/hero.png")`. Give an entity a 2D component with `with(PixiNode, { node, layer })` or `with(Renderable2D, circle2D(16))`. `fenrir-ts/physics` patches no class either. The frozen `fenrir-ts/3d` entry still adds its own methods to `EntityBuilder` when imported.
 
 ### Quick start (2D)
 

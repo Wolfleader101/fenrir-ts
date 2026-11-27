@@ -12,8 +12,9 @@ type WithOp = {
 
 /**
  * Builds an entity from components, then `spawn(ctx.entities)`. Add any component with
- * `with(type, value)`, such as `with(PixiNode, { node, layer })` from `fenrir-ts/2d`. The frozen
- * `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their own methods when imported.
+ * `with(type, value)`, such as `with(PixiNode, { node, layer })` from `fenrir-ts/2d` or
+ * `with(PhysicsShape, ShapeBuilder.box(halfExtents))` from `fenrir-ts/physics`. The frozen
+ * `fenrir-ts/3d` entry still adds its own methods when imported.
  */
 export class EntityBuilder {
   private readonly ops: WithOp[] = [];
