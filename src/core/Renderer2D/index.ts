@@ -1,5 +1,7 @@
 export { Renderable2D } from "./render2DComponents";
 export { PixiNode } from "./PixiNode";
+export { sprite2D, circle2D, rect2D, text2D } from "./renderable2DValues";
+export type { Sprite2DOptions, Shape2DOptions, Text2DOptions } from "./renderable2DValues";
 export type {
   SpriteDesc,
   GraphicsDesc,

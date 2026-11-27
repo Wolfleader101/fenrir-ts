@@ -10,7 +10,11 @@ type WithOp = {
   make: (e: Entity, entities: EntityList) => any;
 };
 
-/** Builds an entity from components, then `spawn(ctx.entities)`. Renderer entries add their own methods when imported, such as `pixiNode` from `fenrir-ts/2d`. */
+/**
+ * Builds an entity from components, then `spawn(ctx.entities)`. Add any component with
+ * `with(type, value)`, such as `with(PixiNode, { node, layer })` from `fenrir-ts/2d`. The frozen
+ * `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their own methods when imported.
+ */
 export class EntityBuilder {
   private readonly ops: WithOp[] = [];
   private readonly children: EntityBuilder[] = [];

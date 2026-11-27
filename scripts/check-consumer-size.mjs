@@ -54,6 +54,11 @@ const MEASURED = ["game-2d", "core-only", "game-2d-motion", "game-2d-assets", "g
 const RUN = ["side-effects-2d"];
 /** Members fenrir-ts/3d adds to core classes. A fixture without fenrir-ts/3d must not ship them. */
 const THREE_D_ONLY = /\b(?:setSkybox|removeSkybox|hasSkybox)\b/g;
+/**
+ * The EntityBuilder methods fenrir-ts/2d added at import before 0.3.0. No fixture uses them, so a
+ * bundle that holds one means import-time builder patching came back.
+ */
+const OLD_2D_BUILDER = /\b(?:pixiNode|renderSprite|renderCircle|renderRect|renderText)\b/g;
 /** Names only the timers and tweens code holds. A fixture that does not import them must not ship them. */
 const MOTION_ONLY = /fenrir\.(?:motion|Timers|Tweens|MotionSettings)\b/g;
 /** Fixtures that use timers and tweens. */
@@ -272,6 +277,11 @@ try {
     const leaked = [...new Set(result.engine.match(THREE_D_ONLY) ?? [])];
     if (leaked.length > 0) {
       console.error(`${name}: ships ${leaked.join(", ")}, which belong to fenrir-ts/3d. Move them out of core.`);
+      failed = true;
+    }
+    const builderLeaked = [...new Set(result.engine.match(OLD_2D_BUILDER) ?? [])];
+    if (builderLeaked.length > 0) {
+      console.error(`${name}: ships ${builderLeaked.join(", ")}, EntityBuilder methods fenrir-ts/2d no longer adds. Use with(PixiNode, ...) or with(Renderable2D, ...) and keep 2D code tree-shakeable.`);
       failed = true;
     }
     const motionLeaked = USES_MOTION.includes(name) ? [] : [...new Set(result.engine.match(MOTION_ONLY) ?? [])];

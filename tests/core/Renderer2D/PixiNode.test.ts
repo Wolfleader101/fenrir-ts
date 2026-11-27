@@ -5,13 +5,12 @@ import { Transform } from "@/core/ECS/DefaultComponents";
 import { Transform2D } from "@/core/ECS/Transform2D";
 import { Display2D } from "@/core/ECS/Display2D";
 import { EntityBuilder } from "@/core/EntityBuilder/EntityBuilder";
-import "@/core/EntityBuilder/extensions/render2DExtensions";
 import { createGame } from "@/core/Game";
 import { createTestGame } from "@/core/TestGame";
 import { defineState } from "@/core/State";
 import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Scheduler";
-import { PixiNode, Renderable2D, createPixiRendererSystem, pixi2d } from "@/core/Renderer2D";
+import { PixiNode, Renderable2D, circle2D, createPixiRendererSystem, pixi2d } from "@/core/Renderer2D";
 import type { SystemCtx } from "@/core/SystemCtx";
 import { createMockSystemCtx } from "../../utils/testHelpers";
 import { inspect } from "@/core/Inspect";
@@ -84,8 +83,8 @@ describe("PixiNode and Transform2D", () => {
     const { system, ctx, renderer, entities } = setup();
     await system.init(ctx);
     const node = new Container();
-    const parent = EntityBuilder.create().pixiNode(node).spawn(entities);
-    const dot = EntityBuilder.create().transform({ x: 99, y: 99, z: 0 }).transform2D(3, 4).renderCircle(2).spawnInto(entities, parent);
+    const parent = EntityBuilder.create().with(PixiNode, { node }).spawn(entities);
+    const dot = EntityBuilder.create().transform({ x: 99, y: 99, z: 0 }).transform2D(3, 4).with(Renderable2D, circle2D(2)).spawnInto(entities, parent);
     system.postUpdate(ctx);
     const view = renderer.getRenderedObject(dot, entities.get(dot, Renderable2D).id)!;
     expect(view.parent).toBe(node);
@@ -128,14 +127,14 @@ describe("PixiNode and Transform2D", () => {
     await system.init(ctx);
     const removed = new Container();
     const art = removed.addChild(new Graphics());
-    const a = EntityBuilder.create().pixiNode(removed).spawn(entities);
+    const a = EntityBuilder.create().with(PixiNode, { node: removed }).spawn(entities);
     entities.remove(a, PixiNode);
     expect(removed.destroyed).toBe(true);
     expect(art.destroyed).toBe(true);
 
     const parentNode = new Container();
     const childNode = new Container();
-    const parent = EntityBuilder.create().pixiNode(parentNode).child((c) => c.pixiNode(childNode)).spawn(entities);
+    const parent = EntityBuilder.create().with(PixiNode, { node: parentNode }).child((c) => c.with(PixiNode, { node: childNode })).spawn(entities);
     system.postUpdate(ctx);
     expect(childNode.parent).toBe(parentNode);
     entities.destroyEntity(parent);
@@ -158,7 +157,7 @@ describe("PixiNode and Transform2D", () => {
     const { system, ctx, entities } = setup();
     await system.init(ctx);
     const node = new Container();
-    const entity = EntityBuilder.create().pixiNode(node, { keep: true }).spawn(entities);
+    const entity = EntityBuilder.create().with(PixiNode, { node, keep: true }).spawn(entities);
     system.postUpdate(ctx);
     entities.destroyEntity(entity);
     expect(node.destroyed).toBe(false);
@@ -179,8 +178,8 @@ describe("PixiNode and Transform2D", () => {
     await system.init(ctx);
     const owned = new Container();
     const kept = new Container();
-    const a = EntityBuilder.create().pixiNode(owned, { layer: "world" }).spawn(entities);
-    const b = EntityBuilder.create().transform2D(5, 6).pixiNode(kept, { layer: "world", keep: true }).spawn(entities);
+    const a = EntityBuilder.create().with(PixiNode, { node: owned, layer: "world" }).spawn(entities);
+    const b = EntityBuilder.create().transform2D(5, 6).with(PixiNode, { node: kept, layer: "world", keep: true }).spawn(entities);
     system.postUpdate(ctx);
 
     system.exit(ctx);
@@ -208,7 +207,7 @@ describe("PixiNode and Transform2D", () => {
     const { system, ctx, renderer, entities } = setup();
     await system.init(ctx);
     const node = new Container();
-    EntityBuilder.create().pixiNode(node).spawn(entities);
+    EntityBuilder.create().with(PixiNode, { node }).spawn(entities);
     const other = createMockSystemCtx();
     system.postUpdate(other);
     expect(node.destroyed).toBe(false);
@@ -230,7 +229,7 @@ describe("PixiNode and Transform2D", () => {
 
     game
       .addSystem(Schedule.Init, function spawn({ entities }: SystemCtx) {
-        EntityBuilder.create().name("ship").transform2D(0, 0).pixiNode(node, { layer: "world" }).spawn(entities);
+        EntityBuilder.create().name("ship").transform2D(0, 0).with(PixiNode, { node, layer: "world" }).spawn(entities);
       })
       .addSystem(Schedule.Update, function move({ entities }: SystemCtx) {
         entities.each(MOVING, (_e, t) => { t.x += 4; });
@@ -277,10 +276,10 @@ describe("the first rendered frame", () => {
     game
       .onEnter(Phase, "ready", ({ entities }) => {
         // PixiNode before Transform2D: the node is mounted before the entity has a transform.
-        EntityBuilder.create().pixiNode(fromHook).transform2D(7, 0).spawn(entities);
+        EntityBuilder.create().with(PixiNode, { node: fromHook }).transform2D(7, 0).spawn(entities);
       })
       .addSystem(Schedule.Init, function spawnDeck({ entities }: SystemCtx) {
-        EntityBuilder.create().pixiNode(deck).transform2D(30, 40).spawn(entities);
+        EntityBuilder.create().with(PixiNode, { node: deck }).transform2D(30, 40).spawn(entities);
       })
       .addSystem(Schedule.PostInit, function drawNow({ entities }: SystemCtx) {
         entities.each(MOVING, (_e, t) => { t.y += 1; });
@@ -300,7 +299,7 @@ describe("the first rendered frame", () => {
     const drawn: number[] = [];
     render.mockImplementation(() => drawn.push(node.x));
     game.addSystem(Schedule.Update, function spawnAndDraw({ entities }: SystemCtx) {
-      const entity = EntityBuilder.create().pixiNode(node).spawn(entities);
+      const entity = EntityBuilder.create().with(PixiNode, { node }).spawn(entities);
       entities.set(entity, Transform2D, at(12, 0));
       pixi.renderer.render();
     }, { runIf: () => drawn.length === 0 });
@@ -322,9 +321,9 @@ describe("the backdrop layer", () => {
     const sky = new Graphics();
     const kept = new Container();
     const removed = new Container();
-    const skyEntity = EntityBuilder.create().transform2D(0, -10).pixiNode(sky, { layer: "fenrir.backdrop" }).spawn(entities);
-    const keptEntity = EntityBuilder.create().transform2D(5, 6).pixiNode(kept, { layer: "fenrir.backdrop", keep: true }).spawn(entities);
-    const removedEntity = EntityBuilder.create().pixiNode(removed, { layer: "fenrir.backdrop" }).spawn(entities);
+    const skyEntity = EntityBuilder.create().transform2D(0, -10).with(PixiNode, { node: sky, layer: "fenrir.backdrop" }).spawn(entities);
+    const keptEntity = EntityBuilder.create().transform2D(5, 6).with(PixiNode, { node: kept, layer: "fenrir.backdrop", keep: true }).spawn(entities);
+    const removedEntity = EntityBuilder.create().with(PixiNode, { node: removed, layer: "fenrir.backdrop" }).spawn(entities);
     system.postUpdate(ctx);
     expect(renderer.backdrop.children).toEqual([sky, kept, removed]);
     // Transform2D means the backdrop's space: CSS pixels from the screen's corner, not design units.
@@ -363,10 +362,10 @@ describe("Display2D", () => {
     await system.init(ctx);
     const plain = new Container({ alpha: 0.3, visible: false });
     const faded = new Container();
-    EntityBuilder.create().transform2D(1, 1).pixiNode(plain).spawn(entities);
-    const fadedEntity = EntityBuilder.create().display2D({ alpha: 0.5 }).pixiNode(faded).spawn(entities);
-    const dot = EntityBuilder.create().display2D({ alpha: 0.2, visible: false }).renderCircle(2, { flags: { alpha: 0.9, visible: true } }).spawn(entities);
-    const flagged = EntityBuilder.create().renderCircle(2, { flags: { alpha: 0.9 } }).spawn(entities);
+    EntityBuilder.create().transform2D(1, 1).with(PixiNode, { node: plain }).spawn(entities);
+    const fadedEntity = EntityBuilder.create().display2D({ alpha: 0.5 }).with(PixiNode, { node: faded }).spawn(entities);
+    const dot = EntityBuilder.create().display2D({ alpha: 0.2, visible: false }).with(Renderable2D, circle2D(2, { flags: { alpha: 0.9, visible: true } })).spawn(entities);
+    const flagged = EntityBuilder.create().with(Renderable2D, circle2D(2, { flags: { alpha: 0.9 } })).spawn(entities);
     system.postUpdate(ctx);
 
     expect([plain.alpha, plain.visible]).toEqual([0.3, false]);
@@ -417,9 +416,9 @@ describe("child draw order", () => {
     const art = body.addChild(new Graphics());
     const behind = new Container({ zIndex: -1 });
     const front = new Container();
-    const parent = EntityBuilder.create().pixiNode(body).spawn(entities);
-    EntityBuilder.create().pixiNode(front).spawnInto(entities, parent);
-    EntityBuilder.create().pixiNode(behind).spawnInto(entities, parent);
+    const parent = EntityBuilder.create().with(PixiNode, { node: body }).spawn(entities);
+    EntityBuilder.create().with(PixiNode, { node: front }).spawnInto(entities, parent);
+    EntityBuilder.create().with(PixiNode, { node: behind }).spawnInto(entities, parent);
     system.postUpdate(ctx);
     expect(body.children).toEqual([art, front, behind]);
     // Pixi turns sorting on for a parent when a child with a non-zero zIndex is added, so the

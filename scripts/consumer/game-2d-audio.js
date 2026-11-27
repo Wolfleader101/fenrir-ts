@@ -3,7 +3,7 @@
 // game-2d's is what audio costs a game. Bundled, never run.
 import { EntityBuilder, Schedule, createGame, defineAction, defineEvent } from "fenrir-ts";
 import { AudioState, audio, defineSound, playSound, stopSound } from "fenrir-ts/audio";
-import { Transform2D, pixi2d } from "fenrir-ts/2d";
+import { PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
 import { Graphics } from "pixi.js";
 
 const Scored = defineEvent("fixture.scored");
@@ -30,7 +30,7 @@ const MOVING = [Transform2D];
 game
   .addSystem(Schedule.Init, function spawn(ctx) {
     const ball = new Graphics().circle(0, 0, 8).fill(0xffffff);
-    EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0.8 }).pixiNode(ball, { layer: "world" }).spawn(ctx.entities);
+    EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0.8 }).with(PixiNode, { node: ball, layer: "world" }).spawn(ctx.entities);
     playSound(ctx, Theme);
   })
   .addSystem(Schedule.Update, function move({ entities, time }) {
