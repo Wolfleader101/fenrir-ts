@@ -223,13 +223,13 @@ Don't: `window.addEventListener("keydown", ...)`, `canvas.onclick`, `sprite.even
 - `pixi2d({ design: { width, minHeight }, layers, background })`. With `design`, you draw in **design units**: the width is fixed, the logical height grows from `minHeight` to fill the screen. Read the current size from `ctx.resources.get(Viewport)` (`width`, `height`, `scale`, `insets`...), and redraw on `ViewportResized`. Without `design`, units are CSS pixels.
 - Game content goes in `pixi.renderer.root` (design units) or a named layer, `pixi.renderer.layer("hud")`, declared back to front in `layers`. Full-bleed backgrounds go in `pixi.renderer.backdrop` (CSS pixels, behind everything). Layer names starting with `fenrir.` are reserved.
 - `Transform2D` and `Display2D` are core data, exported by both `fenrir-ts` and `fenrir-ts/2d` (the same values); gameplay that must run headless imports them from `fenrir-ts`.
-- Entities: `EntityBuilder.create().transform2D(x, y).pixiNode(node, { layer }).spawn(ctx.entities)`. Move them by writing `Transform2D` (`x`, `y`, `rotation`, `scaleX`, `scaleY`) and `Display2D` (`alpha`, `visible`); the renderer copies them to the node every frame. Removing the entity or `PixiNode` destroys the node (`keep: true` only unmounts). A node with child entities should be a plain `Container`.
+- Entities: `EntityBuilder.create().transform2D(x, y).with(PixiNode, { node, layer }).spawn(ctx.entities)`. Move them by writing `Transform2D` (`x`, `y`, `rotation`, `scaleX`, `scaleY`) and `Display2D` (`alpha`, `visible`); the renderer copies them to the node every frame. Removing the entity or `PixiNode` destroys the node (`keep: true` only unmounts). A node with child entities should be a plain `Container`.
 - Pixi objects you add to `root` yourself are yours: you destroy them.
 - Headless gameplay that spawns visible things: gameplay spawns entities with `transform2D()`, `display2D()` and its own components (`.with(Card, { face: 3 })`); a browser-only `Update` system gives each one that has no `PixiNode` yet its node (`entities.set(entity, PixiNode, { node, layer })`), so the same gameplay runs in tests with no Pixi objects.
 
 ```ts
 import { EntityBuilder, Schedule, createGame, type SystemCtx } from "fenrir-ts";
-import { Transform2D, Viewport, ViewportResized, pixi2d } from "fenrir-ts/2d";
+import { PixiNode, Transform2D, Viewport, ViewportResized, pixi2d } from "fenrir-ts/2d";
 import { Graphics } from "pixi.js";
 
 const pixi = pixi2d({ design: { width: 390, minHeight: 520 }, layers: ["world", "hud"] });
@@ -247,7 +247,7 @@ function spawn({ entities, resources, events }: SystemCtx): void {
   drawFrame(resources.get(Viewport));
   events.on(ViewportResized, drawFrame); // run-scoped
   const fish = new Graphics().circle(0, 0, 12).fill(0xffaa00);
-  EntityBuilder.create().transform2D(100, 200).pixiNode(fish, { layer: "world" }).spawn(entities);
+  EntityBuilder.create().transform2D(100, 200).with(PixiNode, { node: fish, layer: "world" }).spawn(entities);
 }
 
 function swim({ entities, time }: SystemCtx): void {
@@ -338,7 +338,7 @@ console.log(game.resources.get(Art.progress).bundles.reef.fraction, reef.label, 
 - `loadAssets` is idempotent (same promise while loading or loaded; retries failures). An asset in two bundles loads once and is kept until the last holder unloads. `loadAsset(ctx, manifest, name | names)` / `unloadAsset` hold single assets by name with no bundle, for lazy images.
 - `getAsset` throws until loaded: wait for `AssetBundleLoaded` / `AssetLoaded`, or read `ctx.resources.get(manifest.progress)` (a HUD reads it each frame).
 - `unloadAssets` destroys textures nothing else holds: despawn what shows them first.
-- An asset's name is also its store key, so `EntityBuilder...renderSprite("logo")` and `ctx.assets.getTexture2D("logo")` read it. Tests use `setAssetLoader(game, { load })`. Full rules: [references/assets.md](references/assets.md).
+- An asset's name is also its store key, so `with(Renderable2D, sprite2D("logo"))` and `ctx.assets.getTexture2D("logo")` read it. Tests use `setAssetLoader(game, { load })`. Full rules: [references/assets.md](references/assets.md).
 
 ## Storage: `storage()`
 

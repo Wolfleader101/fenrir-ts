@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Application, Assets, Container, Sprite, Texture } from "pixi.js";
 import { EntityBuilder, Schedule, createGame, defineAssets, getAsset, loadAssets, unloadAssets } from "@/index";
-import { pixi2d } from "@/2d";
+import { PixiNode, Renderable2D, pixi2d, sprite2D } from "@/2d";
 import { NullLogger } from "@/core/NullLogger";
 import type { Entity } from "@/core/ECS";
 import { inspect } from "@/core/Inspect";
@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 describe("an asset manifest in a createGame + pixi2d game", () => {
-  it("loads through the default Pixi loader, draws with renderSprite and PixiNode, and unloads through Pixi's cache", async () => {
+  it("loads through the default Pixi loader, draws with sprite2D and PixiNode, and unloads through Pixi's cache", async () => {
     const { frame } = stubFrames();
     const logo = new Texture();
     const hero = new Texture();
@@ -63,8 +63,8 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
       })
       .addSystem(Schedule.Init, function spawn(ctx) {
         // By name through the store, as before, and typed through the manifest.
-        spawned.push(EntityBuilder.create().renderSprite("logo").spawn(ctx.entities));
-        spawned.push(EntityBuilder.create().transform2D(10, 20).pixiNode(new Sprite(getAsset(ctx, GameAssets, "hero"))).spawn(ctx.entities));
+        spawned.push(EntityBuilder.create().with(Renderable2D, sprite2D("logo")).spawn(ctx.entities));
+        spawned.push(EntityBuilder.create().transform2D(10, 20).with(PixiNode, { node: new Sprite(getAsset(ctx, GameAssets, "hero")) }).spawn(ctx.entities));
       });
 
     await game.run();
@@ -80,7 +80,7 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
     expect(unload.mock.calls.map(([url]) => url).sort()).toEqual(["img/hero.webp", "img/logo.png"]);
   });
 
-  it("loads an .svg source through the default Pixi loader, by manifest and with renderSprite", async () => {
+  it("loads an .svg source through the default Pixi loader, by manifest and with sprite2D", async () => {
     const { frame } = stubFrames();
     const icon = new Texture();
     const load = vi.spyOn(Assets, "load").mockImplementation((async () => icon) as typeof Assets.load);
@@ -98,7 +98,7 @@ describe("an asset manifest in a createGame + pixi2d game", () => {
         await loadAssets(ctx, Icons, "boot");
       })
       .addSystem(Schedule.Init, function spawn(ctx) {
-        EntityBuilder.create().renderSprite("icon").spawn(ctx.entities);
+        EntityBuilder.create().with(Renderable2D, sprite2D("icon")).spawn(ctx.entities);
       });
 
     await game.run();

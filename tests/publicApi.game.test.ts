@@ -55,7 +55,7 @@ describe("createGame with pixi2d, through the public entry points", () => {
       .addSystem(Schedule.Init, function spawn({ entities }) {
         const ball = entities.createEntity();
         entities.set(ball, Velocity, { x: 1 });
-        core.EntityBuilder.create().renderCircle(5, { fillColor: 0xff0000 }).spawn(entities);
+        core.EntityBuilder.create().with(twoD.Renderable2D, twoD.circle2D(5, { fillColor: 0xff0000 })).spawn(entities);
       })
       .addSystem(Schedule.Update, function applyDamage() { order.push("applyDamage"); }, { after: "movePlayer" })
       .addSystem(Schedule.Update, function movePlayer({ entities }) {

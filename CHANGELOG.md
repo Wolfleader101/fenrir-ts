@@ -4,6 +4,22 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Breaking: `fenrir-ts/2d` adds no methods to `EntityBuilder` (#88)
+
+- Importing `fenrir-ts/2d` no longer patches `EntityBuilder.prototype`. `pixiNode`, `renderSprite`, `renderCircle`, `renderRect` and `renderText` are gone: every builder chain that calls one stops compiling. Give an entity a node with the builder's own `with(PixiNode, { node, layer, keep })`, and a drawn shape with `with(Renderable2D, ...)` and the new value functions `sprite2D(texture, options)`, `circle2D(radius, options)`, `rect2D(width, height, options)` and `text2D(content, options)`, exported from `fenrir-ts/2d`. They take the same arguments as the old methods and assign the `id` the same way.
+
+  ```ts
+  // 0.2.x
+  EntityBuilder.create().transform2D(100, 200).pixiNode(fish, { layer: "world" }).spawn(entities);
+  EntityBuilder.create().transform2D(195, 320).renderCircle(16, { fillColor: 0xff6600 }).spawn(entities);
+
+  // 0.3.0
+  EntityBuilder.create().transform2D(100, 200).with(PixiNode, { node: fish, layer: "world" }).spawn(entities);
+  EntityBuilder.create().transform2D(195, 320).with(Renderable2D, circle2D(16, { fillColor: 0xff6600 })).spawn(entities);
+  ```
+
+- A 2D game ships only the value functions it calls: the `game-2d` fixture's engine code went from 55.28 kB to 54.46 kB minified (17.51 kB to 17.29 kB gzip). `fenrir-ts/2d` still adds the texture methods to `AssetStore`, and the frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their builder methods.
+
 ### SVG textures (#92)
 
 - The default `texture2d` loader that `pixi2d` registers now loads `.svg` sources, through Pixi's own SVG parser, as a `Texture`. Before, an `.svg` failed with "Unsupported ... format". An SVG is rasterised at its declared `width`/`height`, so set those to the size it is drawn at: scaling the sprite up later blurs it, as with a PNG. 3D texture loading is unchanged.
