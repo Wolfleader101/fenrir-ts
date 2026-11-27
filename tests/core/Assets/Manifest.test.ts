@@ -359,7 +359,7 @@ describe("failures", () => {
     const game = await createTestGame({ seed: 1, logger: new NullLogger() });
     const Odd = defineAssets("test.odd", { assets: { sheet: { kind: "texture2d", src: "sheet.tga" } }, bundles: { boot: ["sheet"] } });
     await expect(loadAssets(game, Odd, "boot")).rejects.toThrow(
-      'asset "sheet" from "sheet.tga": Unsupported texture2d format: .tga. Supported extensions: bmp, gif, jpeg, jpg, png, webp',
+      'asset "sheet" from "sheet.tga": Unsupported texture2d format: .tga. Supported extensions: bmp, gif, jpeg, jpg, png, svg, webp',
     );
   });
 });

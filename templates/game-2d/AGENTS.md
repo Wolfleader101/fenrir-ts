@@ -11,7 +11,7 @@ This game is built on the Fenrir engine (`fenrir-ts`). Before writing or changin
 - `src/main.ts`: the browser entry: `pixi2d`, loading art, giving entities their Pixi nodes, the HUD.
 - `tests/`: Vitest, headless, with `createTestGame` and `game.step`. Assert on `inspect(game)` and resources, never on time or pixels.
 - `e2e/`: Playwright against the built game, reading `window.__FENRIR__.inspect()`.
-- `public/`: files served as-is, such as `public/star.png` (loaded as `"star.png"`). Textures are `.png`, `.jpg`, `.webp`, `.gif` or `.bmp`.
+- `public/`: files served as-is, such as `public/star.png` (loaded as `"star.png"`). Textures are `.png`, `.jpg`, `.webp`, `.gif`, `.bmp` or `.svg`.
 
 ## Commands
 

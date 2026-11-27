@@ -283,6 +283,7 @@ Members:
 interface UiOptions {
     readonly pixi?: Pixi2DPlugin;
     readonly root?: Container;
+    readonly layers?: readonly string[];
     readonly keys?: UiKeys;
     readonly arrows?: "wrap" | "linear" | "clear";
     readonly tapFocus?: "focus" | "clear";
@@ -299,8 +300,9 @@ What the `ui()` plugin takes: `pixi` (the `pixi2d()` plugin) in a game, or `root
 
 Members:
 
-- `pixi`: The `pixi2d()` plugin, listed before `ui` in `plugins`. Controls live under its `root` and `backdrop`.
+- `pixi`: The `pixi2d()` plugin, listed before `ui` in `plugins`. Controls live under its `root` and `backdrop`, or in the `layers` listed.
 - `root`: Instead of `pixi`: the container controls live under, whose local units are the logical units `ctx.input.pointer` reports. For a test game, which has no renderer.
+- `layers`: With `pixi`: the `pixi2d({ layers })` names the kit looks for controls and scopes in, plus `"fenrir.backdrop"` for `renderer.backdrop`. Without it the kit walks `backdrop` and all of `root` each frame, every visible node in every layer, game sprites included; list only the layers that hold controls, such as `["hud", "menus"]`, so the walk costs what the UI does. Controls in an unlisted layer or added straight to `root` are then not live, with no warning. Hit testing and bounds stay in `root`'s logical units. An unknown name throws at install.
 - `arrows`: How the `next` and `previous` keys move focus. `"wrap"` (the default): round from the last control to the first, only while a control has focus or a modal scope is open. `"linear"`: stop at the first and last control, and from no focus go to the first (`next`) or last (`previous`); the keys are the kit's whenever a control is live. `"clear"`: as `"linear"`, but past the first or last control focus goes to none, staying on the canvas, so the next key starts again from no focus.
 - `tapFocus`: What a pointer press does to focus. `"focus"` (the default): a press on a control focuses it with no ring, and a press elsewhere keeps focus. `"clear"`: every press clears focus, so Enter after a tap is the game's again.
 - `blurFocus`: What the canvas losing keyboard focus does to focus. `"keep"` (the default): focus stays and the ring is hidden, so returning to the canvas resumes on the same control. `"clear"`: focus is cleared in every frame that starts with the canvas blurred, so it starts again from none.

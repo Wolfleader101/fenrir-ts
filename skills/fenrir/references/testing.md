@@ -49,7 +49,7 @@ it("lands the fish after one second of casting", async () => {
 
 ## Inspecting a game
 
-`inspect(game)` returns what the game is doing as plain JSON: the frame, time, the schedule, states, resources and the active scene's entities. It works on a `Game` and a `TestGame`, never throws, and works before `run()`, while paused and after `stop()`. It is a function rather than a method, so a game that never calls it ships none of the snapshot code. `exposeInspector(game)` puts the same function on `window.__FENRIR__.inspect`, for browser tests and agents.
+`inspect(game)` returns what the game is doing as plain JSON: the frame, time, the schedule, states, resources, the active scene's entities and the input. It works on a `Game` and a `TestGame`, never throws, and works before `run()`, while paused and after `stop()`. It is a function rather than a method, so a game that never calls it ships none of the snapshot code. `exposeInspector(game)` puts the same function on `window.__FENRIR__.inspect`, for browser tests and agents.
 
 ```ts
 import { Schedule, createGame, defineComponent, defineResource, exposeInspector, inspect, type GameSnapshot, type SystemCtx } from "fenrir-ts";
@@ -82,7 +82,8 @@ console.log(snapshot.resources["myGame.Scores"]); // { $type: "Map", entries: [[
   "resources": { "myGame.Scores": { "$type": "Map", "entries": [["ana", 10]] } },
   "entities": [
     { "id": 0, "name": "Entity 0", "parent": null, "components": { "fenrir.Transform": { "position": { "x": 0, "y": 0, "z": 0 }, "...": {} }, "myGame.Health": { "current": 3 } } }
-  ]
+  ],
+  "input": { "held": ["KeyA", "pointer.primary"], "pointer": { "x": 320, "y": 180, "down": true, "inside": true, "cancelled": false }, "focused": true }
 }
 ```
 
@@ -92,6 +93,7 @@ console.log(snapshot.resources["myGame.Scores"]); // { $type: "Map", entries: [[
 - `schedule` lists system names per stage in run order. `states` lists the states the game has used (read, set or hooked) with their value and seconds in it. `resources` lists the resources that have a value.
 - `entities` are the active scene's, by id. `id` and `parent` are entity handles, the values `entities.get` takes; `parent` is null for a root. The engine's `fenrir.Name` and `fenrir.Relationship` are folded into `name` and `parent`; `fenrir.Transform` stays in `components`.
 - Keys of `states`, `resources` and `components` are the names given to `defineState`, `defineResource` and `defineComponent`, sorted. A component keyed by a symbol `defineComponent` did not make appears as `Symbol(description)`.
+- `input` is what the latest frame latched, the same answers `game.input` gave its systems: `held` lists the bindings held, sorted (`KeyboardEvent.code` values such as `"KeyA"`, and `"pointer.primary"` or `"pointer.secondary"`), `pointer` is `game.input.pointer` and `focused` is `game.input.focused`. Before the first frame nothing is held. A tap between two frames is held in the frame it is pressed in, and a binding hidden by `consume` or `consumePointer` is still listed while it is down. Actions are not listed by name, since `defineAction` registers nothing: match `held` against your actions' bindings. On a test game, a `press` or `pointerMove` shows only after the next `step`.
 - With `exposeInspector` called for two games on one page, the last one owns `window.__FENRIR__`, with a warning. It stays after the game stops. Without a `window`, it does nothing.
 
 Values are encoded by these rules, so the snapshot always survives `JSON.parse(JSON.stringify(snapshot))` unchanged:

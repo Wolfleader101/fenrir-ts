@@ -105,13 +105,22 @@ export interface UiCtx {
 
 /** What the `ui()` plugin takes: `pixi` (the `pixi2d()` plugin) in a game, or `root` in a test game, then keys, arrows and focus behaviour. */
 export interface UiOptions {
-  /** The `pixi2d()` plugin, listed before `ui` in `plugins`. Controls live under its `root` and `backdrop`. */
+  /** The `pixi2d()` plugin, listed before `ui` in `plugins`. Controls live under its `root` and `backdrop`, or in the `layers` listed. */
   readonly pixi?: Pixi2DPlugin;
   /**
    * Instead of `pixi`: the container controls live under, whose local units are the logical
    * units `ctx.input.pointer` reports. For a test game, which has no renderer.
    */
   readonly root?: Container;
+  /**
+   * With `pixi`: the `pixi2d({ layers })` names the kit looks for controls and scopes in, plus
+   * `"fenrir.backdrop"` for `renderer.backdrop`. Without it the kit walks `backdrop` and all of
+   * `root` each frame, every visible node in every layer, game sprites included; list only the
+   * layers that hold controls, such as `["hud", "menus"]`, so the walk costs what the UI does.
+   * Controls in an unlisted layer or added straight to `root` are then not live, with no warning.
+   * Hit testing and bounds stay in `root`'s logical units. An unknown name throws at install.
+   */
+  readonly layers?: readonly string[];
   readonly keys?: UiKeys;
   /**
    * How the `next` and `previous` keys move focus. `"wrap"` (the default): round from the last
@@ -302,6 +311,7 @@ export function ui(options: UiOptions = {}): Plugin {
   const {
     pixi,
     root,
+    layers,
     keys = {},
     arrows = "wrap",
     tapFocus = "focus",
@@ -326,7 +336,11 @@ export function ui(options: UiOptions = {}): Plugin {
         throw new Error("ui needs the 2D renderer: list pixi2d() before ui() in plugins and pass it, ui({ pixi }). A test game passes ui({ root }).");
       }
       const space = renderer?.root ?? root!;
-      const roots = renderer ? [renderer.backdrop, renderer.root] : [root!];
+      let roots = renderer ? [renderer.backdrop, renderer.root] : [root!];
+      if (renderer && layers) {
+        const walked = new Set(layers.map((name) => renderer.layer(name)));
+        roots = [renderer.backdrop, ...renderer.root.children].filter((node) => walked.has(node)); // display order
+      }
       const canvas = renderer ? game.canvas : undefined;
       const input = game.input as InputImpl;
       const { resources } = game;

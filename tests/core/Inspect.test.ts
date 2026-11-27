@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGame, type Game } from "@/core/Game";
-import { createTestGame } from "@/core/TestGame";
+import { createTestGame, type TestGame } from "@/core/TestGame";
 import { exposeInspector, inspect, type GameSnapshot } from "@/core/Inspect";
 import { defineComponent } from "@/core/ECS/Component";
+import { defineAction } from "@/core/Input/Action";
 import { Name } from "@/core/ECS/DefaultComponents";
 import { NullLogger } from "@/core/NullLogger";
 import { defineResource } from "@/core/Resource";
@@ -131,6 +132,7 @@ describe("inspect(game)", () => {
         { id: 1, name: "Player", parent: 0, components: { "fenrir.Transform": transform, "test.inspect.Health": { current: 10, max: 10 } } },
         { id: 2, name: "Enemy", parent: 0, components: { "fenrir.Transform": transform, "test.inspect.Health": { current: 7, max: 10 } } },
       ],
+      input: { held: [], pointer: { x: 0, y: 0, down: false, inside: false, cancelled: false }, focused: false },
     });
     await game.stop();
   });
@@ -302,6 +304,96 @@ describe("inspect on a test game", () => {
     await game.stop();
     await game.start();
     expect(inspect(game).frame).toBe(0);
+    await game.stop();
+  });
+});
+
+const Jump = defineAction("test.inspect.jump", ["Space"]);
+const Left = defineAction("test.inspect.left", ["KeyA"]);
+const Tap = defineAction("test.inspect.tap", ["pointer.primary"]);
+
+describe("inspect(game).input", () => {
+  async function started(): Promise<TestGame> {
+    const game = await createTestGame({ seed: 1, logger: new NullLogger() });
+    await game.start();
+    return game;
+  }
+
+  it("lists the bindings held in the latched frame, sorted, and none before the first frame", async () => {
+    const game = await started();
+    game.input.focus();
+    game.input.press(Jump);
+    game.input.press(Left);
+    expect(inspect(game).input).toEqual({ held: [], pointer: { x: 0, y: 0, down: false, inside: false, cancelled: false }, focused: false });
+    game.step(1 / 60);
+    expect(inspect(game).input.held).toEqual(["KeyA", "Space"]);
+    expect(inspect(game).input.focused).toBe(true);
+    game.input.release(Jump);
+    game.step(1 / 60);
+    expect(inspect(game).input.held).toEqual(["KeyA"]);
+    await game.stop();
+  });
+
+  it("reports the pointer as the frame latched it, through a press and a move", async () => {
+    const game = await started();
+    game.input.pointerDown(10, 20);
+    game.step(1 / 60);
+    expect(inspect(game).input).toEqual({
+      held: ["pointer.primary"],
+      pointer: { x: 10, y: 20, down: true, inside: true, cancelled: false },
+      focused: true,
+    });
+    game.input.pointerMove(30, 40);
+    expect(inspect(game).input.pointer).toEqual({ x: 10, y: 20, down: true, inside: true, cancelled: false }); // not latched yet
+    game.step(1 / 60);
+    expect(inspect(game).input.pointer).toEqual({ x: 30, y: 40, down: true, inside: true, cancelled: false });
+    expect(inspect(game).input.held).toEqual(["pointer.primary"]);
+    await game.stop();
+  });
+
+  it("lists a consumed binding while it is held", async () => {
+    const game = await started();
+    game.addSystem(Schedule.PreUpdate, function takeTap({ input }: SystemCtx) {
+      input.consume(Tap);
+    });
+    game.input.press(Tap);
+    game.step(1 / 60);
+    expect(game.input.held(Tap)).toBe(false);
+    expect(inspect(game).input.held).toEqual(["pointer.primary"]);
+    await game.stop();
+  });
+
+  it("reports a cancelled pointer in the frame that releases it", async () => {
+    const game = await started();
+    game.input.pointerDown(5, 5);
+    game.step(1 / 60);
+    game.input.pointerCancel();
+    game.step(1 / 60);
+    expect(inspect(game).input).toEqual({ held: [], pointer: { x: 5, y: 5, down: false, inside: false, cancelled: true }, focused: true });
+    game.step(1 / 60);
+    expect(inspect(game).input.pointer.cancelled).toBe(false);
+    await game.stop();
+  });
+
+  it("shows blur() as lost focus with nothing held", async () => {
+    const game = await started();
+    game.input.focus();
+    game.input.press(Jump);
+    game.input.pointerDown(1, 2);
+    game.step(1 / 60);
+    expect(inspect(game).input.held).toEqual(["Space", "pointer.primary"]);
+    game.input.blur();
+    game.step(1 / 60);
+    expect(inspect(game).input).toEqual({ held: [], pointer: { x: 1, y: 2, down: false, inside: true, cancelled: true }, focused: false });
+    await game.stop();
+  });
+
+  it("survives a JSON round trip", async () => {
+    const game = await started();
+    game.input.pointerDown(3, 4);
+    game.step(1 / 60);
+    const { input } = inspect(game);
+    expect(roundTrip(inspect(game))).toMatchObject({ input });
     await game.stop();
   });
 });

@@ -11,7 +11,7 @@ Peer packages: none. Import from `fenrir-ts` only, never from `dist/` or a sourc
 - Functions: [`addTimer`](#addtimer), [`addTween`](#addtween), [`cancelTimer`](#canceltimer), [`cancelTween`](#canceltween), [`createGame`](#creategame), [`createTestGame`](#createtestgame), [`defineAction`](#defineaction), [`defineAssets`](#defineassets), [`defineComponent`](#definecomponent), [`defineEasing`](#defineeasing), [`defineEvent`](#defineevent), [`defineResource`](#defineresource), [`defineState`](#definestate), [`defineStorageKey`](#definestoragekey), [`defineStorageKeyFamily`](#definestoragekeyfamily), [`exposeInspector`](#exposeinspector), [`getAsset`](#getasset), [`getStored`](#getstored), [`inspect`](#inspect), [`inState`](#instate), [`loadAsset`](#loadasset), [`loadAssets`](#loadassets), [`memoryStorage`](#memorystorage), [`motion`](#motion), [`persistResource`](#persistresource), [`removeStored`](#removestored), [`setAssetLoader`](#setassetloader), [`setStored`](#setstored), [`storage`](#storage), [`unloadAsset`](#unloadasset), [`unloadAssets`](#unloadassets), [`updateStored`](#updatestored)
 - Classes: [`AssetBundleError`](#assetbundleerror), [`AssetLoadError`](#assetloaderror), [`AssetStore`](#assetstore), [`ConsoleLogger`](#consolelogger), [`Engine`](#engine), [`EntityBuilder`](#entitybuilder), [`EntityList`](#entitylist), [`EventBus`](#eventbus), [`EventQueue`](#eventqueue), [`NullLogger`](#nulllogger), [`Pool`](#pool), [`Random`](#random), [`Resources`](#resources), [`Scene`](#scene), [`SceneManager`](#scenemanager), [`Scheduler`](#scheduler), [`Time`](#time), [`View`](#view)
 - Constants: [`AssetBundleFailed`](#assetbundlefailed), [`AssetBundleLoaded`](#assetbundleloaded), [`AssetFailed`](#assetfailed), [`assetKey`](#assetkey), [`AssetLoaded`](#assetloaded), [`Display2D`](#display2d), [`easings`](#easings), [`MotionSettings`](#motionsettings), [`Name`](#name), [`Relationship`](#relationship), [`Schedule`](#schedule), [`StorageStatus`](#storagestatus), [`TimerFired`](#timerfired), [`Timers`](#timers), [`Transform`](#transform), [`Transform2D`](#transform2d), [`TweenDone`](#tweendone), [`Tweens`](#tweens)
-- Types: [`ActionType`](#actiontype), [`Asset`](#asset), [`AssetCounts`](#assetcounts), [`AssetCtx`](#assetctx), [`AssetDeclaration`](#assetdeclaration), [`AssetDeclarations`](#assetdeclarations), [`AssetFailure`](#assetfailure), [`AssetKey`](#assetkey), [`AssetKind`](#assetkind), [`AssetKinds`](#assetkinds), [`AssetLoader`](#assetloader), [`AssetManifest`](#assetmanifest), [`AssetName`](#assetname), [`AssetProgress`](#assetprogress), [`AssetSource`](#assetsource), [`AssetState`](#assetstate), [`AssetStatus`](#assetstatus), [`AssetStoreConfig`](#assetstoreconfig), [`AsyncStage`](#asyncstage), [`AsyncSystemFn`](#asyncsystemfn), [`BundleName`](#bundlename), [`BundleProgress`](#bundleprogress), [`BundleStatus`](#bundlestatus), [`Clock`](#clock), [`ComponentType`](#componenttype), [`DebugGlobal`](#debugglobal), [`Easing`](#easing), [`EasingName`](#easingname), [`EngineOptions`](#engineoptions), [`Entity`](#entity), [`EntitySnapshot`](#entitysnapshot), [`EventHandler`](#eventhandler), [`EventReader`](#eventreader), [`EventType`](#eventtype), [`Game`](#game), [`GameBase`](#gamebase), [`GameOptions`](#gameoptions), [`GameServices`](#gameservices), [`GameSnapshot`](#gamesnapshot), [`IAssetStore`](#iassetstore), [`ILogger`](#ilogger), [`Input`](#input), [`InputBinding`](#inputbinding), [`InputDomEvent`](#inputdomevent), [`InputDownHandler`](#inputdownhandler), [`InputEdge`](#inputedge), [`InputGestureHandler`](#inputgesturehandler), [`InputPointer`](#inputpointer), [`JsonValue`](#jsonvalue), [`KeyCode`](#keycode), [`LoaderConfig`](#loaderconfig), [`ManifestAsset`](#manifestasset), [`ManifestLoader`](#manifestloader), [`MotionCtx`](#motionctx), [`NumericKeys`](#numerickeys), [`Plugin`](#plugin), [`PointerBinding`](#pointerbinding), [`QuatLike`](#quatlike), [`ResourceType`](#resourcetype), [`ScheduledSystem`](#scheduledsystem), [`ScheduleStage`](#schedulestage), [`SkyboxDescriptor`](#skyboxdescriptor), [`States`](#states), [`StateType`](#statetype), [`StorageBackend`](#storagebackend), [`StorageCtx`](#storagectx), [`StorageKey`](#storagekey), [`StorageKeyFamily`](#storagekeyfamily), [`StorageKeyOptions`](#storagekeyoptions), [`StorageOptions`](#storageoptions), [`SyncStage`](#syncstage), [`SyncSystemFn`](#syncsystemfn), [`SystemCtx`](#systemctx), [`SystemOptions`](#systemoptions), [`TestClock`](#testclock), [`TestGame`](#testgame), [`TestGameOptions`](#testgameoptions), [`TestInput`](#testinput), [`Timer`](#timer), [`TimerOptions`](#timeroptions), [`Tween`](#tween), [`TweenOptions`](#tweenoptions), [`Vec3Like`](#vec3like)
+- Types: [`ActionType`](#actiontype), [`Asset`](#asset), [`AssetCounts`](#assetcounts), [`AssetCtx`](#assetctx), [`AssetDeclaration`](#assetdeclaration), [`AssetDeclarations`](#assetdeclarations), [`AssetFailure`](#assetfailure), [`AssetKey`](#assetkey), [`AssetKind`](#assetkind), [`AssetKinds`](#assetkinds), [`AssetLoader`](#assetloader), [`AssetManifest`](#assetmanifest), [`AssetName`](#assetname), [`AssetProgress`](#assetprogress), [`AssetSource`](#assetsource), [`AssetState`](#assetstate), [`AssetStatus`](#assetstatus), [`AssetStoreConfig`](#assetstoreconfig), [`AsyncStage`](#asyncstage), [`AsyncSystemFn`](#asyncsystemfn), [`BundleName`](#bundlename), [`BundleProgress`](#bundleprogress), [`BundleStatus`](#bundlestatus), [`Clock`](#clock), [`ComponentType`](#componenttype), [`DebugGlobal`](#debugglobal), [`Easing`](#easing), [`EasingName`](#easingname), [`EngineOptions`](#engineoptions), [`Entity`](#entity), [`EntitySnapshot`](#entitysnapshot), [`EventHandler`](#eventhandler), [`EventReader`](#eventreader), [`EventType`](#eventtype), [`Game`](#game), [`GameBase`](#gamebase), [`GameOptions`](#gameoptions), [`GameServices`](#gameservices), [`GameSnapshot`](#gamesnapshot), [`IAssetStore`](#iassetstore), [`ILogger`](#ilogger), [`Input`](#input), [`InputBinding`](#inputbinding), [`InputDomEvent`](#inputdomevent), [`InputDownHandler`](#inputdownhandler), [`InputEdge`](#inputedge), [`InputGestureHandler`](#inputgesturehandler), [`InputPointer`](#inputpointer), [`InputSnapshot`](#inputsnapshot), [`JsonValue`](#jsonvalue), [`KeyCode`](#keycode), [`LoaderConfig`](#loaderconfig), [`ManifestAsset`](#manifestasset), [`ManifestLoader`](#manifestloader), [`MotionCtx`](#motionctx), [`NumericKeys`](#numerickeys), [`Plugin`](#plugin), [`PointerBinding`](#pointerbinding), [`QuatLike`](#quatlike), [`ResourceType`](#resourcetype), [`ScheduledSystem`](#scheduledsystem), [`ScheduleStage`](#schedulestage), [`SkyboxDescriptor`](#skyboxdescriptor), [`States`](#states), [`StateType`](#statetype), [`StorageBackend`](#storagebackend), [`StorageCtx`](#storagectx), [`StorageKey`](#storagekey), [`StorageKeyFamily`](#storagekeyfamily), [`StorageKeyOptions`](#storagekeyoptions), [`StorageOptions`](#storageoptions), [`SyncStage`](#syncstage), [`SyncSystemFn`](#syncsystemfn), [`SystemCtx`](#systemctx), [`SystemOptions`](#systemoptions), [`TestClock`](#testclock), [`TestGame`](#testgame), [`TestGameOptions`](#testgameoptions), [`TestInput`](#testinput), [`Timer`](#timer), [`TimerOptions`](#timeroptions), [`Tween`](#tween), [`TweenOptions`](#tweenoptions), [`Vec3Like`](#vec3like)
 
 ## Functions
 
@@ -329,8 +329,8 @@ only: call `setStored` to save it.
 function inspect(game: GameBase): GameSnapshot;
 ```
 
-What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
-scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
+What `game` is doing, as plain JSON: frame, time, schedule, states, resources, the active
+scene's entities and the latched input. Works on a `Game` and a `TestGame`, before the game runs, while paused and
 after `stop()`; never throws. A function rather than a method, so a game that never calls it
 ships none of the snapshot and JSON-encoding code. The serialisation rules are in skills/fenrir/references/testing.md
 under "Inspecting a game".
@@ -1720,6 +1720,7 @@ interface GameSnapshot {
     }>>;
     readonly resources: Readonly<Record<string, JsonValue>>;
     readonly entities: readonly EntitySnapshot[];
+    readonly input: InputSnapshot;
 }
 ```
 
@@ -1733,6 +1734,7 @@ Members:
 - `states`: Each state's current value and seconds in it, by the name given to `defineState`.
 - `resources`: Each resource that has a value, by the name given to `defineResource`.
 - `entities`: The active scene's entities, by id.
+- `input`: The input latched when the latest frame started. Nothing is held before the first frame.
 
 ### IAssetStore
 
@@ -1868,6 +1870,30 @@ Members:
 - `down`: The primary pointer is down: left mouse button, a finger or a pen tip. `consumePointer` does not change it.
 - `inside`: The pointer is over the canvas. False after a finger lifts or the mouse leaves.
 - `cancelled`: The primary pointer went up this frame without being lifted: the browser cancelled it (`pointercancel` or lost pointer capture), the canvas lost focus, or the page was hidden. `released` still reports the release; check this to ignore a cancelled press.
+
+### InputSnapshot
+
+```ts
+interface InputSnapshot {
+    readonly held: readonly string[];
+    readonly pointer: {
+        readonly x: number;
+        readonly y: number;
+        readonly down: boolean;
+        readonly inside: boolean;
+        readonly cancelled: boolean;
+    };
+    readonly focused: boolean;
+}
+```
+
+The input of the latest frame, as `inspect(game)` reports it: what systems in that frame read from `game.input`.
+
+Members:
+
+- `held`: The bindings held in the latched frame, sorted: `KeyboardEvent.code` values such as `"KeyA"`, and `"pointer.primary"` or `"pointer.secondary"`. A tap between two frames is held for the frame it is pressed in. A binding hidden by `consume` or `consumePointer` is still listed. Actions are not listed: `defineAction` keeps no registry.
+- `pointer`: `game.input.pointer`: logical position, and whether it is down, over the canvas, or was cancelled this frame.
+- `focused`: `game.input.focused`: the canvas had keyboard focus when the frame started.
 
 ### JsonValue
 
