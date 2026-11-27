@@ -23,7 +23,7 @@ store.peek(key, "texture3d");
 store.setAsset(key, "level", Promise.resolve(1));
 // @ts-expect-error an unknown kind has no loader
 store.registerLoader("level", "json", { loader: async () => 1, extensions: ["level"] });
-// @ts-expect-error requestTexture2D needs fenrir-ts/2d
+// @ts-expect-error requestTexture2D is a function of fenrir-ts/2d, not a method
 store.requestTexture2D(key, "hero.png");
 // @ts-expect-error loadModel needs fenrir-ts/3d
 void store.loadModel(key, "hero.glb");

@@ -101,21 +101,38 @@ describe("fenrir-ts/2d public API", () => {
     expect(card.destroyed).toBe(true);
   });
 
-  it("adds 2D texture requests to the core asset store", async () => {
-    const { AssetStore, assetKey } = core;
-    const assets = new AssetStore();
-    expect(assets.getSupportedTexture2DExtensions()).toContain("png");
+  it("adds 2D textures to the core asset store as functions, patching nothing", async () => {
+    const { AssetStore, assetKey, createTestGame } = core;
+    const { getSupportedTexture2DExtensions, getTexture2D, loadTexture2D, registerTexture2DLoader, requestTexture2D } = twoD;
+    for (const method of ["requestTexture2D", "loadTexture2D", "getTexture2D", "registerTexture2DLoader", "getSupportedTexture2DExtensions"]) {
+      expect(method in AssetStore.prototype, method).toBe(false);
+    }
 
-    assets.registerTexture2DLoader("test", { loader: async () => Texture.EMPTY, extensions: ["test"] });
-    const handle = assets.requestTexture2D(assetKey("hero"), "hero.test");
+    // The functions take a ctx, the game or anything with its assets.
+    const game = await createTestGame({ seed: 1 });
+    expect(getSupportedTexture2DExtensions(game)).toEqual(["bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"]);
+    registerTexture2DLoader(game, "test", { loader: async () => Texture.EMPTY, extensions: ["test"] });
+    expect(getSupportedTexture2DExtensions(game)).toContain("test");
+
+    const handle = requestTexture2D(game, assetKey("hero"), "hero.test");
     expectTypeOf(handle).toEqualTypeOf<import("@/2d").Texture2DHandle>();
     expect(handle.state).toEqual({ status: "loading" });
+    expect(requestTexture2D(game, assetKey("hero"), "hero.test")).toBe(handle);
     await expect(handle.ready).resolves.toBe(Texture.EMPTY);
     expect(handle.state).toEqual({ status: "ready", texture: Texture.EMPTY });
 
+    await expect(loadTexture2D(game, assetKey("tile"), "tile.test")).resolves.toBeUndefined();
+    await expect(getTexture2D(game, assetKey("tile"))).resolves.toBe(Texture.EMPTY);
+    expectTypeOf(getTexture2D(game, assetKey("tile"))).toEqualTypeOf<Promise<Texture>>();
+    await expect(getTexture2D(game, assetKey("none"))).rejects.toThrow("Asset not loaded: none");
+
     // The 2D entry adds the "texture2d" kind; tests/types/ checks the types per entry.
-    await expect(assets.get(assetKey("hero"), "texture2d")).resolves.toBe(Texture.EMPTY);
-    expect(assets.kindOf(assetKey("hero"))).toBe("texture2d");
+    await expect(game.assets.get(assetKey("hero"), "texture2d")).resolves.toBe(Texture.EMPTY);
+    expect(game.assets.kindOf(assetKey("hero"))).toBe("texture2d");
+
+    // A bare store works too.
+    const assets = new AssetStore();
+    expect(getSupportedTexture2DExtensions({ assets })).toContain("png");
   });
 
   it("keeps default transforms plain, without Three", () => {

@@ -40,8 +40,9 @@ export type Asset = AssetKinds[AssetKind];
 export interface AssetStoreConfig {}
 
 /**
- * The asset store as systems see it. Core has the cache only. The 2D and 3D
- * entries add their typed loading and getter methods to this interface.
+ * The asset store as systems see it. Core has the cache only. `fenrir-ts/3d`
+ * adds its typed loading and getter methods to this interface; `fenrir-ts/2d`
+ * adds none, and exports its texture calls as functions instead.
  */
 export interface IAssetStore {
   /** The asset stored under `key`, whatever its kind. Rejects if nothing is stored. */
@@ -65,7 +66,7 @@ const installers: AssetStoreInstaller[] = [];
  *
  * Core knows nothing about textures or models. Each asset kind ("model",
  * "texture3d", "texture2d") is added by the entry point that renders it, which
- * registers its default loaders and typed methods when it loads.
+ * registers its default loaders when it loads (and, for `fenrir-ts/3d`, typed methods).
  */
 export class AssetStore implements IAssetStore {
   private cache = new Map<string, Promise<Asset>>();

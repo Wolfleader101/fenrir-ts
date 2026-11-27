@@ -4,6 +4,23 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Breaking: `fenrir-ts/2d` adds no methods to `AssetStore` (#94)
+
+- Importing `fenrir-ts/2d` no longer patches `AssetStore.prototype`, and its `IAssetStore` and `AssetStore` augmentation is gone. `requestTexture2D`, `loadTexture2D`, `getTexture2D`, `registerTexture2DLoader` and `getSupportedTexture2DExtensions` are now functions exported from `fenrir-ts/2d` that take a `SystemCtx`, the game, or anything with its `assets` (`{ assets }`), as `getAsset(ctx, manifest, name)` does, then the old arguments. Every `assets.*Texture2D` call stops compiling; move the receiver into the first argument. Behaviour is unchanged: `pixi2d` still registers the default Pixi loader, and manifests and `sprite2D(name)` still find textures by name.
+
+  ```ts
+  // 0.2.x
+  const handle = game.assets.requestTexture2D("logo", "img/logo.png");
+  const texture = await ctx.assets.getTexture2D("logo");
+
+  // 0.3.0
+  import { getTexture2D, requestTexture2D } from "fenrir-ts/2d";
+  const handle = requestTexture2D(game, "logo", "img/logo.png");
+  const texture = await getTexture2D(ctx, "logo");
+  ```
+
+- A 2D game ships only the texture functions it calls: the `game-2d` fixture's engine code went from 54.46 kB to 53.50 kB minified (17.29 kB to 16.96 kB gzip), and `Assets2D.ts` in it from 1,246 B to 289 B.
+
 ### Breaking: `fenrir-ts/2d` adds no methods to `EntityBuilder` (#88)
 
 - Importing `fenrir-ts/2d` no longer patches `EntityBuilder.prototype`. `pixiNode`, `renderSprite`, `renderCircle`, `renderRect` and `renderText` are gone: every builder chain that calls one stops compiling. Give an entity a node with the builder's own `with(PixiNode, { node, layer, keep })`, and a drawn shape with `with(Renderable2D, ...)` and the new value functions `sprite2D(texture, options)`, `circle2D(radius, options)`, `rect2D(width, height, options)` and `text2D(content, options)`, exported from `fenrir-ts/2d`. They take the same arguments as the old methods and assign the `id` the same way.
@@ -18,7 +35,7 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
   EntityBuilder.create().transform2D(195, 320).with(Renderable2D, circle2D(16, { fillColor: 0xff6600 })).spawn(entities);
   ```
 
-- A 2D game ships only the value functions it calls: the `game-2d` fixture's engine code went from 55.28 kB to 54.46 kB minified (17.51 kB to 17.29 kB gzip). `fenrir-ts/2d` still adds the texture methods to `AssetStore`, and the frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their builder methods.
+- A 2D game ships only the value functions it calls: the `game-2d` fixture's engine code went from 55.28 kB to 54.46 kB minified (17.51 kB to 17.29 kB gzip). The frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their builder methods.
 
 ### SVG textures (#92)
 

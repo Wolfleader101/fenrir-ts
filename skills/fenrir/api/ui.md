@@ -333,28 +333,3 @@ interface AssetStoreConfig {
     };
 }
 ```
-
-### IAssetStore
-
-```ts
-interface IAssetStore {
-    loadTexture2D(key: AssetKey, url: string): Promise<void>;
-    getTexture2D(key: AssetKey): Promise<PixiTexture>;
-    registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void;
-    getSupportedTexture2DExtensions(): string[];
-}
-```
-
-### AssetStore
-
-```ts
-interface AssetStore {
-    loadTexture2D(key: AssetKey, url: string): Promise<void>;
-    requestTexture2D(key: AssetKey, url: string): Texture2DHandle;
-    getTexture2D(key: AssetKey): Promise<PixiTexture>;
-    registerTexture2DLoader(name: string, config: PixiTextureLoaderConfig): void;
-    getSupportedTexture2DExtensions(): string[];
-}
-```
-
-- `requestTexture2D`: Reuses an active or ready request for the same key and URL. Request again to retry a failure.

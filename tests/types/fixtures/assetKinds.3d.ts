@@ -21,5 +21,5 @@ expectTypeOf(store.getTexture(key)).toEqualTypeOf<Promise<Texture>>();
 void store.get(key, "texture2d");
 // @ts-expect-error a model loader must load models
 store.registerLoader("model", "bad", { loader: async () => 1, extensions: ["bad"] });
-// @ts-expect-error requestTexture2D needs fenrir-ts/2d
+// @ts-expect-error requestTexture2D is a function of fenrir-ts/2d, not a method
 store.requestTexture2D(key, "hero.png");

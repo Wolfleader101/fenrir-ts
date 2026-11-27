@@ -9,8 +9,8 @@
   },
   "consumers": {
     "game-2d": {
-      "minified": 56000,
-      "gzip": 17900
+      "minified": 55100,
+      "gzip": 17500
     },
     "core-only": {
       "minified": 39500,
