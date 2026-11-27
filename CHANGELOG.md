@@ -4,6 +4,10 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Releases are staged on npm
+
+- For maintainers: a version tag now stages the release on npm (`npm stage publish`) instead of publishing it. It goes live only when a maintainer approves it with 2FA (npmjs.com → Staged Packages, or `npm stage approve`), and the workflow's GitHub release stays a draft until then. The manual dry run stages a throwaway prerelease when the version is already on npm, instead of failing. [RELEASING.md](https://github.com/Wolfleader101/fenrir-ts/blob/main/RELEASING.md) has the steps. Nothing changes for games.
+
 ## 0.2.0
 
 The first release on npm. Before it, games built the engine from a checkout; `0.1.0` was never published, and the breaking changes below are against the code at that version.
