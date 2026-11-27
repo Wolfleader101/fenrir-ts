@@ -36,8 +36,6 @@
     "dist",
     "!dist/**/*.map",
     "skills",
-    "llms.txt",
-    "llms-full.txt",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -56,7 +54,7 @@
     "check:install": "node scripts/check-install.mjs",
     "check:release": "node scripts/check-release.mjs",
     "api:reference": "node scripts/api-reference.mjs",
-    "docs:agent": "node scripts/api-reference.mjs && node scripts/agent-docs.mjs",
+    "docs:agent": "node scripts/api-reference.mjs",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
@@ -66,7 +64,7 @@
     "test:ci": "vitest run --reporter=verbose --coverage",
     "bench": "vitest bench --run",
     "prepublishOnly": "pnpm check:release && pnpm test:run && pnpm build:lib && pnpm check:package",
-    "check:agent-docs": "node scripts/api-reference.mjs --check && node scripts/agent-docs.mjs --check"
+    "check:agent-docs": "node scripts/api-reference.mjs --check"
   },
   "keywords": [
     "game-engine",

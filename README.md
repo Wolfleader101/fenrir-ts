@@ -45,8 +45,6 @@ The package ships a guide for an agent that builds a game with Fenrir, with the 
 
 ```text
 node_modules/fenrir-ts/
-├── llms.txt                     index of the docs below, in the llms.txt format
-├── llms-full.txt                the guide, every reference and the 2D-path API in one file
 └── skills/fenrir/
     ├── SKILL.md                 the guide: the model, a minimal game and its test, the rules that prevent common mistakes
     ├── references/*.md          one file per service: core, testing, input, 2d, motion, assets, storage, audio, ui (and the frozen 3D path)

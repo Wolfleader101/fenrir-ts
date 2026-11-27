@@ -29,7 +29,6 @@ const ALLOWED = [
   /^README\.md$/,
   /^CHANGELOG\.md$/,
   /^LICENSE$/,
-  /^llms(?:-full)?\.txt$/,
   /^dist\/[\w-]+\.js$/,
   /^dist\/(?:[\w-]+\/)*[\w-]+\.d\.ts$/,
   /^skills\/fenrir\/SKILL\.md$/,
