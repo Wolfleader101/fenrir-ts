@@ -4,6 +4,10 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+## 0.3.0
+
+Three breaking changes: `fenrir-ts/2d` and `fenrir-ts/physics` no longer add methods to `EntityBuilder` and `AssetStore` when they are imported. Each section below has a before/after for its migration. Also new: a starter game (`npx fenrir-ts create`), SVG textures, input in `inspect(game)`, and a UI kit that can walk only the layers that hold controls.
+
 ### Breaking: `fenrir-ts/physics` adds no methods to `EntityBuilder` (#89)
 
 - Importing `fenrir-ts/physics` no longer patches `EntityBuilder.prototype`. Its 14 builder methods are gone, and every builder chain that calls one stops compiling. It still makes default transforms out of Three objects and adds `ctx.physics`. Physics behaviour is unchanged: each replacement builds the same components the method did.
