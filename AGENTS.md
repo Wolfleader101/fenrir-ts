@@ -36,12 +36,11 @@ Every pull request and every push to `main` runs these, in this order. All of th
 ```sh
 pnpm type-check   # no errors allowed
 pnpm check:docs   # every ts block in README.md, AGENTS.md and skills/fenrir/ compiles against the entry points
-pnpm check:editor-types  # src/editor/resources/fenrir.d.ts matches `pnpm types:bundle`
 pnpm check:agent-docs    # the generated agent docs and API reference match `pnpm docs:agent`
 pnpm test:run
 pnpm build:lib
 pnpm check:size   # each entry in dist/ stays within size-budget.json
-pnpm check:imports  # core loads no renderer, physics or editor package; other entries only their own peers
+pnpm check:imports  # core loads no renderer or physics package; other entries only their own peers
 pnpm check:consumer  # bundles the fixture games in scripts/consumer/ the way a consumer would and checks their size
 pnpm check:package   # the npm tarball: allowed files only, size budget, manifest rules, publint and attw
 ```
@@ -50,13 +49,11 @@ If you change a public API, update the examples that show it; `check:docs` fails
 
 If `check:agent-docs` fails, run `pnpm docs:agent` and commit `skills/fenrir/api/` and `llms*.txt`. Never edit the generated files: the API pages come from TSDoc, the `llms` files from `skills/fenrir/`.
 
-If `check:editor-types` fails, run `pnpm types:bundle` and commit `src/editor/resources/fenrir.d.ts`. It is the API the Monaco sandbox shows, bundled from `src/editor/resources/fenrir-api.ts`.
-
 If `check:imports` fails, it names the entry, the chunk and the package or file it reached. Move the import into the entry that owns that package; do not add an exception.
 
 If `check:size` fails, find what grew before raising the budget. Raise it with `node scripts/check-size.mjs --update` only when the growth is intended, and say so in the PR.
 
-If `check:package` fails, it names the rule. A file outside its allowed list means `files` in `package.json` or the build put something in the tarball a consumer does not need; widen `ALLOWED` in `scripts/check-package.mjs` only for a file a consumer reads. The package has no runtime `dependencies` (the editor bundles lit and lucide; build tools are dev dependencies) and every peer is optional (`peerDependenciesMeta`). Do not add `"sideEffects"`: it was measured to save nothing and broke consumers twice (publint suggests it; that suggestion is expected). The build writes source maps as `"hidden"` for `check:imports` and `check:consumer`; they do not ship. Declarations are post-processed in `vite.config.lib.ts` so every relative import names its `.js` file, which `node16` and `nodenext` consumers need; published sources use relative imports, not `@/`.
+If `check:package` fails, it names the rule. A file outside its allowed list means `files` in `package.json` or the build put something in the tarball a consumer does not need; widen `ALLOWED` in `scripts/check-package.mjs` only for a file a consumer reads. The package has no runtime `dependencies` (build tools are dev dependencies) and every peer is optional (`peerDependenciesMeta`). Do not add `"sideEffects"`: it was measured to save nothing and broke consumers twice (publint suggests it; that suggestion is expected). The build writes source maps as `"hidden"` for `check:imports` and `check:consumer`; they do not ship. Declarations are post-processed in `vite.config.lib.ts` so every relative import names its `.js` file, which `node16` and `nodenext` consumers need; published sources use relative imports, not `@/`.
 
 Releases: [`RELEASING.md`](RELEASING.md). A PR adds its notes under `## Unreleased` in `CHANGELOG.md` and does not change the version; a release PR does.
 
@@ -70,13 +67,12 @@ Releases: [`RELEASING.md`](RELEASING.md). A PR adds its notes under `## Unreleas
 | `fenrir-ts/physics` | `src/physics.ts` | Jolt physics system, components, helpers, the physics builder methods, `ctx.physics` | `jolt-physics`, `three` |
 | `fenrir-ts/ui` | `src/ui.ts` | UI controls on Pixi nodes the game drew: the `ui()` plugin, `control`, `modalScope`, `UiFocus`, `ControlActivated`, `paginate`, `activateControl`, `listControls`, `moveFocus`, `syncUi` | `pixi.js` |
 | `fenrir-ts/audio` | `src/audio.ts` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound`, `unlockAudio`, `AudioState`, `AudioUnlocked`, the `audio` asset kind (`AudioClip`), `webAudio()` and `testAudio()` backends | none |
-| `fenrir-ts/editor` | `src/editor/index.ts` | Monaco live code editor | `monaco-editor` |
 
-Consumers import only from these seven paths. Never import from `fenrir-ts/dist/...` or a source file path.
+Consumers import only from these six paths. Never import from `fenrir-ts/dist/...` or a source file path.
 Anything not exported from one of the entry files is internal and can change without notice.
 There is no `fenrir-ts/core`: core is the root entry.
 
-The core entry imports no Pixi, Three, Jolt, Monaco or Lit code. `pnpm check:imports` checks the built output, and `tests/publicApi.test.ts` fails if core loads any of them.
+The core entry imports no Pixi, Three or Jolt code. `pnpm check:imports` checks the built output, and `tests/publicApi.test.ts` fails if core loads any of them.
 New core code must keep it that way: put anything that needs a renderer in the entry for that renderer.
 
 Each renderer entry adds to core types when it is imported, and to core classes when it loads:
@@ -168,7 +164,6 @@ These are kept working and tested, but get no new features. Fix bugs in them; do
 - Physics (Jolt): `src/core/Physics/`
 - 3D setup and stats: `src/core/Bootstrap.ts`, `src/core/Util/Stats.ts`
 - Window-level input for 3D: `src/core/InputSystem/`, exported from `fenrir-ts/3d`
-- Editor (Monaco): `src/editor/`
 
 New work goes into the 2D path: `src/core/Renderer2D/`, `src/core/Input/`, `src/core/Motion/`, `src/core/Audio/`, `src/core/Storage/`, `src/core/UI/`, ECS, scheduling and events.
 
@@ -197,4 +192,4 @@ These are planned in [#12](https://github.com/Wolfleader101/fenrir-ts/issues/12)
 - UI beyond controls: layout, grids, scrolling, styled widgets, text input, drag and drop, gamepad navigation, and a DOM mirror of the controls for assistive technology (`fenrir-ts/ui` has controls, modal scopes and canvas `aria-*` output only: see above)
 - Music streaming and the rest of [#39](https://github.com/Wolfleader101/fenrir-ts/issues/39) (audio, storage and UI controls exist: see above)
 
-`createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games and the editor until they go internal.
+`createGame` is the way to start a 2D game. `Engine`, `Scheduler`, `EventBus` and `SceneManager` stay exported for 3D games until they go internal.

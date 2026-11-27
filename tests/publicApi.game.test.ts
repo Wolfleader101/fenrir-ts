@@ -8,9 +8,6 @@ vi.mock("three", () => {
 vi.mock("jolt-physics/wasm-compat", () => {
   throw new Error("a 2D game imported jolt-physics");
 });
-vi.mock("monaco-editor", () => {
-  throw new Error("a 2D game imported monaco-editor");
-});
 
 let core: typeof import("@/index");
 let twoD: typeof import("@/2d");

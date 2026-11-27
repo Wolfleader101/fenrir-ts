@@ -1,6 +1,6 @@
 // Fails when a built entry point can reach a peer package it must not load.
 //
-// Core (`fenrir-ts`, dist/index.js) may load none of the renderer, physics or editor
+// Core (`fenrir-ts`, dist/index.js) may load none of the renderer or physics
 // packages, and no skybox images. Each other entry may load only its own peers, so
 // a 2D game (core plus fenrir-ts/2d) never loads Three.js.
 //
@@ -24,17 +24,11 @@ const PEERS = [
   "pixi.js",
   "three",
   "jolt-physics",
-  "monaco-editor",
-  "lit",
-  "lit-html",
-  "lit-element",
-  "@lit",
-  "@lit-labs",
 ];
 /** The embedded skybox images (a 146 kB chunk). Only 3D may load them. */
 const SKYBOX_IMAGES = "src/core/Skybox/assets/";
 
-/** What each entry may load. The editor entry is not checked: it loads everything. */
+/** What each entry may load. */
 const ENTRIES = {
   "index.js": { name: "fenrir-ts (core)", allow: [], images: false },
   "2d.js": { name: "fenrir-ts/2d", allow: ["pixi.js"], images: false },
@@ -120,7 +114,7 @@ for (const [entry, rules] of Object.entries(ENTRIES)) {
 
 if (failed) {
   console.error(
-    "\nCore (fenrir-ts) must load no Pixi, Three, Jolt, Monaco or Lit code and no skybox images," +
+    "\nCore (fenrir-ts) must load no Pixi, Three or Jolt code and no skybox images," +
       " and each other entry only its own peers. Move the import into the entry that owns it.",
   );
   process.exit(1);

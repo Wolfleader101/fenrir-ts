@@ -5,9 +5,6 @@ import { Vector3 } from "three";
 vi.mock("pixi.js", () => {
   throw new Error("fenrir-ts/physics imported pixi.js");
 });
-vi.mock("monaco-editor", () => {
-  throw new Error("fenrir-ts/physics imported monaco-editor");
-});
 
 /** `fenrir-ts` plus `fenrir-ts/physics`, imported the way a game with physics does. */
 let core: typeof import("@/index");

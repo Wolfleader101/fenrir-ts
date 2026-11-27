@@ -14,7 +14,7 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 
 ## Project setup
 
-- `package.json`: `"type": "module"`; dependencies `fenrir-ts` and `pixi.js` (8.x, for `/2d` and `/ui`), installed with `npm install fenrir-ts pixi.js`; dev dependencies `typescript` and `vitest` (and a bundler such as Vite for the browser build). Every other peer is optional and needed only by the frozen entries (`three`, `jolt-physics`, `monaco-editor`), so the 2D path installs nothing else and gets no peer warnings. At 0.x a breaking change bumps the minor version: pin `~0.x.y` and read `node_modules/fenrir-ts/CHANGELOG.md` before upgrading.
+- `package.json`: `"type": "module"`; dependencies `fenrir-ts` and `pixi.js` (8.x, for `/2d` and `/ui`), installed with `npm install fenrir-ts pixi.js`; dev dependencies `typescript` and `vitest` (and a bundler such as Vite for the browser build). Every other peer is optional and needed only by the frozen entries (`three`, `jolt-physics`), so the 2D path installs nothing else and gets no peer warnings. At 0.x a breaking change bumps the minor version: pin `~0.x.y` and read `node_modules/fenrir-ts/CHANGELOG.md` before upgrading.
 - `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]` (Vitest 4's types use `Disposable`), `"strict": true`, `"skipLibCheck": true`.
 - Vitest needs no environment and no config for headless tests: `createTestGame`, `ui({ root })`, Pixi `Container`/`Graphics`/`Sprite` and `Texture.WHITE` all work in the default `node` environment. Use `jsdom` only for code that touches `document` or `window`.
 
@@ -2295,7 +2295,7 @@ class Engine {
 }
 ```
 
-The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path and the editor.
+The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path.
 
 Members:
 

@@ -4,9 +4,9 @@
 //   asset, test or stray file ships; every file "exports" names is present; and
 //   `pnpm pack` (what check:consumer installs) lists the same files.
 // - The packed and unpacked sizes stay within "package" in size-budget.json.
-// - The manifest: no runtime "dependencies" (the editor bundles lit and lucide),
-//   every peer optional, and "homepage" and "bugs" on the "repository" URL, so a
-//   repository move fails here until all three agree.
+// - The manifest: no runtime "dependencies", every peer optional, and
+//   "homepage" and "bugs" on the "repository" URL, so a repository move
+//   fails here until all three agree.
 // - publint and @arethetypeswrong/cli (ESM-only profile: the package has no
 //   CommonJS build) pass on the real tarball.
 //

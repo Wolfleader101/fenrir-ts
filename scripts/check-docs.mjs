@@ -31,10 +31,9 @@ const ENTRIES = {
   "fenrir-ts/physics": "./src/physics.ts",
   "fenrir-ts/audio": "./src/audio.ts",
   "fenrir-ts/ui": "./src/ui.ts",
-  "fenrir-ts/editor": "./src/editor/index.ts",
 };
 /** Packages an example may import besides the entries: the peers and the test runner. */
-const ALLOWED = /^(pixi\.js|three|three\/.*|jolt-physics|monaco-editor|monaco-editor\/.*|vitest|@playwright\/test)$/;
+const ALLOWED = /^(pixi\.js|three|three\/.*|jolt-physics|vitest|@playwright\/test)$/;
 
 let failed = false;
 const importErrors = [];

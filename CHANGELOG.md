@@ -11,15 +11,21 @@ The first release on npm. Before it, games built the engine from a checkout; `0.
 ### Published to npm (#13, #15, #18, #24, part of #25)
 
 - **Install from the registry**: `npm install fenrir-ts pixi.js` for a 2D game. README "Installation" lists the peers per entry point.
-- **Every peer is optional** (`pixi.js`, `three`, `jolt-physics`, `monaco-editor`), so installing `fenrir-ts` installs only what you list. Before, npm and pnpm installed all of them, plus Tailwind, for every game: 106 packages and 358 MB for a game with no peers, now 1 package.
-- **No runtime dependencies.** `lit`, `lucide` and the signals packages were always bundled into `fenrir-ts/editor`; they are no longer installed beside it. `tailwindcss`, `@tailwindcss/vite`, `@tailwindcss/postcss` and `postcss` are build tools of this repository only, and the unused `signal-utils` is gone.
+- **Every peer is optional** (`pixi.js`, `three`, `jolt-physics`), so installing `fenrir-ts` installs only what you list. Before, npm and pnpm installed `three` and `jolt-physics` for every game, 2D or not, and `pixi.js` for games without it: with npm, a game that lists no peer went from 15 packages (177 MB) to `fenrir-ts` alone (2 MB), and a 2D game from 177 MB to 95 MB.
 - **`pixi.js` peer `^8.16.0`**: one Pixi major, the one the engine is built and tested with. A new Pixi major arrives in an engine release.
-- **Declarations work with `"moduleResolution": "node16"` and `"nodenext"`**: their relative imports and `declare module` augmentations now name files (`./core/Game.js`). Before, a `nodenext` project saw no exports at all. Some editor and 3D declarations also imported the build machine's `src/` by absolute path; they no longer do.
-- **Smaller package**: 483 kB packed, 1.49 MB unpacked, down from 866 kB and 2.78 MB. Source maps no longer ship (the code is not minified, so stack traces read as they did), and the published files carry no `sourceMappingURL`.
+- **Declarations work with `"moduleResolution": "node16"` and `"nodenext"`**: their relative imports and `declare module` augmentations now name files (`./core/Game.js`). Before, a `nodenext` project saw no exports at all, and the augmentations (the 2D builder and asset methods) did not apply. Two 3D declarations imported the build machine's `src/` by absolute path when built on Windows; they no longer do.
+- **Smaller package**: 408 kB packed and 1.20 MB unpacked, down from 688 kB and 2.06 MB. Source maps no longer ship (the code is not minified, so stack traces read as they did), and the published files carry no `sourceMappingURL`.
 - **`fenrir-ts/package.json`** is exported, and the manifest has `repository`, `homepage`, `bugs`, `author`, `engines` (Node 20 or later) and `publishConfig`.
 - For contributors: `pnpm check:package` (in CI) fails when the tarball holds a file outside its allowed list, passes its size budget in `size-budget.json`, lists a runtime dependency or a required peer, or fails publint or `@arethetypeswrong/cli`. Releases are tagged and published by `.github/workflows/release.yml`, as RELEASING.md says.
 
-Breaking: a game that imports `fenrir-ts/3d`, `/physics` or `/editor` must now list `three`, `jolt-physics` or `monaco-editor` in its own `package.json`, since they are no longer installed for it. Migration: `npm install three` (and `jolt-physics`, `monaco-editor` as needed). A game that relied on `lit` or `lucide` arriving with Fenrir installs them itself.
+Breaking: a game that imports `fenrir-ts/3d` or `fenrir-ts/physics` must now list `three` (and `jolt-physics` for physics) in its own `package.json`, since they are no longer installed for it. Migration: `npm install three jolt-physics` as needed.
+
+### Removed: the `fenrir-ts/editor` entry
+
+- **Breaking.** The Monaco live code editor is gone: `fenrir-ts/editor` (`bootstrapEditor`, the sandbox, transpiler and Lit controls), the `monaco-editor.html` demo, and the `types:bundle` and `check:editor-types` scripts. `skills/fenrir/references/3d-and-editor.md` is now `3d-and-physics.md`, and `skills/fenrir/api/editor.md` is gone.
+- The package no longer depends on `lit`, `lit-html`, `@lit-labs/signals`, `signal-polyfill`, `signal-utils`, `lucide`, `postcss` or `@tailwindcss/postcss`, and no longer lists `monaco-editor`, `tailwindcss` or `@tailwindcss/vite` as peers. The demo pages no longer use Tailwind.
+
+Migration: nothing in the engine depended on the editor. A project that imported `fenrir-ts/editor` keeps an older version or embeds Monaco itself.
 
 ### Agent docs ship in the package (part of #39)
 

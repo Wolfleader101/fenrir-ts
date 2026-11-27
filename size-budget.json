@@ -4,7 +4,6 @@
     "2d.js": 41500,
     "3d.js": 60000,
     "physics.js": 25000,
-    "editor.js": 256000,
     "audio.js": 24000,
     "ui.js": 14000
   },
@@ -43,7 +42,7 @@
     }
   },
   "package": {
-    "packed": 508000,
-    "unpacked": 1561000
+    "packed": 430000,
+    "unpacked": 1266000
   }
 }

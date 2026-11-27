@@ -29,7 +29,7 @@ const REFERENCES = [
   { file: "storage.md", about: "the `storage()` plugin, keys, migrations, families and `persistResource`", full: true },
   { file: "audio.md", about: "`fenrir-ts/audio`: sounds, buses, unlock and test audio", full: true },
   { file: "ui.md", about: "`fenrir-ts/ui`: controls, modal scopes, focus and accessibility", full: true },
-  { file: "3d-and-editor.md", about: "the frozen 3D path, physics and the Monaco editor: kept working, no new features", full: false },
+  { file: "3d-and-physics.md", about: "the frozen 3D path and physics: kept working, no new features", full: false },
 ];
 
 /** The API pages, as scripts/api-reference.mjs names them. Frozen entries stay out of llms-full.txt. */
@@ -40,7 +40,6 @@ const API = [
   { file: "audio.md", entry: "fenrir-ts/audio", full: true },
   { file: "3d.md", entry: "fenrir-ts/3d (frozen)", full: false },
   { file: "physics.md", entry: "fenrir-ts/physics (frozen)", full: false },
-  { file: "editor.md", entry: "fenrir-ts/editor (frozen)", full: false },
 ];
 
 const refDir = "skills/fenrir/references";
@@ -61,7 +60,7 @@ function renderLlms() {
   const lines = [
     "# Fenrir TS",
     "",
-    `> Fenrir TS is a TypeScript game engine for the browser, 2D-first on PixiJS: one package, \`${pkg.name}\`, with entry points \`fenrir-ts\` (core: ECS, named systems in stages, events, resources, states, input, timers and tweens, asset manifests, storage, test games, inspection), \`fenrir-ts/2d\` (Pixi renderer and design frame), \`fenrir-ts/ui\` (controls on Pixi nodes), \`fenrir-ts/audio\` (sounds) and the frozen \`fenrir-ts/3d\`, \`fenrir-ts/physics\` and \`fenrir-ts/editor\`. Each feature is an opt-in plugin that costs nothing when not imported, and every game runs headless under \`createTestGame\` with deterministic \`step\`.`,
+    `> Fenrir TS is a TypeScript game engine for the browser, 2D-first on PixiJS: one package, \`${pkg.name}\`, with entry points \`fenrir-ts\` (core: ECS, named systems in stages, events, resources, states, input, timers and tweens, asset manifests, storage, test games, inspection), \`fenrir-ts/2d\` (Pixi renderer and design frame), \`fenrir-ts/ui\` (controls on Pixi nodes), \`fenrir-ts/audio\` (sounds) and the frozen \`fenrir-ts/3d\` and \`fenrir-ts/physics\`. Each feature is an opt-in plugin that costs nothing when not imported, and every game runs headless under \`createTestGame\` with deterministic \`step\`.`,
     "",
     "Paths are relative to the package root (`node_modules/fenrir-ts/`). Start with the guide; it links to the rest.",
     "",

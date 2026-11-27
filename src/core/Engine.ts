@@ -59,7 +59,7 @@ type EngineRun = {
   ctx?: SystemCtx;
 };
 
-/** The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path and the editor. */
+/** The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path. */
 export class Engine {
   private readonly time: Time;
   private readonly scheduler: Scheduler;

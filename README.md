@@ -24,7 +24,6 @@ pnpm add fenrir-ts pixi.js
 | `fenrir-ts/audio` | none (Web Audio) |
 | `fenrir-ts/3d` | `three` 0.182 (and `@types/three` for TypeScript) |
 | `fenrir-ts/physics` | `jolt-physics` 1 and `three` 0.182 |
-| `fenrir-ts/editor` | `monaco-editor` 0.55.1, plus `three` and `jolt-physics` for its sandbox |
 
 Every peer is optional, so the package manager installs only the ones you list and warns about none. Importing an entry whose peer is missing fails, naming the package: Node throws `Cannot find package 'three'`, and a Vite build fails with `"Vector3" is not exported by "__vite-optional-peer-dep:three:fenrir-ts"` (the peer, then the package that needs it). Each entry supports one major of its peer, the one it is built and tested with; a new major arrives in an engine release. The package is ES modules only, with types for `"moduleResolution"` `"bundler"`, `"node16"` and `"nodenext"`. Releases follow [CHANGELOG.md](CHANGELOG.md): at 0.x, a breaking change bumps the minor version, so depend on `"fenrir-ts": "~0.2.0"` to take only fixes.
 
@@ -87,7 +86,6 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 | `fenrir-ts/physics` | Jolt physics system, components and builder methods |
 | `fenrir-ts/audio` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound` |
 | `fenrir-ts/ui` | UI controls on Pixi nodes: the `ui()` plugin, `control`, `modalScope`, `UiFocus`, `ControlActivated`, `paginate`, `activateControl`, `listControls` |
-| `fenrir-ts/editor` | Monaco live code editor |
 
 Importing `fenrir-ts/2d`, `fenrir-ts/3d` or `fenrir-ts/physics` also adds that entry's methods to `EntityBuilder` and `AssetStore`, so `renderSprite` and `requestTexture2D` exist once you import `fenrir-ts/2d`.
 
@@ -125,7 +123,7 @@ Each service is documented once, in `skills/fenrir/references/`, which ships in 
 | [Storage](skills/fenrir/references/storage.md) | `storage()`, keys, versions and migrations, families, `persistResource` |
 | [Audio](skills/fenrir/references/audio.md) | `fenrir-ts/audio`: sounds, buses, unlock, test audio |
 | [UI controls](skills/fenrir/references/ui.md) | `fenrir-ts/ui`: controls, modal scopes, focus, keys, accessibility |
-| [3D, physics and the editor](skills/fenrir/references/3d-and-editor.md) | the frozen `fenrir-ts/3d`, `fenrir-ts/physics` and `fenrir-ts/editor` |
+| [3D and physics](skills/fenrir/references/3d-and-physics.md) | the frozen `fenrir-ts/3d` and `fenrir-ts/physics` |
 | [API reference](skills/fenrir/api/README.md) | every export of every entry point, generated from the TSDoc |
 
 Breaking changes, each with a migration line, are in [CHANGELOG.md](CHANGELOG.md). Changing the engine itself: [AGENTS.md](AGENTS.md).

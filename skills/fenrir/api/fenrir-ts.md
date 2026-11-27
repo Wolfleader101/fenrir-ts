@@ -645,7 +645,7 @@ class Engine {
 }
 ```
 
-The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path and the editor.
+The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path.
 
 Members:
 
