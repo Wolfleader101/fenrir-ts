@@ -49,3 +49,33 @@ jobs:
         run: pnpm check:package
       - name: Install the tarball with npm and pnpm the way a consumer does (peers, imports, types)
         run: pnpm check:install
+      - name: Create the starter game from the tarball and run its type-check, tests and build
+        run: pnpm check:template
+
+  # The starter game's Playwright test, in a job of its own so it runs alongside `check`.
+  template-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          version: '12.18.0'
+          runtime: node@24
+          install: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the library
+        run: pnpm build:lib
+      - name: Playwright's version in the template
+        id: playwright
+        run: echo "version=$(node -p "require('./templates/game-2d/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright's browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Create the starter game from the tarball and run its browser test
+        run: pnpm check:template --e2e

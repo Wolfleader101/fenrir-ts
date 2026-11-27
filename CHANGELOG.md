@@ -4,6 +4,12 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### A starter game: `npx fenrir-ts create`
+
+- `npx fenrir-ts@latest create my-game` copies a starter game that ships in the package into a new folder: a `pixi2d` game (one action, one state, one `.png` texture, one entity drawn through a `PixiNode`), gameplay in `src/game.ts` tested headless with Vitest, a Playwright test that reads `window.__FENRIR__.inspect()`, a GitHub Actions workflow, and `AGENTS.md` / `CLAUDE.md` pointing coding agents at the guide in the package. It depends on the `fenrir-ts` version that created it. Nothing in the engine's entry points changed.
+- Docs: a minified production build renames functions, and a system's name is its function's name. `SKILL.md` and `references/core.md` now say to keep names (Vite: `esbuild: { keepNames: true }`, as the starter game does) or name every system.
+- For contributors: `pnpm check:template` (in CI) creates the starter game from the packed tarball and runs its type-check, tests and build. The `template-browser` CI job also runs its Playwright test on every pull request.
+
 ## 0.2.1
 
 The first release staged by the release workflow. No change to the package's code: games can stay on 0.2.0.

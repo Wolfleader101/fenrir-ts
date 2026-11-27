@@ -50,7 +50,7 @@ game.addSystem(Schedule.Init, spawnPlayer).addSystem(Schedule.Update, regenerate
 
 ## Named systems
 
-A system's name is its function name, or the `name` option. An anonymous function with no `name` throws, and two systems in one stage cannot share a name. Within a stage, systems run in registration order unless `before` or `after` says otherwise. `runIf` is checked each time the system would run.
+A system's name is its function name, or the `name` option. An anonymous function with no `name` throws, and two systems in one stage cannot share a name. A minifier renames functions, or drops the name of a function expression, so a production build needs names kept (Vite: `esbuild: { keepNames: true }`) or a `name` on every system; without that it throws or `before` / `after` stop matching. Within a stage, systems run in registration order unless `before` or `after` says otherwise. `runIf` is checked each time the system would run.
 
 ```ts
 import { Schedule, type SystemCtx } from "fenrir-ts";
