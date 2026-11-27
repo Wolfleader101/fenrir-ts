@@ -4,15 +4,23 @@
 //
 //   node scripts/check-release.mjs          the release workflow's dry run
 //   node scripts/check-release.mjs v0.2.0   also checks the tag names this version
+//   ... --notes <file>                       and writes the version's notes there (the GitHub release)
 // See RELEASING.md.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8").replaceAll("\r\n", "\n");
-const tag = process.argv[2];
+const args = process.argv.slice(2);
+const notesAt = args.indexOf("--notes");
+const notesFile = notesAt >= 0 ? args.splice(notesAt, 2)[1] : undefined;
+if (notesAt >= 0 && !notesFile) {
+  console.error("--notes needs a file path.");
+  process.exit(1);
+}
+const tag = args[0];
 const failures = [];
 
 if (!/^\d+\.\d+\.\d+$/.test(version)) failures.push(`package.json "version" is "${version}", not MAJOR.MINOR.PATCH.`);
@@ -41,4 +49,6 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`- ${message}`);
   process.exit(1);
 }
+if (notesFile) writeFileSync(notesFile, `${notes}
+`);
 console.log(`release: ${tag ?? "(no tag given)"} publishes fenrir-ts@${version}, with notes in CHANGELOG.md.`);

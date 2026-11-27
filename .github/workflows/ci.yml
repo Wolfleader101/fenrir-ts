@@ -47,3 +47,5 @@ jobs:
         run: pnpm check:consumer
       - name: Check the published tarball (allowed files, size, manifest, publint, attw)
         run: pnpm check:package
+      - name: Install the tarball with npm and pnpm the way a consumer does (peers, imports, types)
+        run: pnpm check:install

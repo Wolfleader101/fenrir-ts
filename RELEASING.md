@@ -21,7 +21,7 @@ Add its notes under `## Unreleased` in `CHANGELOG.md`, as before. Nothing else.
    - Set the version: `npm version 0.3.0 --no-git-tag-version` (or edit `package.json`).
    - In `CHANGELOG.md`, rename the content of `## Unreleased` into a new `## 0.3.0` section below it, and leave `## Unreleased` empty.
    - `pnpm check:release v0.3.0` passes. Merge the PR once CI is green.
-2. **Dry run (optional).** Actions → Release → Run workflow, on `main`. It runs CI, packs, and runs `npm publish --dry-run`. It cannot publish.
+2. **Dry run (optional).** Actions → Release → Run workflow, on `main`. It runs CI, packs, runs `npm publish --dry-run`, and shows the release notes a tag would get in the run summary. It cannot publish.
 3. **Tag `main`.** Only the owner pushes tags:
    ```sh
    git switch main && git pull --ff-only
@@ -29,7 +29,8 @@ Add its notes under `## Unreleased` in `CHANGELOG.md`, as before. Nothing else.
    git push origin v0.3.0
    ```
 4. **The Release workflow publishes.** On the tag it runs every CI step, checks the tag names `package.json`'s version, the tagged commit is on `main` and `CHANGELOG.md` has the notes, builds, runs `check:package` and runs `npm publish`, authenticated by npm trusted publishing, with provenance. Approve the `npm` environment if it has a required reviewer.
-5. **Verify** (see below), then optionally make a GitHub release from the tag with the `CHANGELOG.md` section as its notes.
+5. **The GitHub release is made for you**: a last job creates it from the tag, titled `fenrir-ts 0.3.0`, with the `## 0.3.0` section of `CHANGELOG.md` as its notes. It skips a release that already exists, so you can write one by hand first.
+6. **Verify** (see below).
 
 A tag whose version is already on npm publishes nothing (the run says so).
 
@@ -63,7 +64,7 @@ Trusted publishing (npm's OIDC exchange with GitHub Actions, no stored token) ca
    npm publish --access public   # prepublishOnly runs the tests, build:lib and check:package; npm asks for the 2FA code
    ```
    This version has no provenance (provenance needs a CI build); later ones do. If npm rejects the name as too similar to an existing package, nothing was published: publish under a scope instead (`@<your-npm-user>/fenrir-ts`, with `--access public`), which changes every import path, so ask an agent for that rename across `package.json`, the docs and the checks first.
-3. **Tag that commit** (`git tag -a v0.2.0 -m "fenrir-ts 0.2.0" && git push origin v0.2.0`). The Release workflow runs CI and, seeing the version on npm, publishes nothing.
+3. **Tag that commit** (`git tag -a v0.2.0 -m "fenrir-ts 0.2.0" && git push origin v0.2.0`). The Release workflow runs CI and, seeing the version on npm, publishes nothing, then makes the GitHub release for 0.2.0.
 4. **Add the trusted publisher**: npmjs.com → fenrir-ts → Settings → Trusted publishing → GitHub Actions. Owner `Wolfleader101`, repository `fenrir-ts`, workflow `release.yml`, environment `npm`. Every field must match exactly ([trusted publishers](https://docs.npmjs.com/trusted-publishers)).
 5. **Create the `npm` environment** in the GitHub repository (Settings → Environments → New environment → `npm`): deployment branches and tags → selected → tag pattern `v*.*.*`. Optionally add yourself as a required reviewer.
 6. **Disallow tokens**: npmjs.com → fenrir-ts → Settings → Publishing access → "Require two-factor authentication and disallow tokens". Trusted publishing keeps working.

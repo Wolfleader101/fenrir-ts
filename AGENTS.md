@@ -43,6 +43,7 @@ pnpm check:size   # each entry in dist/ stays within size-budget.json
 pnpm check:imports  # core loads no renderer or physics package; other entries only their own peers
 pnpm check:consumer  # bundles the fixture games in scripts/consumer/ the way a consumer would and checks their size
 pnpm check:package   # the npm tarball: allowed files only, size budget, manifest rules, publint and attw
+pnpm check:install   # installs the tarball with npm and pnpm, with and without pixi.js: no peer warnings, imports, types (bundler, nodenext)
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. Examples import only `fenrir-ts`, its entry points and peer packages, never `@/` or `src/`. A README or reference fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`; a `skills/fenrir/SKILL.md` block gets nothing and must compile on its own.
@@ -54,6 +55,8 @@ If `check:imports` fails, it names the entry, the chunk and the package or file 
 If `check:size` fails, find what grew before raising the budget. Raise it with `node scripts/check-size.mjs --update` only when the growth is intended, and say so in the PR.
 
 If `check:package` fails, it names the rule. A file outside its allowed list means `files` in `package.json` or the build put something in the tarball a consumer does not need; widen `ALLOWED` in `scripts/check-package.mjs` only for a file a consumer reads. The package has no runtime `dependencies` (build tools are dev dependencies) and every peer is optional (`peerDependenciesMeta`). Do not add `"sideEffects"`: it was measured to save nothing and broke consumers twice (publint suggests it; that suggestion is expected). The build writes source maps as `"hidden"` for `check:imports` and `check:consumer`; they do not ship. Declarations are post-processed in `vite.config.lib.ts` so every relative import names its `.js` file, which `node16` and `nodenext` consumers need; published sources use relative imports, not `@/`.
+
+If `check:install` fails, it names the package manager, the project and the step. A peer warning or a `/3d` import that succeeds means `peerDependencies` or `peerDependenciesMeta` changed; a `nodenext` type error means a declaration import lost its `.js` (see `addDeclarationExtensions` in `vite.config.lib.ts`). `node scripts/check-install.mjs --keep` leaves the projects to inspect. It needs the network for `pixi.js`.
 
 Releases: [`RELEASING.md`](RELEASING.md). A PR adds its notes under `## Unreleased` in `CHANGELOG.md` and does not change the version; a release PR does.
 

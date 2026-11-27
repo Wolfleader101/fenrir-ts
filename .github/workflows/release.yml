@@ -9,6 +9,9 @@
 #   and the "npm" environment. Provenance is attached by npm.
 # - Fallback: if the repository's "npm" environment has an NPM_TOKEN secret,
 #   that token is used instead (see RELEASING.md).
+# - After a publish (or a tag whose version was already on npm), the
+#   github-release job makes the GitHub release, with the version's
+#   CHANGELOG.md section as its notes. Only that job can write to the repository.
 # Safe to merge before any credentials exist: nothing here runs on a branch push.
 name: Release
 
@@ -52,7 +55,12 @@ jobs:
       - name: Check the tarball
         run: pnpm check:package
       - name: Check the version and its changelog section (warns only on a dry run)
-        run: pnpm check:release || echo "::warning::check:release fails, so a tag of this commit would not publish. See the log above."
+        run: |
+          if pnpm check:release --notes "$RUNNER_TEMP/notes.md"; then
+            { echo "## Release notes a tag of this commit would get"; echo; cat "$RUNNER_TEMP/notes.md"; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::check:release fails, so a tag of this commit would not publish. See the log above."
+          fi
       - name: npm publish --dry-run
         run: npm publish --dry-run --ignore-scripts --access public
 
@@ -132,3 +140,28 @@ jobs:
         # Tests ran in the ci job on this commit, and dist/ was built and checked
         # above, so prepublishOnly is skipped.
         run: npm publish --provenance --access public --ignore-scripts
+
+  github-release:
+    name: GitHub release
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # create the release; nothing else in this workflow can write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Notes from CHANGELOG.md
+        run: node scripts/check-release.mjs "$GITHUB_REF_NAME" --notes "$RUNNER_TEMP/notes.md"
+      - name: Create the release (skipped if it exists)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::notice::The release $GITHUB_REF_NAME already exists."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "fenrir-ts $version" --notes-file "$RUNNER_TEMP/notes.md"
