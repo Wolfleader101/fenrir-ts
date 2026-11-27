@@ -127,7 +127,9 @@ it("scores taps until time runs out", async () => {
 
 Two things this shows. A state set in one system is live for the next system **in the same frame**, and that system sees the same input: consume what you have handled. And the test drives input with `press`/`release` and frames with `step`, never with timers.
 
-The page needs `<canvas id="game"></canvas>` and `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. With `design`, `pixi2d` sizes the canvas to the window itself.
+Plugin order: `pixi2d` first, then `motion()`, `storage()`, `audio()`, and `ui({ pixi })` last (it must come after `pixi2d`; `motion()` before it makes timers advance before the kit's activations in `PreUpdate`). Hooks (`onEnter`, `onExit`) and `game.on` listeners may be anonymous; only systems need names.
+
+The page needs `<canvas id="game"></canvas>`, a `<script type="module" src="/src/main.ts"></script>` (Vite) and `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. With `design`, `pixi2d` sizes the canvas to the window itself.
 
 ## Systems and order
 
@@ -331,6 +333,7 @@ const sparkle: Texture | undefined = getAsset(game, Art, "sparkle"); // undefine
 console.log(game.resources.get(Art.progress).bundles.reef.fraction, reef.label, sparkle); // 1 "reef" undefined
 ```
 
+- `texture2d` sources must be `.png`, `.jpg`/`.jpeg`, `.webp`, `.gif` or `.bmp`: an `.svg` fails to load. `src` is a URL relative to the page (with Vite, `public/img/logo.png` is `img/logo.png`).
 - Declare each asset once; a wrong asset or bundle name is a compile error, and `getAsset` is typed by kind (a Pixi `Texture` for `texture2d`, no cast).
 - `loadAssets` is idempotent (same promise while loading or loaded; retries failures). An asset in two bundles loads once and is kept until the last holder unloads. `loadAsset(ctx, manifest, name | names)` / `unloadAsset` hold single assets by name with no bundle, for lazy images.
 - `getAsset` throws until loaded: wait for `AssetBundleLoaded` / `AssetLoaded`, or read `ctx.resources.get(manifest.progress)` (a HUD reads it each frame).

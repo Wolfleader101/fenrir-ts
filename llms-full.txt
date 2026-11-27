@@ -128,7 +128,9 @@ it("scores taps until time runs out", async () => {
 
 Two things this shows. A state set in one system is live for the next system **in the same frame**, and that system sees the same input: consume what you have handled. And the test drives input with `press`/`release` and frames with `step`, never with timers.
 
-The page needs `<canvas id="game"></canvas>` and `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. With `design`, `pixi2d` sizes the canvas to the window itself.
+Plugin order: `pixi2d` first, then `motion()`, `storage()`, `audio()`, and `ui({ pixi })` last (it must come after `pixi2d`; `motion()` before it makes timers advance before the kit's activations in `PreUpdate`). Hooks (`onEnter`, `onExit`) and `game.on` listeners may be anonymous; only systems need names.
+
+The page needs `<canvas id="game"></canvas>`, a `<script type="module" src="/src/main.ts"></script>` (Vite) and `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. With `design`, `pixi2d` sizes the canvas to the window itself.
 
 ## Systems and order
 
@@ -332,6 +334,7 @@ const sparkle: Texture | undefined = getAsset(game, Art, "sparkle"); // undefine
 console.log(game.resources.get(Art.progress).bundles.reef.fraction, reef.label, sparkle); // 1 "reef" undefined
 ```
 
+- `texture2d` sources must be `.png`, `.jpg`/`.jpeg`, `.webp`, `.gif` or `.bmp`: an `.svg` fails to load. `src` is a URL relative to the page (with Vite, `public/img/logo.png` is `img/logo.png`).
 - Declare each asset once; a wrong asset or bundle name is a compile error, and `getAsset` is typed by kind (a Pixi `Texture` for `texture2d`, no cast).
 - `loadAssets` is idempotent (same promise while loading or loaded; retries failures). An asset in two bundles loads once and is kept until the last holder unloads. `loadAsset(ctx, manifest, name | names)` / `unloadAsset` hold single assets by name with no bundle, for lazy images.
 - `getAsset` throws until loaded: wait for `AssetBundleLoaded` / `AssetLoaded`, or read `ctx.resources.get(manifest.progress)` (a HUD reads it each frame).
@@ -1294,7 +1297,7 @@ game
 await game.run();
 ```
 
-- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself; a helper of your own that calls them takes `AssetCtx`. An asset's `src` is a URL the browser fetches relative to the page: with Vite, a file in `public/img/` is `img/logo.png`. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
+- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself; a helper of your own that calls them takes `AssetCtx`. An asset's `src` is a URL the browser fetches relative to the page: with Vite, a file in `public/img/` is `img/logo.png`. The `texture2d` loader takes `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp` and `.gif`; any other extension (`.svg` included) fails that asset with "Unsupported ... format", unless the game registers a loader for it with `assets.registerTexture2DLoader`. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
 - **Loading.** A loading or loaded bundle returns the same promise; an asset in two bundles loads once. Await `loadAssets` in a `PreInit` system to hold `run()` until a bundle is ready, or call it without awaiting and watch progress. Loads are not tied to a run: they finish after `stop()`, and loaded bundles stay loaded across `stop()` and `run()`, like entities.
 - **Progress.** `ctx.resources.get(manifest.progress)` is plain data updated as each asset settles: `loaded`, `missing`, `failed`, `total` and `fraction` (`(loaded + missing) / total`) over every held asset, the same per bundle with its `status` (`unloaded`, `loading`, `loaded`, `failed`), and each asset's `status` (`unloaded`, `loading`, `loaded`, `fallback`, `missing`, `failed`), `error`, the `bundles` holding it and `direct` (held by `loadAsset`). `inspect(game)` shows it under the manifest's name. A bundle sends `AssetBundleLoaded { manifest, bundle, fallbacks, missing }` or `AssetBundleFailed { manifest, bundle, failures }` when it settles.
 - **Failure.** Every asset of a bundle is tried. One that fails shows its declared `fallback` (another asset of the same kind, which every bundle listing it also loads) and the failure is logged as a warning. One that fails without a fallback fails the bundle: it is logged, `AssetBundleFailed` is sent and the promise rejects with an `AssetBundleError` whose `failures` name each asset, source and error. The assets that loaded stay loaded. Calling `loadAssets` again retries the failed assets; nothing retries on its own.
