@@ -1,0 +1,6 @@
+# Files that ship in the package and run or are copied as-is keep LF on every checkout.
+# With core.autocrlf on Windows they would otherwise get CRLF: pnpm refuses a bin whose
+# shebang ends in CRLF (ERR_PNPM_BIN_CRLF), and `npx fenrir-ts create` would copy CRLF files.
+bin/** text eol=lf
+templates/** text eol=lf
+*.png binary
