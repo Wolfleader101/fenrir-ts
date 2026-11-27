@@ -238,4 +238,50 @@ describe("ui with pixi2d", () => {
     game.step();
     expect(canvas.getAttribute("aria-label")).toBe("A game");
   });
+
+  describe("layers", () => {
+    /** One control in each place a game can draw: the two layers, straight under root, and the backdrop. */
+    function drawEverywhere(pixi: ReturnType<typeof pixi2d>): void {
+      const { renderer } = pixi;
+      const button = (parent: Container, id: string, x: number) =>
+        control(parent.addChild(new Graphics().rect(0, 0, 40, 40).fill(0)), { id, label: id }).position.set(x, 10);
+      button(renderer.layer("world"), "world", 0);
+      button(renderer.layer("overlay"), "overlay", 100);
+      button(renderer.root, "root", 200);
+      button(renderer.backdrop, "backdrop", 300);
+    }
+    const ids = (game: Game) => listControls(game).map((c) => c.id).sort();
+
+    it("walks backdrop and every layer and root without layers", async () => {
+      const { game, pixi } = await start();
+      drawEverywhere(pixi);
+      game.step();
+      expect(ids(game)).toEqual(["backdrop", "overlay", "root", "world"]);
+    });
+
+    it("walks only the listed layers: unlisted layers and nodes straight under root are not live", async () => {
+      const { game, pixi, activated, click } = await start({ layers: ["overlay"] });
+      drawEverywhere(pixi);
+      game.step();
+      expect(ids(game)).toEqual(["overlay"]);
+      // Hit testing stays in root's logical units.
+      expect(listControls(game)[0]!.bounds).toEqual({ x: 100, y: 10, width: 40, height: 40 });
+      click(20, 30); // the world control: not live, so the tap is the game's
+      click(220, 30); // the control straight under root
+      expect(activated).toEqual([]);
+      click(120, 30);
+      expect(activated).toEqual([{ id: "overlay", via: "pointer" }]);
+    });
+
+    it("walks the backdrop only when fenrir.backdrop is listed", async () => {
+      const { game, pixi } = await start({ layers: ["fenrir.backdrop", "world"] });
+      drawEverywhere(pixi);
+      game.step();
+      expect(ids(game)).toEqual(["backdrop", "world"]);
+    });
+
+    it("fails to install for a layer pixi2d does not have, naming the ones it has", async () => {
+      await expect(start({ layers: ["hud"] })).rejects.toThrow(/unknown layer "hud"\. Declared layers: "world", "overlay"/);
+    });
+  });
 });
