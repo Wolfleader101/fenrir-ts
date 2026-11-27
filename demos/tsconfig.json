@@ -1,0 +1,14 @@
+{
+  // The demo pages, type-checked as a consumer would be: they import the engine
+  // only by its package names, which resolve to the entry files in ../src.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "fenrir-ts": ["../src/index.ts"],
+      "fenrir-ts/*": ["../src/*.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": []
+}

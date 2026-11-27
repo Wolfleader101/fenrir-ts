@@ -1,10 +1,9 @@
 {
   "name": "fenrir-ts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "A TypeScript game engine with ECS architecture",
+  "description": "A 2D-first TypeScript game engine for the web: a sparse-set ECS with named systems, PixiJS rendering, and games that test headless.",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -30,13 +29,13 @@
     "./physics": {
       "types": "./dist/physics.d.ts",
       "import": "./dist/physics.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "skills",
-    "llms.txt",
-    "llms-full.txt",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -46,13 +45,16 @@
     "build": "npm run build:lib && npm run build:demos",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:demos": "vite build",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc --noEmit -p demos",
     "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md skills/fenrir/references/core.md skills/fenrir/references/testing.md skills/fenrir/references/input.md skills/fenrir/references/2d.md skills/fenrir/references/motion.md skills/fenrir/references/assets.md skills/fenrir/references/storage.md skills/fenrir/references/audio.md skills/fenrir/references/ui.md skills/fenrir/references/3d-and-physics.md --standalone skills/fenrir/SKILL.md",
     "check:size": "node scripts/check-size.mjs",
     "check:imports": "node scripts/check-entry-imports.mjs",
     "check:consumer": "node scripts/check-consumer-size.mjs",
+    "check:package": "node scripts/check-package.mjs",
+    "check:install": "node scripts/check-install.mjs",
+    "check:release": "node scripts/check-release.mjs",
     "api:reference": "node scripts/api-reference.mjs",
-    "docs:agent": "node scripts/api-reference.mjs && node scripts/agent-docs.mjs",
+    "docs:agent": "node scripts/api-reference.mjs",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
@@ -61,42 +63,68 @@
     "test:watch": "vitest --watch",
     "test:ci": "vitest run --reporter=verbose --coverage",
     "bench": "vitest bench --run",
-    "prepublishOnly": "npm run test:run && npm run build:lib",
-    "check:agent-docs": "node scripts/api-reference.mjs --check && node scripts/agent-docs.mjs --check"
+    "prepublishOnly": "pnpm check:release && pnpm test:run && pnpm build:lib && pnpm check:package",
+    "check:agent-docs": "node scripts/api-reference.mjs --check"
   },
   "keywords": [
     "game-engine",
+    "gamedev",
     "ecs",
+    "entity-component-system",
     "typescript",
-    "three.js",
     "pixi.js",
+    "pixijs",
     "2d",
-    "3d",
-    "physics",
-    "jolt"
+    "webgl",
+    "browser-game"
   ],
-  "author": "",
+  "author": "James Morgan (https://github.com/Wolfleader101)",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "pnpm@12.18.0",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/Wolfleader101/fenrir-ts.git"
+  },
+  "homepage": "https://github.com/Wolfleader101/fenrir-ts#readme",
+  "bugs": {
+    "url": "https://github.com/Wolfleader101/fenrir-ts/issues"
   },
   "peerDependencies": {
     "jolt-physics": "^1.0.0",
-    "pixi.js": "^8.0.0",
+    "pixi.js": "^8.16.0",
     "three": "^0.182.0"
   },
+  "peerDependenciesMeta": {
+    "jolt-physics": {
+      "optional": true
+    },
+    "pixi.js": {
+      "optional": true
+    },
+    "three": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@types/node": "^25.0.6",
     "@types/three": "^0.182.0",
     "@vitest/coverage-v8": "4.0.16",
+    "jolt-physics": "^1.0.0",
     "jsdom": "^27.4.0",
     "pixi.js": "^8.16.0",
+    "publint": "0.3.25",
+    "three": "^0.182.0",
     "typescript": "~5.9.3",
     "vite": "npm:rolldown-vite@7.2.5",
     "vite-plugin-dts": "^4.5.4",
     "vite-plugin-vercel": "^9.1.1",
     "vitest": "^4.0.16"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

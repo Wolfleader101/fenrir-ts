@@ -1,6 +1,6 @@
 # 3D and physics (frozen)
 
-These entry points are kept working and tested but get no new features: `fenrir-ts/3d` (Three.js), and `fenrir-ts/physics` (Jolt). New games should use the 2D path in [SKILL.md](../SKILL.md). Signatures are in [api/3d.md](../api/3d.md) and [api/physics.md](../api/physics.md).
+These entry points are kept working and tested but get no new features: `fenrir-ts/3d` (Three.js), and `fenrir-ts/physics` (Jolt). Their peers are optional, so a game lists them itself: `npm install three` for `/3d` (and `@types/three` for TypeScript), `npm install three jolt-physics` for `/physics`. Without its peer, importing the entry fails, naming the package. New games should use the 2D path in [SKILL.md](../SKILL.md). Signatures are in [api/3d.md](../api/3d.md) and [api/physics.md](../api/physics.md).
 
 ## Basic example (3D)
 

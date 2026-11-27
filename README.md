@@ -8,27 +8,36 @@ It focuses on **clear engine architecture**, **explicit data flow**, and **high-
 
 ## Installation
 
+Install `fenrir-ts` and the peer of each entry point you import. A 2D game:
+
 ```bash
-npm install fenrir-ts
+npm install fenrir-ts pixi.js
 # or
-pnpm add fenrir-ts
-# or
-yarn add fenrir-ts
+pnpm add fenrir-ts pixi.js
 ```
 
-### Peer Dependencies
-
-Each entry point needs its own peer dependency. Install the ones for the entries you import:
-
-| Entry | Install |
+| Entry | Peers to install |
 | --- | --- |
-| `fenrir-ts/2d` | `pixi.js` |
-| `fenrir-ts/3d` | `three` |
-| `fenrir-ts/physics` | `jolt-physics` and `three` |
+| `fenrir-ts` (core) | none |
+| `fenrir-ts/2d` | `pixi.js` 8 |
+| `fenrir-ts/ui` | `pixi.js` 8 |
 | `fenrir-ts/audio` | none (Web Audio) |
-| `fenrir-ts/ui` | `pixi.js` |
+| `fenrir-ts/3d` | `three` 0.182 (and `@types/three` for TypeScript) |
+| `fenrir-ts/physics` | `jolt-physics` 1 and `three` 0.182 |
 
-The core entry, `fenrir-ts`, needs none of them.
+Every peer is optional, so the package manager installs only the ones you list and warns about none. Importing an entry whose peer is missing fails, naming the package: Node throws `Cannot find package 'three'`, and a Vite build fails with `"Vector3" is not exported by "__vite-optional-peer-dep:three:fenrir-ts"` (the peer, then the package that needs it). Each entry supports one major of its peer, the one it is built and tested with; a new major arrives in an engine release. The package is ES modules only, with types for `"moduleResolution"` `"bundler"`, `"node16"` and `"nodenext"`. Releases follow [CHANGELOG.md](CHANGELOG.md): at 0.x, a breaking change bumps the minor version, so depend on `"fenrir-ts": "~0.2.0"` to take only fixes.
+
+### From a local checkout
+
+To work on the engine and a game together, build the engine and point the game at it:
+
+```bash
+git clone https://github.com/Wolfleader101/fenrir-ts.git
+cd fenrir-ts && pnpm install && pnpm build:lib
+# in the game: "fenrir-ts": "file:../fenrir-ts" in package.json, then install
+```
+
+Rebuild with `pnpm build:lib` after each engine change. `pnpm pack` makes the same tarball npm would publish, which installs like a release. Changing the engine: [AGENTS.md](AGENTS.md).
 
 ### Using Fenrir with a coding agent
 
@@ -36,8 +45,6 @@ The package ships a guide for an agent that builds a game with Fenrir, with the 
 
 ```text
 node_modules/fenrir-ts/
-├── llms.txt                     index of the docs below, in the llms.txt format
-├── llms-full.txt                the guide, every reference and the 2D-path API in one file
 └── skills/fenrir/
     ├── SKILL.md                 the guide: the model, a minimal game and its test, the rules that prevent common mistakes
     ├── references/*.md          one file per service: core, testing, input, 2d, motion, assets, storage, audio, ui (and the frozen 3D path)

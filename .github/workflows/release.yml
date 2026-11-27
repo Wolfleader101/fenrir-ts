@@ -1,0 +1,167 @@
+# Publishes fenrir-ts to npm when a version tag (v0.2.0) is pushed. See RELEASING.md.
+#
+# - Runs only on a pushed tag, or by hand (workflow_dispatch) as a dry run that
+#   packs and runs `npm publish --dry-run`. No pull request, and no fork, can
+#   reach the publish job: it has no pull_request trigger, it requires a tag
+#   push in this repository, and the tag's commit must be on main.
+# - Authenticates with npm trusted publishing (GitHub OIDC): no npm token is
+#   stored. The npm package's trusted publisher names this file, release.yml,
+#   and the "npm" environment. Provenance is attached by npm.
+# - Fallback: if the repository's "npm" environment has an NPM_TOKEN secret,
+#   that token is used instead (see RELEASING.md).
+# - After a publish (or a tag whose version was already on npm), the
+#   github-release job makes the GitHub release, with the version's
+#   CHANGELOG.md section as its notes. Only that job can write to the repository.
+# Safe to merge before any credentials exist: nothing here runs on a branch push.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  # Always a dry run: a real publish only happens from a pushed tag.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  dry-run:
+    name: Dry run (pack and npm publish --dry-run)
+    needs: ci
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          version: '12.18.0'
+          runtime: node@24
+          install: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the library
+        run: pnpm build:lib
+      - name: Check the tarball
+        run: pnpm check:package
+      - name: Check the version and its changelog section (warns only on a dry run)
+        run: |
+          if pnpm check:release --notes "$RUNNER_TEMP/notes.md"; then
+            { echo "## Release notes a tag of this commit would get"; echo; cat "$RUNNER_TEMP/notes.md"; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::check:release fails, so a tag of this commit would not publish. See the log above."
+          fi
+      - name: npm publish --dry-run
+        run: npm publish --dry-run --ignore-scripts --access public
+
+  publish:
+    name: Publish to npm
+    needs: ci
+    if: >-
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      !github.event.repository.fork
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Create it in Settings > Environments, limited to tags matching v*.*.*,
+    # optionally with a required reviewer. The trusted publisher names it too.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: The tag's commit is on main
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main. Tag a commit on main."
+            exit 1
+          }
+      - uses: pnpm/setup@v3
+        with:
+          version: '12.18.0'
+          runtime: node@24
+          install: false
+      - name: npm 11.5.1 or later (trusted publishing needs it)
+        run: |
+          npm install --global npm@^11.5.1
+          npm --version
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: The tag names package.json's version, and CHANGELOG.md has its notes
+        run: pnpm check:release "$GITHUB_REF_NAME"
+      # A version already on npm is not published again. This is the first
+      # release's path: it is published by hand (npm needs the package to exist
+      # before a trusted publisher can be added), then tagged. See RELEASING.md.
+      - name: Is this version already on npm?
+        id: published
+        run: |
+          package=$(node -p "const p = require('./package.json'); p.name + '@' + p.version")
+          if npm view "$package" version 2>/dev/null | grep -q .; then
+            echo "::notice::$package is already on npm, so this run publishes nothing."
+            echo "already=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the library
+        if: steps.published.outputs.already != 'true'
+        run: pnpm build:lib
+      - name: Check the tarball
+        if: steps.published.outputs.already != 'true'
+        run: pnpm check:package
+      - name: Token fallback (only if the npm environment has an NPM_TOKEN secret)
+        if: steps.published.outputs.already != 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > "$RUNNER_TEMP/.npmrc"
+            echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/.npmrc" >> "$GITHUB_ENV"
+            echo "Publishing with the NPM_TOKEN secret."
+          else
+            echo "Publishing with trusted publishing (OIDC)."
+          fi
+      - name: npm publish
+        if: steps.published.outputs.already != 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Tests ran in the ci job on this commit, and dist/ was built and checked
+        # above, so prepublishOnly is skipped.
+        run: npm publish --provenance --access public --ignore-scripts
+
+  github-release:
+    name: GitHub release
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # create the release; nothing else in this workflow can write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Notes from CHANGELOG.md
+        run: node scripts/check-release.mjs "$GITHUB_REF_NAME" --notes "$RUNNER_TEMP/notes.md"
+      - name: Create the release (skipped if it exists)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::notice::The release $GITHUB_REF_NAME already exists."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "fenrir-ts $version" --notes-file "$RUNNER_TEMP/notes.md"

@@ -20,14 +20,14 @@ pnpm install --frozen-lockfile
 pnpm test:run     # vitest run, all tests once
 pnpm type-check   # tsc --noEmit over src and tests
 pnpm build:lib    # library build into dist/
-pnpm build:demos  # production build of the demo pages
+pnpm build:demos  # production build of the demo pages into dist-demos/ (and .vercel/output/), never dist/
 pnpm dev          # Vite dev server for the demos, http://localhost:5173
 pnpm bench        # Vitest benchmarks in tests/bench/, not run by test:run or CI
-pnpm docs:agent   # regenerate skills/fenrir/api/, llms.txt and llms-full.txt
+pnpm docs:agent   # regenerate skills/fenrir/api/ from the TSDoc
 ```
 
 Run one test file with `pnpm exec vitest run tests/core/Scheduler.test.ts`.
-Demo pages are the `*.html` files at the repo root, for example `/pixi2d.html`. Their code is in `src/demos/`.
+Demo pages are in `demos/`: `demos/<name>.html`, served at `/<name>` (for example `/pixi2d`), their code in `demos/src/`, their models and textures in `demos/public/`. They import the engine only by its package names (`fenrir-ts`, `fenrir-ts/2d`, ...), which `vite.config.ts` and `demos/tsconfig.json` resolve to the entry files in `src/`, so a demo uses only the public API. `pnpm type-check` checks them too.
 
 ### What CI runs
 
@@ -36,21 +36,29 @@ Every pull request and every push to `main` runs these, in this order. All of th
 ```sh
 pnpm type-check   # no errors allowed
 pnpm check:docs   # every ts block in README.md, AGENTS.md and skills/fenrir/ compiles against the entry points
-pnpm check:agent-docs    # the generated agent docs and API reference match `pnpm docs:agent`
+pnpm check:agent-docs    # the generated API reference matches `pnpm docs:agent`
 pnpm test:run
 pnpm build:lib
 pnpm check:size   # each entry in dist/ stays within size-budget.json
 pnpm check:imports  # core loads no renderer or physics package; other entries only their own peers
 pnpm check:consumer  # bundles the fixture games in scripts/consumer/ the way a consumer would and checks their size
+pnpm check:package   # the npm tarball: allowed files only, size budget, manifest rules, publint and attw
+pnpm check:install   # installs the tarball with npm and pnpm, with and without pixi.js: no peer warnings, imports, types (bundler, nodenext)
 ```
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. Examples import only `fenrir-ts`, its entry points and peer packages, never `@/` or `src/`. A README or reference fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`; a `skills/fenrir/SKILL.md` block gets nothing and must compile on its own.
 
-If `check:agent-docs` fails, run `pnpm docs:agent` and commit `skills/fenrir/api/` and `llms*.txt`. Never edit the generated files: the API pages come from TSDoc, the `llms` files from `skills/fenrir/`.
+If `check:agent-docs` fails, run `pnpm docs:agent` and commit `skills/fenrir/api/`. Never edit the generated files: the API pages come from TSDoc.
 
 If `check:imports` fails, it names the entry, the chunk and the package or file it reached. Move the import into the entry that owns that package; do not add an exception.
 
 If `check:size` fails, find what grew before raising the budget. Raise it with `node scripts/check-size.mjs --update` only when the growth is intended, and say so in the PR.
+
+If `check:package` fails, it names the rule. A file outside its allowed list means `files` in `package.json` or the build put something in the tarball a consumer does not need; widen `ALLOWED` in `scripts/check-package.mjs` only for a file a consumer reads. The package has no runtime `dependencies` (build tools are dev dependencies) and every peer is optional (`peerDependenciesMeta`). Do not add `"sideEffects"`: it was measured to save nothing and broke consumers twice (publint suggests it; that suggestion is expected). The build writes source maps as `"hidden"` for `check:imports` and `check:consumer`; they do not ship. Declarations are post-processed in `vite.config.lib.ts` so every relative import names its `.js` file, which `node16` and `nodenext` consumers need; published sources use relative imports, not `@/`.
+
+If `check:install` fails, it names the package manager, the project and the step. A peer warning or a `/3d` import that succeeds means `peerDependencies` or `peerDependenciesMeta` changed; a `nodenext` type error means a declaration import lost its `.js` (see `addDeclarationExtensions` in `vite.config.lib.ts`). `node scripts/check-install.mjs --keep` leaves the projects to inspect. It needs the network for `pixi.js`.
+
+Releases: [`RELEASING.md`](RELEASING.md). A PR adds its notes under `## Unreleased` in `CHANGELOG.md` and does not change the version; a release PR does.
 
 ## Entry points
 
@@ -93,9 +101,8 @@ This file is for changing the engine. Rules for **using** it have one source eac
 | How each service behaves for a game: every rule a consumer relies on, with examples | `skills/fenrir/references/*.md`, one file per service, by hand | itself; `README.md` only links to them |
 | The guide for an agent building a game: the model, a minimal game, the rules that prevent the common mistakes, the engine's system names | `skills/fenrir/SKILL.md`, by hand | itself |
 | Every export's signature and TSDoc | the TSDoc in `src/` | `skills/fenrir/api/*.md`, generated by `scripts/api-reference.mjs` |
-| An index and a single-file copy | generated | `llms.txt`, `llms-full.txt` |
 
-So a change to how a service behaves for a game updates its reference (and, if it changes a rule the guide states, `skills/fenrir/SKILL.md`), then `pnpm docs:agent`. A change to a public symbol updates its TSDoc, then `pnpm docs:agent`. `pnpm check:agent-docs` fails until the generated files match, and `tests/skillExamples.test.ts` runs every headless example in `SKILL.md` and checks what it logs.
+So a change to how a service behaves for a game updates its reference (and, if it changes a rule the guide states, `skills/fenrir/SKILL.md`). A change to a public symbol updates its TSDoc, then `pnpm docs:agent`. `pnpm check:agent-docs` fails until the generated API pages match, and `tests/skillExamples.test.ts` runs every headless example in `SKILL.md` and checks what it logs.
 
 The sections below say where each service's code is, how it works inside, what a change must keep, what it costs and where it is tested. Read its reference for what it does.
 

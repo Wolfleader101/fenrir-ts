@@ -1,58 +1,50 @@
-import { defineConfig } from "vitest/config";
-import { resolve } from "node:path";
+// The demo pages in demos/: `pnpm dev` serves them, `pnpm build:demos` builds them for
+// Vercel. They import the engine by its package names, resolved to the entry files in
+// src/, so they read like a game that installed fenrir-ts. The library build is
+// vite.config.lib.ts.
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite";
 import vercel from "vite-plugin-vercel";
 
+const at = (path: string) => fileURLToPath(new URL(path, import.meta.url));
+
+/** Each demo is demos/<name>.html, served at `/<name>`. */
+const DEMOS = [
+  "animation",
+  "bouncing-ball",
+  "stacking-blocks",
+  "ui-controls",
+  "pixi2d",
+  "platformer-physics",
+  "platformer",
+];
+
+/** The package's entry points, as package.json "exports" names them. */
+const ENTRIES = ["2d", "3d", "physics", "audio", "ui"];
+
 export default defineConfig({
+  root: at("./demos"),
   plugins: [vercel()],
   build: {
+    // Not dist/: that is the library build, and this one would empty it first.
+    outDir: at("./dist-demos"),
+    emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        animation: resolve(__dirname, "animation.html"),
-        "bouncing-ball": resolve(__dirname, "bouncing-ball.html"),
-        "stacking-blocks": resolve(__dirname, "stacking-blocks.html"),
-        pixi2d: resolve(__dirname, "pixi2d.html"),
-        "ui-controls": resolve(__dirname, "ui-controls.html"),
-        platformer: resolve(__dirname, "platformer.html"),
-        "platformer-physics": resolve(__dirname, "platformer-physics.html"),
+        main: at("./demos/index.html"),
+        ...Object.fromEntries(DEMOS.map((name) => [name, at(`./demos/${name}.html`)])),
       },
     },
   },
   vercel: {
-    rewrites: [
-      {
-        source: "/animation",
-        destination: "/animation.html",
-      },
-      {
-        source: "/bouncing-ball",
-        destination: "/bouncing-ball.html",
-      },
-      {
-        source: "/stacking-blocks",
-        destination: "/stacking-blocks.html",
-      },
-      {
-        source: "/ui-controls",
-        destination: "/ui-controls.html",
-      },
-      {
-        source: "/pixi2d",
-        destination: "/pixi2d.html",
-      },
-      {
-        source: "/platformer-physics",
-        destination: "/platformer-physics.html",
-      },
-      {
-        source: "/platformer",
-        destination: "/platformer.html",
-      },
-    ],
+    // At the repository root, where Vercel reads it, not under demos/.
+    outDir: at("./.vercel/output"),
+    rewrites: DEMOS.map((name) => ({ source: `/${name}`, destination: `/${name}.html` })),
   },
   resolve: {
-    alias: {
-      "@": new URL("./src", import.meta.url).pathname,
-    },
+    alias: [
+      ...ENTRIES.map((entry) => ({ find: `fenrir-ts/${entry}`, replacement: at(`./src/${entry}.ts`) })),
+      { find: /^fenrir-ts$/, replacement: at("./src/index.ts") },
+    ],
   },
 });
