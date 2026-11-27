@@ -1278,11 +1278,8 @@ Members:
 
 - `kind`: An asset kind this program knows, such as `"texture2d"` from `fenrir-ts/2d`.
 - `src`: The URL the kind's loader reads, chosen by its extension.
-- `fallback`: Another asset of the same manifest and kind, used in this one's place if it fails to load.
- Every bundle that lists this asset also loads the fallback. A fallback has no fallback.
-- `optional`: `true`: a failure is cosmetic. If it fails (and its fallback, if any, fails too) it is
- `missing`: logged as a warning, counted in `missing`, and its bundle still loads.
- `getAsset` returns `undefined` for it. Default `false`: a failure fails the bundle.
+- `fallback`: Another asset of the same manifest and kind, used in this one's place if it fails to load. Every bundle that lists this asset also loads the fallback. A fallback has no fallback.
+- `optional`: `true`: a failure is cosmetic. If it fails (and its fallback, if any, fails too) it is `missing`: logged as a warning, counted in `missing`, and its bundle still loads. `getAsset` returns `undefined` for it. Default `false`: a failure fails the bundle.
 
 ### AssetDeclarations
 
@@ -1704,9 +1701,9 @@ interface GameServices {
 ```
 
 Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
-same object. `createGame` builds them and passes them to the engine.
-
-A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
+same object. `createGame` builds them and passes them to the engine. Entities are not a
+service: they belong to the active scene, `ctx.entities` in a system and
+`game.scenes.getActiveScene().entityList` outside one.
 
 Members:
 
@@ -1975,7 +1972,8 @@ interface ManifestLoader {
 }
 ```
 
-Loads manifest assets in place of the store's loaders. See `setAssetLoader`.
+Loads manifest assets in place of the store's loaders. See `setAssetLoader`. `load` gets each
+asset's `name`, `kind` and `src` as declared, and resolves with its value or rejects.
 
 Members:
 

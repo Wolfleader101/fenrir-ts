@@ -723,9 +723,9 @@ export interface TestInput extends Input {
 }
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
- * same object. `createGame` builds them and passes them to the engine.
- *
- * A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
+ * same object. `createGame` builds them and passes them to the engine. Entities are not a
+ * service: they belong to the active scene, `ctx.entities` in a system and
+ * `game.scenes.getActiveScene().entityList` outside one.
  */
 export interface GameServices {
 	/** Singleton values this game owns. See `defineResource`. */
@@ -1816,7 +1816,10 @@ export declare class AssetBundleError extends Error {
 	readonly failures: readonly AssetFailure[];
 	constructor(manifest: string, bundle: string, failures: readonly AssetFailure[], cause: unknown);
 }
-/** Loads manifest assets in place of the store's loaders. See `setAssetLoader`. */
+/**
+ * Loads manifest assets in place of the store's loaders. See `setAssetLoader`. `load` gets each
+ * asset's `name`, `kind` and `src` as declared, and resolves with its value or rejects.
+ */
 export interface ManifestLoader {
 	load(asset: {
 		readonly name: string;

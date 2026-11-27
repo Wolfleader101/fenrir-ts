@@ -24,7 +24,7 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 - **Stages.** Startup runs once per `run()`: `PreInit`, `Init`, `PostInit`, each awaited (systems there may be `async`). Then every frame: input is latched, `PreUpdate`, `Tick` zero or more times at the fixed step, `Update`, `PostUpdate`, then the event buffers advance. `stop()` runs `Exit`, then cleanups. Per-frame systems must be synchronous.
 - **Order within a stage** is registration order, except where `before` / `after` (system names in the same stage) say otherwise. Plugins register first, so **engine systems run before yours in every stage unless you say `before`**. Know the engine's names (table below).
 - **Data.** Per-entity data is in components (`defineComponent`, `ctx.entities`), one-per-game values in resources (`defineResource`, `ctx.resources`), modes in states (`defineState`, `ctx.states`). Systems talk through events (`defineEvent`, `ctx.events`). Every name is namespaced: `myGame.Health`. `fenrir.*` is the engine's.
-- **Features are plugins, and opt-in.** `pixi2d()`, `motion()`, `storage()`, `audio()` and `ui()` go in `createGame({ plugins })`. A game that does not import one ships none of its bytes. Each plugin's resource exists only once it is installed: check optional ones with `resources.has(X)`.
+- **Features are plugins, and opt-in.** `pixi2d()`, `motion()`, `storage()`, `audio()` and `ui()` go in `createGame({ plugins })`. A game that does not import one ships none of its bytes. Each plugin's resource is set when it installs (inside `createGame`), so it exists in every system and state hook, the initial enter hooks included; a game that may run without a plugin checks with `resources.has(X)`.
 - **The engine owns the DOM.** It listens to the canvas for keys and pointers, to the window for resizes, to page visibility for audio, and it focuses the canvas. Game code reads `ctx.input`, `Viewport` and resources; it never adds DOM listeners, never uses Pixi's events (`eventMode`, `on("pointerdown")`) or Pixi's accessibility, and never reads `KeyboardEvent`s.
 - **Deterministic.** Read `ctx.time` and `ctx.random`, never `Date.now()`, `performance.now()`, `Math.random()`, `setTimeout` or `setInterval`. Then `createTestGame({ seed })` and `game.step(dt, frames)` run the same systems headless and replay exactly.
 - **Lifetime.** Entities, resources, states' hooks, `game.on` listeners and loaded assets belong to the game and survive `stop()` then `run()`. Anything a run acquires (a DOM element, a listener, a timer of the browser's) is released through `ctx.onCleanup` or `ctx.signal`, so a failed startup rolls it back.
@@ -319,6 +319,7 @@ function startReef(ctx: SystemCtx): void {
 }
 
 const game = await createTestGame({ seed: 1 });
+// The loader gets each asset's { name, kind, src }; resolve with a value or reject.
 setAssetLoader(game, { load: async ({ name }) => (name === "sparkle" ? Promise.reject(new Error("404")) : ({ label: name } as unknown as Texture)) });
 game.on(AssetBundleLoaded, ({ bundle, missing }, ctx) => ctx.logger.info(`${bundle} loaded, missing ${missing}`));
 game.addSystem(Schedule.PreInit, loadBoot).addSystem(Schedule.Init, startReef);
@@ -435,6 +436,8 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 
 - `createTestGame({ seed, plugins?, now?, maxFrameDelta? })`: the same systems, states, events and plugins, no canvas. `await game.start()`, `game.step(dt = 1/60, frames = 1)`, `await game.stop()`. `dt` above `maxFrameDelta` throws: step one second as `step(1 / 60, 60)`.
 - `pixi2d` cannot install in a test game (no canvas): that is why gameplay is registered apart from drawing. `ui({ root })`, `audio({ backend: testAudio() })`, `storage({ backend: memoryStorage() })` and `setAssetLoader` make the other plugins headless.
+- Entities in a test: `game` has no `entities` or `scene`. Read through `inspect(game).entities` (each `id` is the entity handle), or outside a system use `game.scenes.getActiveScene().entityList.get(entity, Transform2D)`.
+- The engine's components appear in `inspect()` under their names: `fenrir.Transform`, `fenrir.Transform2D`, `fenrir.Display2D`, `fenrir.Name` (folded into `name`), `fenrir.Relationship` (folded into `parent`), `fenrir.PixiNode`, `fenrir.Renderable2D`, `fenrir.Timers`, `fenrir.Tweens`. Plugin resources: `fenrir.MotionSettings`, `fenrir.StorageStatus`, `fenrir.AudioState`, `fenrir.UiFocus`, `fenrir.UiControls`, `fenrir.viewport.Viewport`.
 - Textures in tests: a fake loader may return `Texture.WHITE` (from `pixi.js`), a real texture that needs no renderer, so code that builds a `Sprite` from `getAsset` runs headless too. Pixi `Text` measures itself with a DOM canvas: keep it in browser-only drawing code.
 - A reload: a second `createTestGame` with `storage({ backend })` on the same `memoryStorage()` object reads what the first one stored. Manifest progress is in `inspect(game).resources[manifest.name]`.
 - Assert on `inspect(game)`: plain JSON of `frame`, `time`, `schedule`, `states`, `resources` and `entities` (by the names you gave). In a browser test call `exposeInspector(game)` in the game and read `window.__FENRIR__.inspect()`. Don't assert on pixels or sleep for time. Full rules: [references/testing.md](references/testing.md).
@@ -2940,11 +2943,8 @@ Members:
 
 - `kind`: An asset kind this program knows, such as `"texture2d"` from `fenrir-ts/2d`.
 - `src`: The URL the kind's loader reads, chosen by its extension.
-- `fallback`: Another asset of the same manifest and kind, used in this one's place if it fails to load.
- Every bundle that lists this asset also loads the fallback. A fallback has no fallback.
-- `optional`: `true`: a failure is cosmetic. If it fails (and its fallback, if any, fails too) it is
- `missing`: logged as a warning, counted in `missing`, and its bundle still loads.
- `getAsset` returns `undefined` for it. Default `false`: a failure fails the bundle.
+- `fallback`: Another asset of the same manifest and kind, used in this one's place if it fails to load. Every bundle that lists this asset also loads the fallback. A fallback has no fallback.
+- `optional`: `true`: a failure is cosmetic. If it fails (and its fallback, if any, fails too) it is `missing`: logged as a warning, counted in `missing`, and its bundle still loads. `getAsset` returns `undefined` for it. Default `false`: a failure fails the bundle.
 
 ### AssetDeclarations
 
@@ -3366,9 +3366,9 @@ interface GameServices {
 ```
 
 Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
-same object. `createGame` builds them and passes them to the engine.
-
-A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
+same object. `createGame` builds them and passes them to the engine. Entities are not a
+service: they belong to the active scene, `ctx.entities` in a system and
+`game.scenes.getActiveScene().entityList` outside one.
 
 Members:
 
@@ -3637,7 +3637,8 @@ interface ManifestLoader {
 }
 ```
 
-Loads manifest assets in place of the store's loaders. See `setAssetLoader`.
+Loads manifest assets in place of the store's loaders. See `setAssetLoader`. `load` gets each
+asset's `name`, `kind` and `src` as declared, and resolves with its value or rejects.
 
 Members:
 

@@ -168,7 +168,10 @@ export class AssetBundleError extends Error {
   }
 }
 
-/** Loads manifest assets in place of the store's loaders. See `setAssetLoader`. */
+/**
+ * Loads manifest assets in place of the store's loaders. See `setAssetLoader`. `load` gets each
+ * asset's `name`, `kind` and `src` as declared, and resolves with its value or rejects.
+ */
 export interface ManifestLoader {
   load(asset: { readonly name: string; readonly kind: AssetKind; readonly src: string }): Promise<unknown>;
   /** Called with the loaded value when the last bundle holding an asset is unloaded. */
