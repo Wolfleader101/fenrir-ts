@@ -54,9 +54,16 @@ jobs:
           runtime: node@24
           install: false
       - name: npm 11.15.0 or later (npm stage needs it)
+        # install --global writes to npm's global prefix, which is not first on this
+        # runner's PATH: without the GITHUB_PATH line the next steps still ran npm
+        # 10.9.9, which has no `npm stage` ("Unknown command").
         run: |
           npm install --global npm@^11.15.0
-          npm --version
+          echo "$(npm prefix --global)/bin" >> "$GITHUB_PATH"
+      - name: The npm on PATH has npm stage
+        run: |
+          echo "npm $(npm --version) at $(command -v npm)"
+          npm stage --help > /dev/null || { echo "::error::npm $(npm --version) has no npm stage: 11.15.0 or later is needed."; exit 1; }
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build the library
@@ -117,9 +124,16 @@ jobs:
           runtime: node@24
           install: false
       - name: npm 11.15.0 or later (npm stage needs it; trusted publishing 11.5.1)
+        # install --global writes to npm's global prefix, which is not first on this
+        # runner's PATH: without the GITHUB_PATH line the next steps still ran npm
+        # 10.9.9, which has no `npm stage` ("Unknown command").
         run: |
           npm install --global npm@^11.15.0
-          npm --version
+          echo "$(npm prefix --global)/bin" >> "$GITHUB_PATH"
+      - name: The npm on PATH has npm stage
+        run: |
+          echo "npm $(npm --version) at $(command -v npm)"
+          npm stage --help > /dev/null || { echo "::error::npm $(npm --version) has no npm stage: 11.15.0 or later is needed."; exit 1; }
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: The tag names package.json's version, and CHANGELOG.md has its notes
