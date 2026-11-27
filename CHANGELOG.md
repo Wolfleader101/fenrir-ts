@@ -4,6 +4,10 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+## 0.3.1
+
+Docs only: no change to the engine's code or API, so games can stay on 0.3.0. The guide and references in the package (`skills/fenrir/`) now cover what a clean agent found missing when it extended the 0.3.0 starter game. Upgrade to give your coding agent the corrected docs.
+
 ### Docs: gaps a clean agent hit on 0.3.0
 
 No code change. A clean agent extended the starter game from the published 0.3.0 (the M4 gate, recorded on #39), and these are the places it found the guide wrong, silent or confusing:
