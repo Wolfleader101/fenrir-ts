@@ -1,7 +1,5 @@
 # Timers and tweens
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for the `motion()` plugin. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Timers and tweens

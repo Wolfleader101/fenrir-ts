@@ -1,7 +1,5 @@
 # Testing and inspecting a game
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for `createTestGame`, `step`, and `inspect(game)`. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Testing a game

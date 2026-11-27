@@ -51,7 +51,7 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:demos": "vite build",
     "type-check": "tsc --noEmit",
-    "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md --standalone skills/fenrir/SKILL.md",
+    "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md skills/fenrir/references/core.md skills/fenrir/references/testing.md skills/fenrir/references/input.md skills/fenrir/references/2d.md skills/fenrir/references/motion.md skills/fenrir/references/assets.md skills/fenrir/references/storage.md skills/fenrir/references/audio.md skills/fenrir/references/ui.md skills/fenrir/references/3d-and-editor.md --standalone skills/fenrir/SKILL.md",
     "check:size": "node scripts/check-size.mjs",
     "check:imports": "node scripts/check-entry-imports.mjs",
     "check:consumer": "node scripts/check-consumer-size.mjs",

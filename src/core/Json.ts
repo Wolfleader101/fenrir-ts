@@ -33,7 +33,7 @@ const thrown = (error: unknown): JsonValue => {
 
 /**
  * Encodes any value as JSON for `inspect(game)`. Never throws, always terminates, and encodes at
- * most `MAX_VALUES` values. The rules are in README.md under "Inspecting a game".
+ * most `MAX_VALUES` values. The rules are in skills/fenrir/references/testing.md under "Inspecting a game".
  */
 export function toJson(root: unknown): JsonValue {
   let budget = MAX_VALUES;

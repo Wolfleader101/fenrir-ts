@@ -1,4 +1,4 @@
-// The "Testing a game" example from README.md, run as written. Change both together.
+// The "Testing a game" example from skills/fenrir/references/testing.md, run as written. Change both together.
 import { Schedule, createTestGame, defineResource, defineState, inState } from "@/index";
 import type { SystemCtx } from "@/index";
 import { expect, it } from "vitest";

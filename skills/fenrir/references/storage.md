@@ -1,7 +1,5 @@
 # Storage
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for the `storage()` plugin, keys, migrations, families and `persistResource`. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Storage

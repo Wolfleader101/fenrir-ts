@@ -472,8 +472,6 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 
 # Core: plugins, systems, resources, states, events, time
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for how a game is put together and how its systems are ordered. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Plugins
@@ -683,8 +681,6 @@ off(); // removes the game.on listener early
 
 # Testing and inspecting a game
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for `createTestGame`, `step`, and `inspect(game)`. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Testing a game
@@ -816,8 +812,6 @@ The limits are fixed. Keep component and resource values plain data (objects, ar
 <!-- skills/fenrir/references/input.md -->
 
 # Input
-
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
 
 The full rules for actions, the pointer, what `consume` hides, `onDown` and `onGesture`, and test input. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
@@ -971,8 +965,6 @@ Playwright's `locator.click()` and `page.mouse` send real browser input and need
 <!-- skills/fenrir/references/2d.md -->
 
 # 2D: pixi2d, the design frame, layers and nodes
-
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
 
 The full rules for the `pixi2d` plugin, `Viewport`, `Transform2D`, `Display2D`, `PixiNode` and layers. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
@@ -1160,8 +1152,6 @@ await game.run();
 
 # Timers and tweens
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for the `motion()` plugin. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Timers and tweens
@@ -1234,8 +1224,6 @@ game.addSystem(Schedule.PreUpdate, pauseMenu, { before: "fenrir.motion.preUpdate
 <!-- skills/fenrir/references/assets.md -->
 
 # Assets
-
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
 
 The full rules for asset manifests, bundles, per-asset loading, fallbacks and optional assets. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
@@ -1367,8 +1355,6 @@ it("shows the reef's progress and falls back when reef.webp fails", async () => 
 
 # Storage
 
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
-
 The full rules for the `storage()` plugin, keys, migrations, families and `persistResource`. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
 ## Storage
@@ -1430,8 +1416,6 @@ function finishLevel(ctx: SystemCtx, level: string, seconds: number): void {
 <!-- skills/fenrir/references/audio.md -->
 
 # Audio
-
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
 
 The full rules for `fenrir-ts/audio`: sounds, buses, unlock and test audio. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
@@ -1541,8 +1525,6 @@ it("plays nothing until the first tap", async () => {
 <!-- skills/fenrir/references/ui.md -->
 
 # UI controls
-
-<!-- Generated from README.md by scripts/agent-docs.mjs. Do not edit: change README.md, then run pnpm docs:agent. -->
 
 The full rules for `fenrir-ts/ui`: controls, modal scopes, focus and accessibility. Start at [SKILL.md](../SKILL.md); signatures are in [the API reference](../api/README.md). A fragment that uses `game` means the game `createGame` or `createTestGame` returned.
 
@@ -2000,7 +1982,7 @@ function inspect(game: GameBase): GameSnapshot;
 What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
 scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
 after `stop()`; never throws. A function rather than a method, so a game that never calls it
-ships none of the snapshot and JSON-encoding code. The serialisation rules are in README.md
+ships none of the snapshot and JSON-encoding code. The serialisation rules are in skills/fenrir/references/testing.md
 under "Inspecting a game".
 
 ```ts

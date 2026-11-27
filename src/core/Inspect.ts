@@ -113,7 +113,7 @@ export interface DebugGlobal {
  * What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
  * scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
  * after `stop()`; never throws. A function rather than a method, so a game that never calls it
- * ships none of the snapshot and JSON-encoding code. The serialisation rules are in README.md
+ * ships none of the snapshot and JSON-encoding code. The serialisation rules are in skills/fenrir/references/testing.md
  * under "Inspecting a game".
  *
  * ```ts
