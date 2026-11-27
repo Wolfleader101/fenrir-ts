@@ -27,7 +27,7 @@ pnpm docs:agent   # regenerate skills/fenrir/api/, llms.txt and llms-full.txt
 ```
 
 Run one test file with `pnpm exec vitest run tests/core/Scheduler.test.ts`.
-Demo pages are the `*.html` files at the repo root, for example `/pixi2d.html`. Their code is in `src/demos/`.
+Demo pages are in `demos/`: `demos/<name>.html`, served at `/<name>` (for example `/pixi2d`), their code in `demos/src/`, their models and textures in `demos/public/`. They import the engine only by its package names (`fenrir-ts`, `fenrir-ts/2d`, ...), which `vite.config.ts` and `demos/tsconfig.json` resolve to the entry files in `src/`, so a demo uses only the public API. `pnpm type-check` checks them too.
 
 ### What CI runs
 

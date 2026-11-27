@@ -14,11 +14,16 @@ The first release on npm. Before it, games built the engine from a checkout; `0.
 - **Every peer is optional** (`pixi.js`, `three`, `jolt-physics`), so installing `fenrir-ts` installs only what you list. Before, npm and pnpm installed `three` and `jolt-physics` for every game, 2D or not, and `pixi.js` for games without it: with npm, a game that lists no peer went from 15 packages (177 MB) to `fenrir-ts` alone (2 MB), and a 2D game from 177 MB to 95 MB.
 - **`pixi.js` peer `^8.16.0`**: one Pixi major, the one the engine is built and tested with. A new Pixi major arrives in an engine release.
 - **Declarations work with `"moduleResolution": "node16"` and `"nodenext"`**: their relative imports and `declare module` augmentations now name files (`./core/Game.js`). Before, a `nodenext` project saw no exports at all, and the augmentations (the 2D builder and asset methods) did not apply. Two 3D declarations imported the build machine's `src/` by absolute path when built on Windows; they no longer do.
-- **Smaller package**: 408 kB packed and 1.20 MB unpacked, down from 688 kB and 2.06 MB. Source maps no longer ship (the code is not minified, so stack traces read as they did), and the published files carry no `sourceMappingURL`.
+- **Smaller package**: 313 kB packed and 1.06 MB unpacked, down from 688 kB and 2.06 MB. Source maps no longer ship, nor the default skybox images (below) (the code is not minified, so stack traces read as they did), and the published files carry no `sourceMappingURL`.
 - **`fenrir-ts/package.json`** is exported, and the manifest has `repository`, `homepage`, `bugs`, `author`, `engines` (Node 22 or later) and `publishConfig`.
 - For contributors: `pnpm check:package` (in CI) fails when the tarball holds a file outside its allowed list, passes its size budget in `size-budget.json`, lists a runtime dependency or a required peer, or fails publint or `@arethetypeswrong/cli`, and `pnpm check:install` (in CI) installs the tarball with npm and pnpm, with and without `pixi.js`, and fails on a peer warning, an entry that does not import, or a type error under `bundler` or `nodenext` resolution. Releases are tagged and published by `.github/workflows/release.yml`, which also makes the GitHub release with the version's notes from this file, as RELEASING.md says.
 
 Breaking: a game that imports `fenrir-ts/3d` or `fenrir-ts/physics` must now list `three` (and `jolt-physics` for physics) in its own `package.json`, since they are no longer installed for it. Migration: `npm install three jolt-physics` as needed.
+
+### Removed: the default skybox images
+
+- **Breaking.** `SkyboxUtils.setupDefaultSkybox` and the six cube faces it embedded (a 138 kB chunk of `fenrir-ts/3d`) are gone, so the package ships no images. Migration: put six face images in your game's public folder and call `SkyboxUtils.setupCubemapSkybox(scene, assets, { basePath: "/textures/skybox" })` (faces `right.png`, `left.png`, `top.png`, `bottom.png`, `front.png`, `back.png`, or name them with `faces`), as the 3D demos now do.
+- For contributors: the demo pages moved to `demos/` (pages, `demos/src/`, `demos/public/`) and import the engine only as `fenrir-ts` and its entry points, type-checked by `pnpm type-check` through `demos/tsconfig.json`. They build to `dist-demos/`.
 
 ### Removed: the `fenrir-ts/editor` entry
 

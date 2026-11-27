@@ -95,53 +95,6 @@ export class SkyboxUtils {
   }
 
   /**
-   * Set up the default skybox using embedded asset textures
-   */
-  static async setupDefaultSkybox(
-    scene: Scene,
-    assets: IAssetStore,
-    options: {
-      enabled?: boolean;
-    } = {},
-  ): Promise<void> {
-    // Define the default skybox textures using embedded assets
-    const faceTextures = {
-      posX: "skybox/right.png",
-      negX: "skybox/left.png",
-      posY: "skybox/top.png",
-      negY: "skybox/bottom.png",
-      posZ: "skybox/front.png",
-      negZ: "skybox/back.png",
-    };
-
-    // The embedded images are a separate chunk, loaded only when this runs.
-    const images = await import("./defaultSkyboxImages");
-
-    // Load all textures using embedded asset URLs
-    await Promise.all([
-      assets.loadTexture(faceTextures.posX as AssetKey, images.right),
-      assets.loadTexture(faceTextures.negX as AssetKey, images.left),
-      assets.loadTexture(faceTextures.posY as AssetKey, images.top),
-      assets.loadTexture(faceTextures.negY as AssetKey, images.bottom),
-      assets.loadTexture(faceTextures.posZ as AssetKey, images.front),
-      assets.loadTexture(faceTextures.negZ as AssetKey, images.back),
-    ]);
-
-    // Create and set skybox
-    const skybox = createCubemapSkybox({
-      posX: faceTextures.posX as AssetKey,
-      negX: faceTextures.negX as AssetKey,
-      posY: faceTextures.posY as AssetKey,
-      negY: faceTextures.negY as AssetKey,
-      posZ: faceTextures.posZ as AssetKey,
-      negZ: faceTextures.negZ as AssetKey,
-      enabled: options.enabled,
-    });
-
-    scene.skybox = skybox;
-  }
-
-  /**
    * Validate skybox descriptor
    */
   static validateSkyboxDescriptor(descriptor: SkyboxDescriptor): {

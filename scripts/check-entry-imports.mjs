@@ -1,7 +1,7 @@
 // Fails when a built entry point can reach a peer package it must not load.
 //
 // Core (`fenrir-ts`, dist/index.js) may load none of the renderer or physics
-// packages, and no skybox images. Each other entry may load only its own peers, so
+// packages. Each other entry may load only its own peers, so
 // a 2D game (core plus fenrir-ts/2d) never loads Three.js.
 //
 // For each entry it walks the entry file and every chunk it imports, statically
@@ -9,8 +9,7 @@
 // - imports a package the entry may not load, or a subpath of it (static or dynamic import)
 // - was built from a file inside such a package (read from the chunk's source map,
 //   so code bundled in rather than imported is caught too)
-// - was built from the embedded skybox images, or contains embedded image data,
-//   unless the entry is allowed them
+// - contains embedded image data (no entry ships images: games load their own)
 // Run `build:lib` first.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -25,17 +24,14 @@ const PEERS = [
   "three",
   "jolt-physics",
 ];
-/** The embedded skybox images (a 146 kB chunk). Only 3D may load them. */
-const SKYBOX_IMAGES = "src/core/Skybox/assets/";
-
 /** What each entry may load. */
 const ENTRIES = {
-  "index.js": { name: "fenrir-ts (core)", allow: [], images: false },
-  "2d.js": { name: "fenrir-ts/2d", allow: ["pixi.js"], images: false },
-  "3d.js": { name: "fenrir-ts/3d", allow: ["three"], images: true },
-  "physics.js": { name: "fenrir-ts/physics", allow: ["jolt-physics", "three"], images: false },
-  "audio.js": { name: "fenrir-ts/audio", allow: [], images: false },
-  "ui.js": { name: "fenrir-ts/ui", allow: ["pixi.js"], images: false },
+  "index.js": { name: "fenrir-ts (core)", allow: [] },
+  "2d.js": { name: "fenrir-ts/2d", allow: ["pixi.js"] },
+  "3d.js": { name: "fenrir-ts/3d", allow: ["three"] },
+  "physics.js": { name: "fenrir-ts/physics", allow: ["jolt-physics", "three"] },
+  "audio.js": { name: "fenrir-ts/audio", allow: [] },
+  "ui.js": { name: "fenrir-ts/ui", allow: ["pixi.js"] },
 };
 
 const peerOf = (specifier) =>
@@ -69,7 +65,7 @@ function problemsIn(file, rules) {
     if (forbidden(peer)) problems.push(`${file} imports "${match[1]}" (${peer})`);
   }
 
-  if (!rules.images && /data:image\//.test(code)) {
+  if (/data:image\//.test(code)) {
     problems.push(`${file} contains embedded image data (data:image/...)`);
   }
 
@@ -84,9 +80,6 @@ function problemsIn(file, rules) {
     const fromPackage = /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?((?:@[^/]+\/)?[^/]+)/.exec(path);
     const peer = fromPackage && peerOf(fromPackage[1]);
     if (forbidden(peer)) problems.push(`${file} bundles ${source} (${peer})`);
-    if (!rules.images && path.includes(`/${SKYBOX_IMAGES}`)) {
-      problems.push(`${file} bundles ${source} (skybox images)`);
-    }
   }
   return problems;
 }
@@ -114,7 +107,7 @@ for (const [entry, rules] of Object.entries(ENTRIES)) {
 
 if (failed) {
   console.error(
-    "\nCore (fenrir-ts) must load no Pixi, Three or Jolt code and no skybox images," +
+    "\nCore (fenrir-ts) must load no Pixi, Three or Jolt code, no entry may embed images," +
       " and each other entry only its own peers. Move the import into the entry that owns it.",
   );
   process.exit(1);

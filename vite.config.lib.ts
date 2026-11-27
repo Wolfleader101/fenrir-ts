@@ -42,14 +42,13 @@ function addDeclarationExtensions(dir: string): void {
 }
 
 export default defineConfig({
-  // public/ holds the demo pages' models and textures; the library ships none of it.
+  // The library has no public/ (the demos' is demos/public/); never copy one into dist/.
   publicDir: false,
   plugins: [
     dts({
       // No entryRoot: the plugin derives it from the included files, all under src/.
       // entryRoot: "src" with this include made it skip every declaration as outside dist.
       include: ["src"],
-      exclude: ["src/demos", "src/shared"],
       afterBuild: () => addDeclarationExtensions("dist"),
     }),
   ],
