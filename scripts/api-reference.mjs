@@ -329,7 +329,21 @@ if (check) {
   const stale = [];
   for (const [file, text] of outputs) {
     const path = join(outDir, file);
-    if (!existsSync(path) || normalise(readFileSync(path, "utf8")) !== text) stale.push(file);
+    if (!existsSync(path)) {
+      stale.push(file);
+      continue;
+    }
+    const committed = normalise(readFileSync(path, "utf8"));
+    if (committed === text) continue;
+    stale.push(file);
+    // Show where it differs, so a failure on another platform can be read from the CI log.
+    const a = committed.split("\n");
+    const b = text.split("\n");
+    const at = a.findIndex((line, i) => line !== b[i]);
+    console.error(`${file}: first difference at line ${at + 1}`);
+    for (let i = Math.max(0, at - 2); i < Math.min(Math.max(a.length, b.length), at + 4); i++) {
+      if (a[i] !== b[i]) console.error(`  - ${a[i] ?? "(end)"}\n  + ${b[i] ?? "(end)"}`);
+    }
   }
   const extra = existsSync(outDir) ? readdirSync(outDir).filter((file) => !outputs.has(file)) : [];
   if (stale.length || extra.length) {
