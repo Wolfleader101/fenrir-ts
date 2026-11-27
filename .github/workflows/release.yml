@@ -1,24 +1,29 @@
-# Publishes fenrir-ts to npm when a version tag (v0.2.0) is pushed. See RELEASING.md.
+# Stages fenrir-ts on npm when a version tag (v0.2.0) is pushed. A maintainer then
+# approves the staged version with 2FA, which publishes it. See RELEASING.md.
 #
 # - Runs only on a pushed tag, or by hand (workflow_dispatch) as a dry run that
-#   packs and runs `npm publish --dry-run`. No pull request, and no fork, can
-#   reach the publish job: it has no pull_request trigger, it requires a tag
+#   packs and runs `npm stage publish --dry-run`. No pull request, and no fork,
+#   can reach the stage job: it has no pull_request trigger, it requires a tag
 #   push in this repository, and the tag's commit must be on main.
+# - Stages with `npm stage publish`, never `npm publish`: nothing reaches users
+#   until a maintainer approves it with 2FA on npmjs.com or with
+#   `npm stage approve`. A workflow run cannot approve (approval takes no OIDC
+#   token), so a stray tag or a compromised workflow cannot ship a version.
 # - Authenticates with npm trusted publishing (GitHub OIDC): no npm token is
 #   stored. The npm package's trusted publisher names this file, release.yml,
-#   and the "npm" environment. Provenance is attached by npm.
+#   and the "npm" environment; staging is always allowed for it.
 # - Fallback: if the repository's "npm" environment has an NPM_TOKEN secret,
-#   that token is used instead (see RELEASING.md).
-# - After a publish (or a tag whose version was already on npm), the
-#   github-release job makes the GitHub release, with the version's
-#   CHANGELOG.md section as its notes. Only that job can write to the repository.
+#   that token is used instead (see RELEASING.md). Staging takes any token type.
+# - The github-release job then makes the GitHub release, with the version's
+#   CHANGELOG.md section as its notes: a draft while the version awaits
+#   approval, published once it is on npm. Only that job can write to the repository.
 # Safe to merge before any credentials exist: nothing here runs on a branch push.
 name: Release
 
 on:
   push:
     tags: ["v*.*.*"]
-  # Always a dry run: a real publish only happens from a pushed tag.
+  # Always a dry run: staging only happens from a pushed tag.
   workflow_dispatch:
 
 permissions:
@@ -34,7 +39,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   dry-run:
-    name: Dry run (pack and npm publish --dry-run)
+    name: Dry run (pack and npm stage publish --dry-run)
     needs: ci
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
@@ -48,6 +53,10 @@ jobs:
           version: '12.18.0'
           runtime: node@24
           install: false
+      - name: npm 11.15.0 or later (npm stage needs it)
+        run: |
+          npm install --global npm@^11.15.0
+          npm --version
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build the library
@@ -59,13 +68,24 @@ jobs:
           if pnpm check:release --notes "$RUNNER_TEMP/notes.md"; then
             { echo "## Release notes a tag of this commit would get"; echo; cat "$RUNNER_TEMP/notes.md"; } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::check:release fails, so a tag of this commit would not publish. See the log above."
+            echo "::warning::check:release fails, so a tag of this commit would not stage. See the log above."
           fi
-      - name: npm publish --dry-run
-        run: npm publish --dry-run --ignore-scripts --access public
+      # npm refuses to stage over a version it already has, which is main's state
+      # between releases. Then the dry run stages a throwaway prerelease of the same
+      # files instead, in this runner's checkout only.
+      - name: npm stage publish --dry-run
+        run: |
+          package=$(node -p "const p = require('./package.json'); p.name + '@' + p.version")
+          tag=latest
+          if npm view "$package" version 2>/dev/null | grep -q .; then
+            echo "::notice::$package is already on npm, so the dry run stages a throwaway prerelease of these files."
+            npm version --no-git-tag-version --ignore-scripts "$(node -p "require('./package.json').version")-dryrun.$GITHUB_RUN_NUMBER"
+            tag=dry-run
+          fi
+          npm stage publish --dry-run --ignore-scripts --access public --tag "$tag"
 
-  publish:
-    name: Publish to npm
+  stage:
+    name: Stage on npm
     needs: ci
     if: >-
       github.event_name == 'push' &&
@@ -96,23 +116,24 @@ jobs:
           version: '12.18.0'
           runtime: node@24
           install: false
-      - name: npm 11.5.1 or later (trusted publishing needs it)
+      - name: npm 11.15.0 or later (npm stage needs it; trusted publishing 11.5.1)
         run: |
-          npm install --global npm@^11.5.1
+          npm install --global npm@^11.15.0
           npm --version
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: The tag names package.json's version, and CHANGELOG.md has its notes
         run: pnpm check:release "$GITHUB_REF_NAME"
-      # A version already on npm is not published again. This is the first
-      # release's path: it is published by hand (npm needs the package to exist
-      # before a trusted publisher can be added), then tagged. See RELEASING.md.
+      # A version already on npm is not staged again: a tag pushed after its
+      # version was staged by hand and approved (as 0.2.0 was) only gets its
+      # GitHub release. A version staged but not yet approved is not visible
+      # here, so a second run for it fails at `npm stage publish` instead.
       - name: Is this version already on npm?
         id: published
         run: |
           package=$(node -p "const p = require('./package.json'); p.name + '@' + p.version")
           if npm view "$package" version 2>/dev/null | grep -q .; then
-            echo "::notice::$package is already on npm, so this run publishes nothing."
+            echo "::notice::$package is already on npm, so this run stages nothing."
             echo "already=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Build the library
@@ -129,21 +150,34 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then
             echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > "$RUNNER_TEMP/.npmrc"
             echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/.npmrc" >> "$GITHUB_ENV"
-            echo "Publishing with the NPM_TOKEN secret."
+            echo "Staging with the NPM_TOKEN secret."
           else
-            echo "Publishing with trusted publishing (OIDC)."
+            echo "Staging with trusted publishing (OIDC)."
           fi
-      - name: npm publish
+      - name: npm stage publish
         if: steps.published.outputs.already != 'true'
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         # Tests ran in the ci job on this commit, and dist/ was built and checked
         # above, so prepublishOnly is skipped.
-        run: npm publish --provenance --access public --ignore-scripts
+        run: npm stage publish --provenance --access public --ignore-scripts
+      - name: Say what to approve
+        if: steps.published.outputs.already != 'true'
+        run: |
+          package=$(node -p "const p = require('./package.json'); p.name + '@' + p.version")
+          name=$(node -p "require('./package.json').name")
+          {
+            echo "## $package is staged, not published"
+            echo
+            echo "Approve it with 2FA to publish it: npmjs.com → $name → Staged Packages → Approve,"
+            echo "or \`npm stage list $name\` then \`npm stage approve <stage-id>\`."
+            echo "Then publish the draft GitHub release for $GITHUB_REF_NAME."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::$package is staged. Approve it on npmjs.com (Staged Packages) or with npm stage approve, then publish the draft GitHub release."
 
   github-release:
     name: GitHub release
-    needs: publish
+    needs: stage
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -154,6 +188,8 @@ jobs:
           persist-credentials: false
       - name: Notes from CHANGELOG.md
         run: node scripts/check-release.mjs "$GITHUB_REF_NAME" --notes "$RUNNER_TEMP/notes.md"
+      # A draft while the version awaits approval on npm, so the release never
+      # announces a version users cannot install yet.
       - name: Create the release (skipped if it exists)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -163,5 +199,11 @@ jobs:
             exit 0
           fi
           version="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+          package="$(node -p "require('./package.json').name")@$version"
+          draft=--draft
+          if npm view "$package" version 2>/dev/null | grep -q .; then draft=; fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag $draft \
             --title "fenrir-ts $version" --notes-file "$RUNNER_TEMP/notes.md"
+          if [ -n "$draft" ]; then
+            echo "::notice::Made a draft release: publish it once $package is approved on npm."
+          fi
