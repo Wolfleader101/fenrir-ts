@@ -33,6 +33,8 @@ jobs:
         run: pnpm check:docs
       - name: Check the editor sandbox typings are regenerated
         run: pnpm check:editor-types
+      - name: Check the shipped agent docs and API reference are regenerated
+        run: pnpm check:agent-docs
       - name: Test
         run: pnpm test:run
       - name: Build the library

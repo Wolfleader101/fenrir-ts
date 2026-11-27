@@ -34,6 +34,7 @@ export interface Plugin {
   install(game: Game): void | Promise<void>;
 }
 
+/** What `createGame` takes. Only `canvas` is required. */
 export interface GameOptions {
   /** The canvas the game draws to. Renderer plugins read it from `game.canvas`. */
   canvas: HTMLCanvasElement;

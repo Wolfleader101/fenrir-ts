@@ -1,3 +1,4 @@
+/** A typed event key, made by `defineEvent<T>(name)`. */
 export type EventType<T> = symbol & { __eventType?: T };
 
 /**
@@ -13,8 +14,10 @@ export function defineEvent<T>(name: string): EventType<T> {
   return Symbol.for(`event:${name}`) as EventType<T>;
 }
 
+/** What `events.createReader(Type)` returns: `read()` gives the events it has not returned before. Create one per consumer, once. */
 export type EventReader<T> = { read(): readonly T[] };
 
+/** Internal storage for one event type. Games use `EventBus` (`ctx.events`) instead. */
 export class EventQueue<T> {
   private nextSequence = 0;
   private current: T[] = [];

@@ -4,10 +4,15 @@ import {
   AssetBundleError,
   AssetBundleFailed,
   AssetBundleLoaded,
+  AssetFailed,
+  AssetLoaded,
+  AssetLoadError,
   defineAssets,
   getAsset,
+  loadAsset,
   loadAssets,
   setAssetLoader,
+  unloadAsset,
   unloadAssets,
   type ManifestLoader,
 } from "@/core/Assets/Manifest";
@@ -141,8 +146,8 @@ describe("loading a bundle", () => {
 
     let done = false;
     const loading = loadAssets(game, GameAssets, "boot").then(() => (done = true));
-    expect(progressOf(game).bundles.boot).toEqual({ status: "loading", loaded: 0, failed: 0, total: 2, fraction: 0 });
-    expect(progressOf(game).assets.logo).toEqual({ status: "loading", error: null, bundles: ["boot"] });
+    expect(progressOf(game).bundles.boot).toEqual({ status: "loading", loaded: 0, missing: 0, failed: 0, total: 2, fraction: 0 });
+    expect(progressOf(game).assets.logo).toEqual({ status: "loading", error: null, bundles: ["boot"], direct: false });
     expect(progressOf(game).assets.reef.status).toBe("unloaded");
     await settle();
     expect(fake.pending()).toEqual(["logo", "rock"]);
@@ -155,8 +160,8 @@ describe("loading a bundle", () => {
 
     await fake.resolve("logo");
     await loading;
-    expect(progressOf(game).bundles.boot).toEqual({ status: "loaded", loaded: 2, failed: 0, total: 2, fraction: 1 });
-    expect(loadedEvents).toEqual([{ manifest: "test.assets", bundle: "boot", fallbacks: [] }]);
+    expect(progressOf(game).bundles.boot).toEqual({ status: "loaded", loaded: 2, missing: 0, failed: 0, total: 2, fraction: 1 });
+    expect(loadedEvents).toEqual([{ manifest: "test.assets", bundle: "boot", fallbacks: [], missing: [] }]);
     expect(getAsset(game, GameAssets, "logo")).toEqual(texture("logo"));
     await game.stop();
   });
@@ -285,8 +290,8 @@ describe("failures", () => {
     });
     expect(failedEvents).toEqual([{ manifest: "test.assets", bundle: "boot", failures: [{ asset: "logo", src: "img/logo.png", error: "network down" }] }]);
     expect(logger.errors).toEqual([(error as Error).message]);
-    expect(progressOf(game).bundles.boot).toEqual({ status: "failed", loaded: 1, failed: 1, total: 2, fraction: 0.5 });
-    expect(progressOf(game).assets.logo).toEqual({ status: "failed", error: "network down", bundles: ["boot"] });
+    expect(progressOf(game).bundles.boot).toEqual({ status: "failed", loaded: 1, missing: 0, failed: 1, total: 2, fraction: 0.5 });
+    expect(progressOf(game).assets.logo).toEqual({ status: "failed", error: "network down", bundles: ["boot"], direct: false });
     // The asset that loaded stays loaded; the failed one says why.
     expect(getAsset(game, GameAssets, "rock")).toEqual(texture("rock"));
     expect(() => getAsset(game, GameAssets, "logo")).toThrow('getAsset: "logo" of test.assets is failed: network down');
@@ -328,9 +333,9 @@ describe("failures", () => {
 
     expect(getAsset(game, GameAssets, "reef")).toEqual(texture("missing"));
     await expect(game.assets.getTexture2D("reef")).resolves.toEqual(texture("missing"));
-    expect(progressOf(game).assets.reef).toEqual({ status: "fallback", error: "404 Not Found", bundles: ["reef"] });
-    expect(progressOf(game).bundles.reef).toEqual({ status: "loaded", loaded: 3, failed: 0, total: 3, fraction: 1 });
-    expect(loadedEvents).toEqual([{ manifest: "test.assets", bundle: "reef", fallbacks: ["reef"] }]);
+    expect(progressOf(game).assets.reef).toEqual({ status: "fallback", error: "404 Not Found", bundles: ["reef"], direct: false });
+    expect(progressOf(game).bundles.reef).toEqual({ status: "loaded", loaded: 3, missing: 0, failed: 0, total: 3, fraction: 1 });
+    expect(loadedEvents).toEqual([{ manifest: "test.assets", bundle: "reef", fallbacks: ["reef"], missing: [] }]);
     expect(logger.warnings).toEqual(['Asset "reef" of test.assets failed to load from "img/reef.webp"; showing "missing"']);
     await game.stop();
   });
@@ -375,7 +380,7 @@ describe("unloading", () => {
     await settle();
     expect(fake.unloaded.sort()).toEqual(["missing", "reef"]);
     expect(getAsset(game, GameAssets, "logo")).toEqual(texture("logo"));
-    expect(() => getAsset(game, GameAssets, "reef")).toThrow('getAsset: "reef" of test.assets is not loaded. Load a bundle that lists it: reef.');
+    expect(() => getAsset(game, GameAssets, "reef")).toThrow('getAsset: "reef" of test.assets is not loaded. Load a bundle that lists it (reef) or call loadAsset.');
     await expect(game.assets.getTexture2D("reef")).rejects.toThrow("Asset not loaded: reef");
     expect(progressOf(game).bundles.reef.status).toBe("unloaded");
     expect(progressOf(game).assets.logo.bundles).toEqual(["boot"]);
@@ -487,20 +492,21 @@ describe("lifetime and inspection", () => {
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
     expect(snapshot).toEqual({
       loaded: 3,
+      missing: 0,
       failed: 0,
       total: 3,
       fraction: 1,
       bundles: {
-        boot: { status: "unloaded", loaded: 0, failed: 0, total: 0, fraction: 1 },
-        reef: { status: "loaded", loaded: 3, failed: 0, total: 3, fraction: 1 },
-        cave: { status: "unloaded", loaded: 0, failed: 0, total: 0, fraction: 1 },
+        boot: { status: "unloaded", loaded: 0, missing: 0, failed: 0, total: 0, fraction: 1 },
+        reef: { status: "loaded", loaded: 3, missing: 0, failed: 0, total: 3, fraction: 1 },
+        cave: { status: "unloaded", loaded: 0, missing: 0, failed: 0, total: 0, fraction: 1 },
       },
       assets: {
-        logo: { status: "loaded", error: null, bundles: ["reef"] },
-        missing: { status: "loaded", error: null, bundles: ["reef"] },
-        reef: { status: "fallback", error: "404 Not Found", bundles: ["reef"] },
-        rock: { status: "unloaded", error: null, bundles: [] },
-        cave: { status: "unloaded", error: null, bundles: [] },
+        logo: { status: "loaded", error: null, bundles: ["reef"], direct: false },
+        missing: { status: "loaded", error: null, bundles: ["reef"], direct: false },
+        reef: { status: "fallback", error: "404 Not Found", bundles: ["reef"], direct: false },
+        rock: { status: "unloaded", error: null, bundles: [], direct: false },
+        cave: { status: "unloaded", error: null, bundles: [], direct: false },
       },
     });
   });
@@ -527,6 +533,243 @@ describe("lifetime and inspection", () => {
     await settle();
     for (const name of fake.pending()) await fake.resolve(name);
     await loading;
+  });
+});
+
+describe("loading one asset by name", () => {
+  it("loads an asset with no bundle: progress, AssetLoaded and getAsset, and no bundle entry", async () => {
+    const { game, fake } = await setUp();
+    const loaded: unknown[] = [];
+    game.on(AssetLoaded, (payload) => void loaded.push(payload));
+    await game.start();
+
+    const loading = loadAsset(game, GameAssets, "cave");
+    expect(progressOf(game).assets.cave).toEqual({ status: "loading", error: null, bundles: [], direct: true });
+    expect(progressOf(game)).toMatchObject({ loaded: 0, total: 1, fraction: 0 });
+    await settle();
+    expect(fake.calls).toEqual(["cave"]);
+    await fake.resolve("cave");
+    await loading;
+
+    expect(getAsset(game, GameAssets, "cave")).toEqual(texture("cave"));
+    expect(progressOf(game).assets.cave).toEqual({ status: "loaded", error: null, bundles: [], direct: true });
+    expect(progressOf(game)).toMatchObject({ loaded: 1, total: 1, fraction: 1 });
+    // No bundle was loaded, so none says it was.
+    expect(Object.values(progressOf(game).bundles).map((b) => b.status)).toEqual(["unloaded", "unloaded", "unloaded"]);
+    expect(loaded).toEqual([{ manifest: "test.assets", asset: "cave", status: "loaded" }]);
+    await expect(game.assets.getTexture2D("cave")).resolves.toEqual(texture("cave"));
+    await game.stop();
+  });
+
+  it("de-duplicates repeated requests and shares the load with a bundle that lists the asset", async () => {
+    const { game, fake } = await setUp();
+    const first = loadAsset(game, GameAssets, "logo");
+    const second = loadAsset(game, GameAssets, ["logo", "logo"]);
+    const boot = loadAssets(game, GameAssets, "boot");
+    await settle();
+    expect(fake.calls).toEqual(["logo", "rock"]);
+    await fake.resolve("logo");
+    await fake.resolve("rock");
+    await Promise.all([first, second, boot]);
+    expect(progressOf(game).assets.logo).toMatchObject({ bundles: ["boot"], direct: true });
+
+    // The bundle's unload leaves the asset held by name; the by-name unload then releases it.
+    unloadAssets(game, GameAssets, "boot");
+    await settle();
+    expect(fake.unloaded).toEqual(["rock"]);
+    expect(getAsset(game, GameAssets, "logo")).toEqual(texture("logo"));
+    unloadAsset(game, GameAssets, "logo");
+    await settle();
+    expect(fake.unloaded).toEqual(["rock", "logo"]);
+    expect(progressOf(game).assets.logo).toEqual({ status: "unloaded", error: null, bundles: [], direct: false });
+    expect(() => getAsset(game, GameAssets, "logo")).toThrow("not loaded");
+    // Unloading again, or a name never loaded, is a no-op.
+    unloadAsset(game, GameAssets, ["logo", "cave"]);
+  });
+
+  it("keeps an asset a bundle still holds when its by-name hold is dropped", async () => {
+    const { game, fake } = await setUp();
+    const loading = Promise.all([loadAsset(game, GameAssets, "rock"), loadAssets(game, GameAssets, "cave")]);
+    await settle();
+    for (const name of fake.pending()) await fake.resolve(name);
+    await loading;
+    unloadAsset(game, GameAssets, "rock");
+    await settle();
+    expect(fake.unloaded).toEqual([]);
+    expect(progressOf(game).assets.rock).toMatchObject({ status: "loaded", bundles: ["cave"], direct: false });
+  });
+
+  it("loads the asset's fallback with it, and reports the fallback", async () => {
+    const { game, fake, logger } = await setUp();
+    const loaded: unknown[] = [];
+    game.on(AssetLoaded, (payload) => void loaded.push(payload));
+    await game.start();
+    const loading = loadAsset(game, GameAssets, "reef");
+    await settle();
+    expect(fake.pending()).toEqual(["reef", "missing"]);
+    await fake.reject("reef");
+    await fake.resolve("missing");
+    await loading;
+    expect(getAsset(game, GameAssets, "reef")).toEqual(texture("missing"));
+    expect(loaded).toEqual([{ manifest: "test.assets", asset: "reef", status: "fallback" }]);
+    expect(logger.warnings).toHaveLength(1);
+    expect(progressOf(game)).toMatchObject({ loaded: 2, total: 2 });
+    await game.stop();
+  });
+
+  it("fails with AssetLoadError and AssetFailed, logged as an error, then retries on the next call", async () => {
+    const { game, fake, logger } = await setUp();
+    const failed: unknown[] = [];
+    game.on(AssetFailed, (payload) => void failed.push(payload));
+    await game.start();
+
+    const loading = loadAsset(game, GameAssets, "cave");
+    await settle();
+    await fake.reject("cave", new Error("network down"));
+    const error = await loading.catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(AssetLoadError);
+    expect(error).toMatchObject({
+      message: 'Asset "cave" of test.assets failed to load from "img/cave.png": network down',
+      manifest: "test.assets",
+      asset: "cave",
+      src: "img/cave.png",
+      cause: new Error("network down"),
+    });
+    expect(failed).toEqual([{ manifest: "test.assets", asset: "cave", src: "img/cave.png", error: "network down" }]);
+    expect(logger.errors).toEqual([(error as Error).message]);
+    expect(progressOf(game).assets.cave).toEqual({ status: "failed", error: "network down", bundles: [], direct: true });
+    expect(progressOf(game)).toMatchObject({ loaded: 0, failed: 1, total: 1 });
+
+    const retry = loadAsset(game, GameAssets, "cave");
+    await settle();
+    expect(fake.calls).toEqual(["cave", "cave"]);
+    await fake.resolve("cave");
+    await retry;
+    expect(getAsset(game, GameAssets, "cave")).toEqual(texture("cave"));
+    await game.stop();
+  });
+
+  it("rejects an asset still loading when it is unloaded, and frees it when it lands", async () => {
+    const { game, fake } = await setUp();
+    const loading = loadAsset(game, GameAssets, "cave");
+    await settle();
+    unloadAsset(game, GameAssets, "cave");
+    await fake.resolve("cave");
+    await expect(loading).rejects.toThrow('Asset "cave" of test.assets was unloaded before it finished loading.');
+    expect(fake.unloaded).toEqual(["cave"]);
+    expect(progressOf(game).assets.cave.status).toBe("unloaded");
+  });
+
+  it("throws at the call for a name the manifest does not have", async () => {
+    const { game } = await setUp();
+    expect(() => loadAsset(game, GameAssets, "boot" as never)).toThrow('loadAsset: test.assets has no asset "boot". Its assets: logo, missing, reef, rock, cave.');
+    expect(() => unloadAsset(game, GameAssets, "boot" as never)).toThrow('unloadAsset: test.assets has no asset "boot".');
+  });
+});
+
+describe("optional assets", () => {
+  const Art = defineAssets("test.optionalArt", {
+    assets: {
+      hero: { kind: "texture2d", src: "img/hero.png" },
+      glow: { kind: "texture2d", src: "img/glow.png", optional: true },
+      blank: { kind: "texture2d", src: "img/blank.png" },
+      shine: { kind: "texture2d", src: "img/shine.png", optional: true, fallback: "blank" },
+    },
+    bundles: { boot: ["hero", "glow"], shiny: ["shine"] },
+  });
+  const artOf = (game: TestGame) => game.resources.get(Art.progress);
+
+  it("does not fail the bundle: the asset is missing, warned, counted as done, and getAsset returns undefined", async () => {
+    const { game, fake, logger } = await setUp();
+    const loaded: unknown[] = [];
+    const failed: unknown[] = [];
+    game.on(AssetBundleLoaded, (payload) => void loaded.push(payload));
+    game.on(AssetBundleFailed, (payload) => void failed.push(payload));
+    await game.start();
+
+    const loading = loadAssets(game, Art, "boot");
+    await settle();
+    await fake.reject("glow");
+    await fake.resolve("hero");
+    await loading;
+
+    expect(getAsset(game, Art, "glow")).toBeUndefined();
+    expect(getAsset(game, Art, "hero")).toEqual(texture("hero"));
+    expect(artOf(game).assets.glow).toEqual({ status: "missing", error: "404 Not Found", bundles: ["boot"], direct: false });
+    expect(artOf(game).bundles.boot).toEqual({ status: "loaded", loaded: 1, missing: 1, failed: 0, total: 2, fraction: 1 });
+    expect(artOf(game)).toMatchObject({ loaded: 1, missing: 1, failed: 0, fraction: 1 });
+    expect(loaded).toEqual([{ manifest: "test.optionalArt", bundle: "boot", fallbacks: [], missing: ["glow"] }]);
+    expect(failed).toEqual([]);
+    expect(logger.errors).toEqual([]);
+    expect(logger.warnings).toEqual(['Optional asset "glow" of test.optionalArt failed to load from "img/glow.png"; it is missing']);
+    // The store's getter resolves with nothing rather than rejecting.
+    await expect(game.assets.getTexture2D("glow")).resolves.toBeUndefined();
+    await game.stop();
+  });
+
+  it("shows its fallback first, and is missing only when the fallback fails too", async () => {
+    const { game, fake } = await setUp();
+    const first = loadAssets(game, Art, "shiny");
+    await settle();
+    await fake.reject("shine");
+    await fake.resolve("blank");
+    await first;
+    expect(getAsset(game, Art, "shine")).toEqual(texture("blank"));
+    expect(artOf(game).assets.shine.status).toBe("fallback");
+
+    unloadAssets(game, Art, "shiny");
+    const second = loadAssets(game, Art, "shiny");
+    await settle();
+    await fake.reject("shine");
+    await fake.reject("blank");
+    // The bundle fails on `blank`, which is not optional; `shine` itself is only missing.
+    await expect(second).rejects.toThrow('asset "blank" from "img/blank.png"');
+    expect(artOf(game).assets.shine.status).toBe("missing");
+    expect(getAsset(game, Art, "shine")).toBeUndefined();
+  });
+
+  it("counts a missing asset as settled: not loaded again until its bundle is unloaded and loaded", async () => {
+    const { game, fake } = await setUp();
+    const first = loadAssets(game, Art, "boot");
+    await settle();
+    await fake.reject("glow");
+    await fake.resolve("hero");
+    await first;
+    await loadAssets(game, Art, "boot");
+    expect(fake.calls).toEqual(["hero", "glow"]);
+    // Unloading and loading again tries it again.
+    unloadAssets(game, Art, "boot");
+    const again = loadAssets(game, Art, "boot");
+    await settle();
+    expect(fake.calls).toEqual(["hero", "glow", "hero", "glow"]);
+    await fake.resolve("hero");
+    await fake.resolve("glow");
+    await again;
+    expect(getAsset(game, Art, "glow")).toEqual(texture("glow"));
+  });
+
+  it("loaded by name, it sends AssetLoaded with status missing and resolves", async () => {
+    const { game, fake } = await setUp();
+    const loaded: unknown[] = [];
+    game.on(AssetLoaded, (payload) => void loaded.push(payload));
+    await game.start();
+    const loading = loadAsset(game, Art, "glow");
+    await settle();
+    await fake.reject("glow");
+    await loading;
+    expect(loaded).toEqual([{ manifest: "test.optionalArt", asset: "glow", status: "missing" }]);
+    expect(getAsset(game, Art, "glow")).toBeUndefined();
+    await game.stop();
+  });
+
+  it("leaves a non-optional asset failing its bundle, as before", async () => {
+    const { game, fake } = await setUp();
+    const loading = loadAssets(game, Art, "boot");
+    await settle();
+    await fake.reject("hero");
+    await fake.resolve("glow");
+    await expect(loading).rejects.toThrow(AssetBundleError);
+    expect(artOf(game).bundles.boot).toMatchObject({ status: "failed", failed: 1, missing: 0 });
   });
 });
 

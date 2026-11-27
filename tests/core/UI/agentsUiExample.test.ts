@@ -3,8 +3,8 @@ import { Container, Graphics } from "pixi.js";
 import { Schedule, createTestGame, defineAction } from "@/index";
 import { ControlActivated, UiFocus, activateControl, control, listControls, modalScope, ui } from "@/ui";
 
-// The UI controls example in AGENTS.md. Change both together.
-it("runs the AGENTS.md UI controls example", async () => {
+// The UI controls example in skills/fenrir/SKILL.md, which tests/skillExamples.test.ts also runs.
+it("runs the guide's UI controls example", async () => {
   const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
   const Tab = defineAction("myGame.tab", ["Tab"]);

@@ -9,8 +9,10 @@ import { Renderable2D } from "./render2DComponents";
 const RENDERABLES = [Renderable2D] as const;
 const NODES = [PixiNode] as const;
 
+/** What `createPixiRendererSystem` takes. */
 export interface PixiRendererSystemOptions extends PixiRendererOptions {}
 
+/** The renderer's systems without the plugin, for tests that drive `init`, `postUpdate` and `exit` by hand. Games use `pixi2d()`. */
 export function createPixiRendererSystem(opts: PixiRendererSystemOptions) {
   const renderer = new PixiRenderer(opts);
   let active: EntityList | undefined;

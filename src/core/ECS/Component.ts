@@ -1,3 +1,4 @@
+/** A typed component key, made by `defineComponent<T>(name)`. */
 export type ComponentType<T> = symbol & { __component?: T };
 
 /**

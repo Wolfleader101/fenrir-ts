@@ -5,7 +5,9 @@ import type { Texture } from "pixi.js";
 import {
   defineAssets,
   getAsset,
+  loadAsset,
   loadAssets,
+  unloadAsset,
   unloadAssets,
   type AssetName,
   type AssetProgress,
@@ -36,7 +38,7 @@ unloadAssets(ctx, GameAssets, "reef");
 const progress = ctx.resources.get(GameAssets.progress);
 expectTypeOf(progress).toEqualTypeOf<AssetProgress<"logo" | "missing" | "reef", "boot" | "reef">>();
 expectTypeOf(progress.bundles.reef.fraction).toEqualTypeOf<number>();
-expectTypeOf(progress.assets.logo.status).toEqualTypeOf<"unloaded" | "loading" | "loaded" | "fallback" | "failed">();
+expectTypeOf(progress.assets.logo.status).toEqualTypeOf<"unloaded" | "loading" | "loaded" | "fallback" | "missing" | "failed">();
 
 // A manifest written as plain data elsewhere, `as const`, works the same.
 const declared = {
@@ -45,6 +47,28 @@ const declared = {
 } as const;
 const Declared = defineAssets("fixture.declared", declared);
 expectTypeOf(getAsset(ctx, Declared, "hero")).toEqualTypeOf<Texture>();
+
+// Per-asset loading takes asset names, not bundle names.
+expectTypeOf(loadAsset(ctx, GameAssets, "reef")).toEqualTypeOf<Promise<void>>();
+void loadAsset(ctx, GameAssets, ["reef", "logo"]);
+unloadAsset(ctx, GameAssets, "reef");
+// @ts-expect-error a bundle name is not an asset name
+void loadAsset(ctx, GameAssets, "boot");
+// @ts-expect-error not an asset of the manifest
+unloadAsset(ctx, GameAssets, "rock");
+
+// An optional asset may be missing: getAsset includes undefined for it, and only for it.
+const Optional = defineAssets("fixture.optional", {
+  assets: {
+    hero: { kind: "texture2d", src: "hero.png" },
+    glow: { kind: "texture2d", src: "glow.png", optional: true },
+    shine: { kind: "texture2d", src: "shine.png", optional: false },
+  },
+  bundles: { boot: ["hero", "glow", "shine"] },
+});
+expectTypeOf(getAsset(ctx, Optional, "glow")).toEqualTypeOf<Texture | undefined>();
+expectTypeOf(getAsset(ctx, Optional, "hero")).toEqualTypeOf<Texture>();
+expectTypeOf(getAsset(ctx, Optional, "shine")).toEqualTypeOf<Texture>();
 
 // @ts-expect-error not an asset of the manifest
 getAsset(ctx, GameAssets, "rock");

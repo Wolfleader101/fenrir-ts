@@ -10,11 +10,11 @@ import type { GameStates } from "./State";
 /** One entity of the active scene, as `inspect(game)` reports it. */
 export interface EntitySnapshot {
   /** The entity handle: the value `entities.get` and `entities.set` take. */
-  readonly id: number;
+  readonly id: Entity;
   /** From the engine's `fenrir.Name` component. */
   readonly name: string;
   /** The parent's handle, from the engine's `fenrir.Relationship` component; null for a root. */
-  readonly parent: number | null;
+  readonly parent: Entity | null;
   /** Every other component, `fenrir.Transform` included, by the name given to `defineComponent`. */
   readonly components: Readonly<Record<string, JsonValue>>;
 }
@@ -113,7 +113,7 @@ export interface DebugGlobal {
  * What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
  * scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
  * after `stop()`; never throws. A function rather than a method, so a game that never calls it
- * ships none of the snapshot and JSON-encoding code. The serialisation rules are in README.md
+ * ships none of the snapshot and JSON-encoding code. The serialisation rules are in skills/fenrir/references/testing.md
  * under "Inspecting a game".
  *
  * ```ts

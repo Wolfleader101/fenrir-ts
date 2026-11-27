@@ -239,6 +239,29 @@ describe("fenrir-ts core public API", () => {
     await game.stop();
   });
 
+  it("loads manifest assets one at a time by name, and treats an optional asset's failure as missing", async () => {
+    const { AssetLoadError, AssetLoaded, createTestGame, defineAssets, getAsset, loadAsset, loadAssets, setAssetLoader, unloadAsset, NullLogger } = core;
+    type Kind = import("@/index").AssetKind;
+    const kind = "texture2d" as Kind;
+    const Assets = defineAssets("publicApi.lazy", {
+      assets: { a: { kind, src: "a.png" }, gone: { kind, src: "gone.png", optional: true }, broken: { kind, src: "broken.png" } },
+      bundles: { boot: ["a", "gone"] },
+    });
+    const game = await createTestGame({ seed: 1, logger: new NullLogger() });
+    setAssetLoader(game, { load: async ({ name }) => (name === "a" ? { name } : Promise.reject(new Error(`no ${name}`))) });
+    const loaded: string[] = [];
+    game.on(AssetLoaded, ({ asset, status }) => void loaded.push(`${asset} ${status}`));
+    await game.start();
+    await loadAsset(game, Assets, ["a", "gone"]);
+    expect(loaded).toEqual(["a loaded", "gone missing"]);
+    expect(getAsset(game, Assets, "gone")).toBeUndefined();
+    await expect(loadAsset(game, Assets, "broken")).rejects.toBeInstanceOf(AssetLoadError);
+    await loadAssets(game, Assets, "boot"); // an optional failure does not fail the bundle
+    expect(core.inspect(game).resources["publicApi.lazy"]).toMatchObject({ loaded: 1, missing: 1, failed: 1, total: 3 });
+    unloadAsset(game, Assets, ["a", "gone", "broken"]);
+    await game.stop();
+  });
+
   it("stores typed values with defaults, migration and a memory fallback, as plain status (#39)", async () => {
     const { StorageStatus, createTestGame, defineStorageKey, getStored, memoryStorage, removeStored, setStored, storage, updateStored, NullLogger } = core;
     const Muted = defineStorageKey("publicApi.muted", { default: false });

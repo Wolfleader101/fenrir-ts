@@ -7,16 +7,20 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import * as THREE_WEBGPU from 'three/webgpu';
 
+/** Where an asset loads from. */
 export type AssetSource = {
 	url: string;
 } | {
 	url: string;
 	format?: string;
 };
+/** Loads one asset from a source. Registered per kind and extension on the asset store. */
 export type AssetLoader<T> = (src: AssetSource) => Promise<T>;
+/** A key in the asset store: an asset's name. Make one with `assetKey(name)`. */
 export type AssetKey = string & {
 	__assetKey?: true;
 };
+/** Brands a string as an `AssetKey`. */
 export declare const assetKey: (k: string) => AssetKey;
 /** A loader and the file extensions it handles. */
 export type LoaderConfig<T> = {
@@ -102,6 +106,7 @@ export declare class AssetStore implements IAssetStore {
 	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 	clear(): void;
 }
+/** The stage names for `addSystem`. `PreInit`, `Init`, `PostInit` and `Exit` may be async and are awaited; `PreUpdate`, `Tick` (fixed step), `Update` and `PostUpdate` run every frame and must be sync. */
 export declare const Schedule: {
 	readonly PreInit: "preInit";
 	readonly Init: "init";
@@ -112,8 +117,11 @@ export declare const Schedule: {
 	readonly PostUpdate: "postUpdate";
 	readonly Exit: "exit";
 };
+/** A value of `Schedule`. */
 export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
+/** The stages whose systems may return a promise, which is awaited: `PreInit`, `Init`, `PostInit` and `Exit`. */
 export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
+/** The per-frame stages. Their systems must be synchronous: a returned promise is not awaited. */
 export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
 /**
  * Sparse-set component pool (EnTT-style).
@@ -152,6 +160,7 @@ export declare class Pool<T> {
 	 */
 	forEach(fn: (entityId: number, component: T) => void): void;
 }
+/** A typed component key, made by `defineComponent<T>(name)`. */
 export type ComponentType<T> = symbol & {
 	__component?: T;
 };
@@ -194,6 +203,7 @@ export type ComponentDataOf<C> = C extends ComponentType<infer T> ? T : never;
 export type ComponentTuple<TTypes extends readonly ComponentType<any>[]> = {
 	[K in keyof TTypes]: ComponentDataOf<TTypes[K]>;
 };
+/** A cached query over entities with every component in `types`. `entities.each(QUERY, fn)` uses one; keep each query tuple in a module-level constant. */
 export declare class View<TTypes extends readonly ComponentType<any>[]> {
 	private readonly entityList;
 	readonly types: TTypes;
@@ -207,6 +217,7 @@ export declare class View<TTypes extends readonly ComponentType<any>[]> {
 	private each4;
 	private eachN;
 }
+/** An entity handle. Plain number: store it, compare it, never do arithmetic on it. */
 export type Entity = number;
 export type AnyTypes = readonly ComponentType<any>[];
 /**
@@ -226,8 +237,9 @@ export declare class EntityList {
 	 */
 	createEntity(): Entity;
 	/**
-	 * Destroy an entity. Returns false if the handle was already dead/invalid.
-	 * Note: component removal will be added in Step 3 when pools exist.
+	 * Destroys an entity, its child entities first, and removes every component it had (each
+	 * removal is signalled, so a `PixiNode`'s node is destroyed). Returns false if the handle was
+	 * already dead or invalid.
 	 */
 	destroyEntity(entity: Entity): boolean;
 	/**
@@ -279,6 +291,7 @@ export declare class EntityList {
 	private detachFromParent;
 	private destroyChildrenRecursive;
 }
+/** A typed event key, made by `defineEvent<T>(name)`. */
 export type EventType<T> = symbol & {
 	__eventType?: T;
 };
@@ -291,9 +304,11 @@ export type EventType<T> = symbol & {
  * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
  */
 export declare function defineEvent<T>(name: string): EventType<T>;
+/** What `events.createReader(Type)` returns: `read()` gives the events it has not returned before. Create one per consumer, once. */
 export type EventReader<T> = {
 	read(): readonly T[];
 };
+/** Internal storage for one event type. Games use `EventBus` (`ctx.events`) instead. */
 export declare class EventQueue<T> {
 	private nextSequence;
 	private current;
@@ -315,6 +330,7 @@ export declare class EventQueue<T> {
  * logged like a throw.
  */
 export type EventHandler<T> = (payload: T, ctx: SystemCtx) => void;
+/** The game's events: `ctx.events` and `game.events`. Buffers each event for two frames for readers, and calls immediate listeners inside `send`. */
 export declare class EventBus {
 	private queues;
 	private listeners;
@@ -386,6 +402,7 @@ export declare class Resources {
 	set<T>(resource: ResourceType<T>, value: NoInfer<T>): void;
 }
 export type LogMeta = Record<string, unknown>;
+/** The logger: `ctx.logger` and `game.logger`. Pass one to `createGame({ logger })` to route engine messages. */
 export interface ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;
@@ -402,6 +419,7 @@ export declare class Scene {
 	readonly entityList: EntityList;
 	constructor(name: string);
 }
+/** The game's scenes: `ctx.scenes`. Always holds at least one scene; `ctx.scene` and `ctx.entities` are the active one's. */
 export declare class SceneManager {
 	private scenes;
 	private activeSceneIndex;
@@ -705,9 +723,9 @@ export interface TestInput extends Input {
 }
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
- * same object. `createGame` builds them and passes them to the engine.
- *
- * A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
+ * same object. `createGame` builds them and passes them to the engine. Entities are not a
+ * service: they belong to the active scene, `ctx.entities` in a system. Outside one, a test
+ * reads them through `inspect(game).entities`.
  */
 export interface GameServices {
 	/** Singleton values this game owns. See `defineResource`. */
@@ -738,7 +756,9 @@ export interface SystemCtx extends GameServices {
 	onCleanup(cleanup: () => void | Promise<void>): void;
 	stop(): void;
 }
+/** A system for a per-frame stage. */
 export type SyncSystemFn = (ctx: SystemCtx) => void;
+/** A system for a startup or `Exit` stage; a returned promise is awaited. */
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
 /** How a system is registered. Every field is optional. */
 export interface SystemOptions {
@@ -814,6 +834,7 @@ export declare class Scheduler {
 	/** Replaces a stage's entries. While running, the new order is resolved now so errors throw here. */
 	private change;
 }
+/** What `new Engine(options)` takes. 2D games use `createGame` instead. */
 export type EngineOptions = {
 	scheduler: Scheduler;
 	sceneManager: SceneManager;
@@ -840,6 +861,7 @@ export type EngineOptions = {
 	/** Called before each frame that `step` runs, with its `dt`. The test game advances its clock here. */
 	beforeStep?: (dt: number) => void;
 };
+/** The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path and the editor. */
 export declare class Engine {
 	private readonly time;
 	private readonly scheduler;
@@ -916,6 +938,7 @@ interface Plugin$1 {
 	readonly name: string;
 	install(game: Game): void | Promise<void>;
 }
+/** What `createGame` takes. Only `canvas` is required. */
 export interface GameOptions {
 	/** The canvas the game draws to. Renderer plugins read it from `game.canvas`. */
 	canvas: HTMLCanvasElement;
@@ -1009,6 +1032,7 @@ export interface Game extends GameBase {
  * ```
  */
 export declare function createGame(options: GameOptions): Promise<Game>;
+/** What `createTestGame` takes. `seed` is required; there is no canvas. */
 export interface TestGameOptions {
 	/** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
 	seed: number;
@@ -1046,7 +1070,8 @@ export interface TestGame extends GameBase {
 	start(): Promise<void>;
 	/**
 	 * The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`,
-	 * `pointerMove` and `pointerUp`, which stand in for the player and take effect on the next `step`.
+	 * `pointerMove`, `pointerUp`, `pointerCancel`, `focus` and `blur`, which stand in for the player
+	 * and take effect on the next `step`.
 	 */
 	readonly input: TestInput;
 }
@@ -1071,11 +1096,11 @@ export type JsonValue = null | boolean | number | string | readonly JsonValue[] 
 /** One entity of the active scene, as `inspect(game)` reports it. */
 export interface EntitySnapshot {
 	/** The entity handle: the value `entities.get` and `entities.set` take. */
-	readonly id: number;
+	readonly id: Entity;
 	/** From the engine's `fenrir.Name` component. */
 	readonly name: string;
 	/** The parent's handle, from the engine's `fenrir.Relationship` component; null for a root. */
-	readonly parent: number | null;
+	readonly parent: Entity | null;
 	/** Every other component, `fenrir.Transform` included, by the name given to `defineComponent`. */
 	readonly components: Readonly<Record<string, JsonValue>>;
 }
@@ -1108,7 +1133,7 @@ export interface DebugGlobal {
  * What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
  * scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
  * after `stop()`; never throws. A function rather than a method, so a game that never calls it
- * ships none of the snapshot and JSON-encoding code. The serialisation rules are in README.md
+ * ships none of the snapshot and JSON-encoding code. The serialisation rules are in skills/fenrir/references/testing.md
  * under "Inspecting a game".
  *
  * ```ts
@@ -1263,6 +1288,7 @@ export type MotionCtx = {
 export type NumericKeys<T> = {
 	[K in keyof T]-?: T[K] extends number ? K : never;
 }[keyof T] & string;
+/** What `addTween` takes. `to` names the component's number fields to move; the rest is optional. */
 export interface TweenOptions<T> {
 	/** End values of numeric fields of the component. */
 	to: Partial<Record<NumericKeys<T>, number>>;
@@ -1285,6 +1311,7 @@ export interface TweenOptions<T> {
 	name?: string;
 	group?: string;
 }
+/** What `addTimer` takes: how long, how many repeats, a pause group, and the state it belongs to. */
 export interface TimerOptions {
 	/** Seconds until it fires, and between firings. */
 	duration: number;
@@ -1374,6 +1401,7 @@ export interface StorageKey<T> {
 	/** False when a migrated value is written only by the next `setStored` or `updateStored`. Absent means true. */
 	readonly writeMigrated?: boolean;
 }
+/** What `defineStorageKey` and `defineStorageKeyFamily` take: the default value, and how to parse and migrate stored data. */
 export interface StorageKeyOptions<T> {
 	/** What a read returns when nothing valid is stored. Objects are copied, so mutating one is safe. */
 	default: T;
@@ -1427,6 +1455,7 @@ export type StorageCtx = {
 	readonly resources: Resources;
 	readonly logger: ILogger;
 };
+/** What the `storage()` plugin takes: the backend (default `localStorage`, falling back to memory) and a key prefix. */
 export interface StorageOptions {
 	/** Defaults to `localStorage`, or to memory when it is unavailable (private mode, blocked in a webview). */
 	backend?: StorageBackend;
@@ -1534,6 +1563,7 @@ export declare function persistResource<T extends object, K extends keyof T & st
  * const test = await createTestGame({ seed: 1, plugins: [storage({ backend: memoryStorage() })] });
  */
 export declare function storage(options?: StorageOptions): Plugin$1;
+/** Logs to the browser console. The default logger of `createGame`. */
 export declare class ConsoleLogger implements ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;
@@ -1541,6 +1571,7 @@ export declare class ConsoleLogger implements ILogger {
 	warn(message: string, meta?: LogMeta): void;
 	error(message: string, meta?: LogMeta): void;
 }
+/** Drops every message. Extend it in tests to record what was logged. */
 export declare class NullLogger implements ILogger {
 	trace(_m: string, _meta?: LogMeta): void;
 	debug(_m: string, _meta?: LogMeta): void;
@@ -1561,10 +1592,12 @@ export type QuatLike = {
 	z: number;
 	w: number;
 };
+/** The engine's name component (`fenrir.Name`), set by `EntityBuilder.name()`. `inspect()` shows it as the entity's `name`. */
 export type Name = {
 	name: string;
 };
 export declare const Name: ComponentType<Name>;
+/** The engine's parent and sibling links (`fenrir.Relationship`), set by `EntityBuilder.child()` and `spawnInto`. `inspect()` shows it as `parent`. */
 export type Relationship = {
 	parent: Entity;
 	firstChild: Entity;
@@ -1599,6 +1632,7 @@ export type Display2D = {
 };
 export declare const Display2D: ComponentType<Display2D>;
 export type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
+/** Builds an entity from components, then `spawn(ctx.entities)`. Renderer entries add their own methods when imported, such as `pixiNode` from `fenrir-ts/2d`. */
 export declare class EntityBuilder {
 	private readonly ops;
 	private readonly children;
@@ -1652,13 +1686,22 @@ export interface AssetDeclaration<Name extends string = string> {
 	 * Every bundle that lists this asset also loads the fallback. A fallback has no fallback.
 	 */
 	readonly fallback?: Name;
+	/**
+	 * `true`: a failure is cosmetic. If it fails (and its fallback, if any, fails too) it is
+	 * `missing`: logged as a warning, counted in `missing`, and its bundle still loads.
+	 * `getAsset` returns `undefined` for it. Default `false`: a failure fails the bundle.
+	 */
+	readonly optional?: boolean;
 }
 /** The assets of a manifest, by name. */
 export type AssetDeclarations = {
 	readonly [name: string]: AssetDeclaration;
 };
-/** Where one asset of a manifest stands. `fallback`: it failed and its fallback is shown instead. */
-export type AssetStatus = "unloaded" | "loading" | "loaded" | "fallback" | "failed";
+/**
+ * Where one asset of a manifest stands. `fallback`: it failed and its fallback is shown instead.
+ * `missing`: an `optional` asset that failed with no fallback to show; `getAsset` returns `undefined`.
+ */
+export type AssetStatus = "unloaded" | "loading" | "loaded" | "fallback" | "missing" | "failed";
 /** Where one bundle stands. `failed`: an asset without a fallback failed; the others loaded. */
 export type BundleStatus = "unloaded" | "loading" | "loaded" | "failed";
 /** One asset in `AssetProgress`. */
@@ -1666,14 +1709,18 @@ export interface AssetState {
 	status: AssetStatus;
 	/** Why it failed, when its status is `failed` or `fallback`. */
 	error: string | null;
-	/** The loading or loaded bundles of this manifest that hold it. It is unloaded when none do. */
+	/** The loading or loaded bundles of this manifest that hold it. It is unloaded when none do and `direct` is false. */
 	bundles: string[];
+	/** Whether `loadAsset` holds it by name (until `unloadAsset`), apart from any bundle. */
+	direct: boolean;
 }
-/** Counts over a set of assets. `fraction` is `loaded / total`, or 1 when `total` is 0. */
+/** Counts over a set of assets. `fraction` is `(loaded + missing) / total`, or 1 when `total` is 0. */
 export interface AssetCounts {
 	/** Assets ready to read: loaded, or showing their fallback. */
 	loaded: number;
-	/** Assets that failed with no fallback. */
+	/** Optional assets that failed with nothing to show. They count as done, not failed. */
+	missing: number;
+	/** Assets that failed with no fallback and are not optional. */
 	failed: number;
 	total: number;
 	fraction: number;
@@ -1685,7 +1732,7 @@ export interface BundleProgress extends AssetCounts {
 /**
  * A manifest's progress, as plain data: the value of `manifest.progress`, a resource, so a HUD
  * reads it each frame with `ctx.resources.get(manifest.progress)` and `inspect(game)` shows it.
- * The top-level counts are over every asset a loading or loaded bundle holds.
+ * The top-level counts are over every asset a loading or loaded bundle, or `loadAsset`, holds.
  */
 export interface AssetProgress<A extends string = string, B extends string = string> extends AssetCounts {
 	bundles: Record<B, BundleProgress>;
@@ -1707,8 +1754,13 @@ export interface AssetManifest<A extends AssetDeclarations = AssetDeclarations, 
 export type AssetName<M extends AssetManifest<any, any>> = keyof M["assets"] & string;
 /** The name of a bundle of `M`. */
 export type BundleName<M extends AssetManifest<any, any>> = keyof M["bundles"] & string;
-/** The loaded type of asset `N` of `M`, from its kind. */
-export type ManifestAsset<A extends AssetDeclarations, N extends keyof A> = AssetKinds[A[N]["kind"]];
+/**
+ * What `getAsset` returns for asset `N`: the loaded type of its kind, plus `undefined` when it is
+ * declared `optional: true` (a missing optional asset has no value).
+ */
+export type ManifestAsset<A extends AssetDeclarations, N extends keyof A> = AssetKinds[A[N]["kind"]] | (A[N] extends {
+	readonly optional: true;
+} ? undefined : never);
 /** What the manifest functions need: a `SystemCtx`, or the `Game` or `TestGame` itself. */
 export type AssetCtx = {
 	readonly assets: AssetStore;
@@ -1722,11 +1774,15 @@ export interface AssetFailure {
 	src: string;
 	error: string;
 }
-/** Sent when a bundle has loaded, every asset ready or showing its fallback. */
+/**
+ * Sent when a bundle has loaded: every asset ready, showing its fallback (`fallbacks`), or an
+ * optional asset that is missing (`missing`).
+ */
 export declare const AssetBundleLoaded: EventType<{
 	manifest: string;
 	bundle: string;
 	fallbacks: string[];
+	missing: string[];
 }>;
 /** Sent when a bundle has settled with at least one asset failed and no fallback for it. */
 export declare const AssetBundleFailed: EventType<{
@@ -1734,6 +1790,26 @@ export declare const AssetBundleFailed: EventType<{
 	bundle: string;
 	failures: AssetFailure[];
 }>;
+/**
+ * Sent when an asset requested by name with `loadAsset` has settled without failing. `status` is
+ * `loaded`, `fallback` (its fallback is shown) or `missing` (optional, nothing to show).
+ */
+export declare const AssetLoaded: EventType<{
+	manifest: string;
+	asset: string;
+	status: "loaded" | "fallback" | "missing";
+}>;
+/** Sent when an asset requested by name with `loadAsset` failed, with no fallback and not optional. */
+export declare const AssetFailed: EventType<{
+	manifest: string;
+} & AssetFailure>;
+/** The rejection of `loadAsset` when the asset failed, with no fallback and not optional. */
+export declare class AssetLoadError extends Error {
+	readonly manifest: string;
+	readonly asset: string;
+	readonly src: string;
+	constructor(manifest: string, failure: AssetFailure, cause: unknown);
+}
 /** The rejection of `loadAssets` when a bundle failed. Every asset of the bundle was tried first. */
 export declare class AssetBundleError extends Error {
 	readonly manifest: string;
@@ -1741,7 +1817,10 @@ export declare class AssetBundleError extends Error {
 	readonly failures: readonly AssetFailure[];
 	constructor(manifest: string, bundle: string, failures: readonly AssetFailure[], cause: unknown);
 }
-/** Loads manifest assets in place of the store's loaders. See `setAssetLoader`. */
+/**
+ * Loads manifest assets in place of the store's loaders. See `setAssetLoader`. `load` gets each
+ * asset's `name`, `kind` and `src` as declared, and resolves with its value or rejects.
+ */
 export interface ManifestLoader {
 	load(asset: {
 		readonly name: string;
@@ -1764,6 +1843,10 @@ export interface ManifestLoader {
  * An asset's name is its key in `game.assets`, so `getTexture2D(name)` and `renderSprite(name)`
  * read it too. Two manifests that use one name must declare the same kind and source.
  *
+ * Mark an asset `optional: true` when a failure is cosmetic: it is then `missing` (a warning, not
+ * an error), its bundle still loads, and `getAsset` returns `undefined` for it. To load assets one
+ * at a time rather than in bundles, use `loadAsset` and `unloadAsset`.
+ *
  * Throws if a bundle lists an unknown asset, a fallback is unknown, of another kind or has its
  * own fallback, or two assets of one kind share a source.
  *
@@ -1773,6 +1856,7 @@ export interface ManifestLoader {
  *     logo: { kind: "texture2d", src: "img/logo.png" },
  *     missing: { kind: "texture2d", src: "img/missing.png" },
  *     reef: { kind: "texture2d", src: "img/reef.webp", fallback: "missing" },
+ *     glow: { kind: "texture2d", src: "img/glow.png", optional: true },
  *   },
  *   bundles: { boot: ["logo"], reef: ["reef", "logo"] },
  * });
@@ -1812,9 +1896,37 @@ export declare function loadAssets<A extends AssetDeclarations, B extends string
  */
 export declare function unloadAssets<A extends AssetDeclarations, B extends string>(ctx: AssetCtx, manifest: AssetManifest<A, B>, bundles: NoInfer<B> | readonly NoInfer<B>[]): void;
 /**
+ * Loads assets of `manifest` by name, with no bundle: for a game that loads images one at a time
+ * as they come into view. Each name is held like a one-asset bundle (with its fallback) until
+ * `unloadAsset`, sharing the load with any bundle that lists it, and shows in `manifest.progress`
+ * as `assets[name].direct` and in the top-level counts, not in `progress.bundles`.
+ *
+ * Safe to call again: a loading or loaded asset returns the same promise, and a failed one is
+ * retried. When an asset settles it sends `AssetLoaded` (status `loaded`, `fallback` or
+ * `missing`) and the promise resolves; one that fails with no fallback and is not `optional` is
+ * logged, sends `AssetFailed` and rejects with an `AssetLoadError`. With several names, the
+ * promise resolves when all have and rejects with the first failure; every name is tried.
+ * `setAssetLoader` replaces its loader as it does for bundles.
+ *
+ * @example
+ * void loadAsset(ctx, Art, "portrait"); // from a sync system; read progress.assets.portrait.status
+ */
+export declare function loadAsset<A extends AssetDeclarations, B extends string>(ctx: AssetCtx, manifest: AssetManifest<A, B>, names: NoInfer<keyof A & string> | readonly NoInfer<keyof A & string>[]): Promise<void>;
+/**
+ * Drops the holds `loadAsset` took on `names`. Each asset no bundle (of any manifest) still holds
+ * is released as `unloadAssets` releases a bundle's: out of the store, and its loader's `unload`
+ * runs. A name `loadAsset` does not hold is a no-op; an asset still loading is unloaded too, and
+ * its `loadAsset` promise rejects.
+ */
+export declare function unloadAsset<A extends AssetDeclarations, B extends string>(ctx: AssetCtx, manifest: AssetManifest<A, B>, names: NoInfer<keyof A & string> | readonly NoInfer<keyof A & string>[]): void;
+/**
  * The loaded asset `name` of `manifest`, typed by its kind: a Pixi `Texture` for `texture2d`.
- * Its fallback's value if it failed and has one. Throws if no bundle holding it has loaded it yet;
- * read `manifest.progress`, or wait for `AssetBundleLoaded`, to know when it has.
+ * `ctx` is a `SystemCtx`, the game, or anything with its `assets`, `resources`, `events` and
+ * `logger` (`AssetCtx`).
+ * Its fallback's value if it failed and has one. `undefined` for an `optional` asset that is
+ * `missing` (its type includes `undefined` only for assets declared `optional: true`).
+ * Throws if it is not loaded yet, or failed; read `manifest.progress`, or wait for
+ * `AssetBundleLoaded` or `AssetLoaded`, to know when it has loaded.
  */
 export declare function getAsset<A extends AssetDeclarations, N extends keyof A & string>(ctx: AssetCtx, manifest: AssetManifest<A, string>, name: N): ManifestAsset<A, N>;
 /**

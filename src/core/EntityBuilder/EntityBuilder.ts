@@ -10,6 +10,7 @@ type WithOp = {
   make: (e: Entity, entities: EntityList) => any;
 };
 
+/** Builds an entity from components, then `spawn(ctx.entities)`. Renderer entries add their own methods when imported, such as `pixiNode` from `fenrir-ts/2d`. */
 export class EntityBuilder {
   private readonly ops: WithOp[] = [];
   private readonly children: EntityBuilder[] = [];

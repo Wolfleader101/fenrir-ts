@@ -12,9 +12,9 @@ import type { Input } from "./Input/Input";
 
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
- * same object. `createGame` builds them and passes them to the engine.
- *
- * A new service adds its field here and builds its object in `createServices` (src/core/Game.ts).
+ * same object. `createGame` builds them and passes them to the engine. Entities are not a
+ * service: they belong to the active scene, `ctx.entities` in a system. Outside one, a test
+ * reads them through `inspect(game).entities`.
  */
 export interface GameServices {
   /** Singleton values this game owns. See `defineResource`. */
@@ -53,5 +53,7 @@ export interface SystemCtx extends GameServices {
   stop(): void;
 }
 
+/** A system for a per-frame stage. */
 export type SyncSystemFn = (ctx: SystemCtx) => void;
+/** A system for a startup or `Exit` stage; a returned promise is awaited. */
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;

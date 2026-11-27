@@ -1,6 +1,8 @@
 import type { AssetLoader, AssetSource } from "./AssetLoader";
 
+/** A key in the asset store: an asset's name. Make one with `assetKey(name)`. */
 export type AssetKey = string & { __assetKey?: true };
+/** Brands a string as an `AssetKey`. */
 export const assetKey = (k: string) => k as AssetKey;
 
 /** A loader and the file extensions it handles. */

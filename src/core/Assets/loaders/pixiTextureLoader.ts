@@ -1,6 +1,7 @@
 import { Assets, Texture } from "pixi.js";
 import type { AssetLoader } from "../AssetLoader";
 
+/** The default `texture2d` loader: Pixi's `Assets.load`. `pixi2d()` registers it. */
 export function createPixiTextureLoader(): AssetLoader<Texture> {
   return async ({ url }) => {
     return await Assets.load<Texture>(url);

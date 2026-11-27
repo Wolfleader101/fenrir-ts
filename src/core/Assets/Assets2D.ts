@@ -6,11 +6,13 @@ import type { Texture as PixiTexture } from "pixi.js";
 import { AssetStore, type AssetKey, type AssetKind, type LoaderConfig } from "./AssetStore";
 import { createPixiTextureLoader, unloadPixiTexture } from "./loaders/pixiTextureLoader";
 
+/** Where a `Texture2DHandle`'s load stands. */
 export type Texture2DState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly texture: PixiTexture }
   | { readonly status: "failed"; readonly error: unknown };
 
+/** What `assets.requestTexture2D(key)` returns: the texture once loaded, and where its load stands. */
 export interface Texture2DHandle {
   readonly state: Texture2DState;
   readonly ready: Promise<PixiTexture>;
@@ -18,6 +20,7 @@ export interface Texture2DHandle {
   subscribe(listener: (state: Texture2DState) => void): () => void;
 }
 
+/** A loader for the `texture2d` kind. */
 export type PixiTextureLoaderConfig = LoaderConfig<PixiTexture>;
 
 declare module "./AssetStore" {

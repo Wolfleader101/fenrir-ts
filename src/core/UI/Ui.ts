@@ -17,6 +17,7 @@ export type HitArea =
 /** How a control was activated: a pointer tap, a key on the focused control, or `activateControl`. */
 export type Activation = "pointer" | "key" | "call";
 
+/** What `control(node, options)` takes. `id` is required and must be unique among live controls. */
 export interface ControlOptions {
   /** Names the control: focus, `ControlActivated`, `activateControl` and tests use it. Unique among live controls. */
   readonly id: string;
@@ -46,6 +47,7 @@ export interface ControlOptions {
   readonly passThrough?: boolean;
 }
 
+/** What `modalScope(node, options)` takes. While a scope is live, only controls inside it take input. */
 export interface ModalScopeOptions {
   /** The canvas's `aria-label` while this scope is on top, such as `"Shop"`. */
   readonly label: string;
@@ -75,7 +77,7 @@ export interface ControlInfo {
   readonly focused: boolean;
   /** Outside the top modal scope: takes no taps, focus or `activateControl`. */
   readonly blocked: boolean;
-  /** The hit area's box in logical units, as of the latest render: turn it into a click with `logicalToScreen`. */
+  /** The hit area's box in logical units, computed from the nodes' transforms, so correct in a test game that never renders: turn it into a click with `logicalToScreen`. */
   readonly bounds: ControlBounds;
 }
 
@@ -101,6 +103,7 @@ export interface UiCtx {
   readonly resources: Resources;
 }
 
+/** What the `ui()` plugin takes: `pixi` (the `pixi2d()` plugin) in a game, or `root` in a test game, then keys, arrows and focus behaviour. */
 export interface UiOptions {
   /** The `pixi2d()` plugin, listed before `ui` in `plugins`. Controls live under its `root` and `backdrop`. */
   readonly pixi?: Pixi2DPlugin;

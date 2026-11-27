@@ -485,7 +485,7 @@ describe("lifetime and determinism", () => {
   });
 });
 
-describe("the AGENTS.md example", () => {
+describe("the guide's motion example (skills/fenrir/SKILL.md)", () => {
   it("settles a card, fades it in and holds a paused group's timer", async () => {
     const game = await createTestGame({ seed: 1, logger, plugins: [motion()] });
     const finished: string[] = [];

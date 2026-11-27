@@ -20,6 +20,7 @@ import { GameStates, afterSystem, beforeStage } from "./State";
 import { InputImpl } from "./Input/Input";
 import { AssetStore } from "./Assets/AssetStore";
 
+/** What `new Engine(options)` takes. 2D games use `createGame` instead. */
 export type EngineOptions = {
   scheduler: Scheduler;
   sceneManager: SceneManager;
@@ -58,6 +59,7 @@ type EngineRun = {
   ctx?: SystemCtx;
 };
 
+/** The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path and the editor. */
 export class Engine {
   private readonly time: Time;
   private readonly scheduler: Scheduler;

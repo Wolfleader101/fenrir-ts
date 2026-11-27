@@ -4,6 +4,7 @@ import type { GameBase, Plugin } from "./Game";
 import type { ILogger } from "./ILogger";
 import type { TestInput } from "./Input/Input";
 
+/** What `createTestGame` takes. `seed` is required; there is no canvas. */
 export interface TestGameOptions {
   /** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
   seed: number;
@@ -43,7 +44,8 @@ export interface TestGame extends GameBase {
   start(): Promise<void>;
   /**
    * The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`,
-   * `pointerMove` and `pointerUp`, which stand in for the player and take effect on the next `step`.
+   * `pointerMove`, `pointerUp`, `pointerCancel`, `focus` and `blur`, which stand in for the player
+   * and take effect on the next `step`.
    */
   readonly input: TestInput;
 }

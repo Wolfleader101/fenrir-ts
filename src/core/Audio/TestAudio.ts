@@ -30,6 +30,7 @@ export interface TestAudio extends AudioBackend {
   finish(sound?: string): void;
 }
 
+/** What `testAudio()` takes: whether it can autoplay, or is unavailable. */
 export interface TestAudioOptions {
   /** Output may start without a gesture, as where autoplay is allowed. Defaults to false: locked until a gesture. */
   autoplay?: boolean;

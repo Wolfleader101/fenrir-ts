@@ -1,4 +1,4 @@
-// The audio test example from README.md ("Audio"), run as written. Change both together.
+// The audio test example from skills/fenrir/references/audio.md, run as written. Change both together.
 import { Schedule, createTestGame } from "@/index";
 import { AudioState, audio, defineSound, playSound, testAudio, type Synth } from "@/audio";
 import { expect, it } from "vitest";

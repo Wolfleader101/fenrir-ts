@@ -4,6 +4,22 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Agent docs ship in the package (part of #39)
+
+- **`skills/fenrir/`** ships with the package: `SKILL.md`, a guide for an agent building a game (the model, a minimal game and its test, the engine's system names and how to order against them, what `consume` hides and for how long, run-scoped and app-scoped listeners, and a table of tempting mistakes), `references/` (the full rules per service, moved out of this README, which now links to them) and `api/` (every export of every entry point with its signature and TSDoc, generated). README "Using Fenrir with a coding agent" says how to wire it into a game repository.
+- **`llms.txt`** and **`llms-full.txt`** at the package root: an index of those docs, and all of them in one file.
+- **`AGENTS.md` no longer ships**: it is now only for changing the engine. Migration: a game repository that pointed its agent at `node_modules/fenrir-ts/AGENTS.md` points it at `node_modules/fenrir-ts/skills/fenrir/SKILL.md`. `CHANGELOG.md` ships instead.
+- TSDoc added to the public symbols that had none on the 2D path (`GameOptions`, `Schedule`, `EventBus`, `EntityBuilder`, `PixiRenderer`, `UiOptions`, `AudioOptions` and others).
+- For contributors: `pnpm docs:agent` regenerates the docs, `pnpm check:agent-docs` (in CI) fails when they are stale, and `check:docs` now also compiles every block of `SKILL.md` on its own and rejects examples that import anything but the entry points and peers.
+
+### Asset manifests: one asset at a time, and optional assets (part of #39)
+
+- **`loadAsset(ctx, manifest, name | names)`** and **`unloadAsset(...)`** load and release assets by name, with no bundle. A name is held like a one-asset bundle with its fallback and shares the load with any bundle that lists it; an asset is released when neither holds it. It shows in `manifest.progress` as `assets[name].direct` and in the top-level counts, sends **`AssetLoaded`** `{ manifest, asset, status }` or **`AssetFailed`** `{ manifest, asset, src, error }`, and rejects with **`AssetLoadError`**. A game that loaded images lazily through a generated one-asset bundle each can drop those bundles.
+- **`optional: true`** on an asset declaration: a failure (after its `fallback`, if any) makes it `missing`, logged as a warning, and its bundle still loads. `getAsset` returns `undefined` for it, typed `Texture | undefined` only for optional assets. A missing image no longer needs a placeholder file.
+- Progress gains `missing` (in every count, and `fraction` is now `(loaded + missing) / total`), `AssetStatus` gains `"missing"`, `AssetState` gains `direct`, and `AssetBundleLoaded` gains `missing: string[]`. Without `optional` and `loadAsset` every value is what it was, plus `missing: 0`, `direct: false` and `missing: []`. Code that compares a whole progress object with `toEqual` adds those fields. The `getAsset` error for an asset that is not loaded now also suggests `loadAsset`.
+
+Size: `game-2d-assets` grows 0.66 kB minified / 0.20 kB gzip (61.55 / 19.73 kB). Games that do not use a manifest (`game-2d`, `core-only` and the other fixtures) do not change.
+
 ### UI controls: the last adapters a consumer kept (#78, part of #39)
 
 - **Focus on a blocked control (bug fix).** The kit clears `UiFocus` from a control that a modal scope blocks, or that is no longer live, every time it reads the display tree: after each activation, `onClose` and `onAction` as well as at the start and end of its pass and in `syncUi`. A HUD control's Enter that opens a sheet and an Escape that closes it in the same frame now leave nothing focused, as they did a frame apart.
