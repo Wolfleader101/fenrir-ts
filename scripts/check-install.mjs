@@ -7,8 +7,8 @@
 // each must install with no peer warnings, import its entries in Node (and
 // run a test game), fail to import fenrir-ts/3d with an error naming `three`,
 // and type-check with `skipLibCheck: false` under "moduleResolution" "bundler"
-// and "nodenext". The 2D type-check uses sprite2D and requestTexture2D, which
-// fenrir-ts/2d adds to AssetStore by module augmentation.
+// and "nodenext". The 2D type-check uses sprite2D and requestTexture2D from
+// fenrir-ts/2d, and the texture2d kind it adds to AssetKinds by module augmentation.
 //
 // check:consumer measures bundles from the packed files but never runs a
 // package manager, so peer metadata and consumer type resolution are checked
@@ -69,12 +69,12 @@ export const game = createTestGame({ seed: 1 });
 export { Score };
 `,
   "2d": `import { AssetStore, EntityBuilder, EntityList, assetKey, createTestGame } from "fenrir-ts";
-import { pixi2d, Renderable2D, sprite2D, Transform2D } from "fenrir-ts/2d";
+import { pixi2d, Renderable2D, requestTexture2D, sprite2D, Transform2D } from "fenrir-ts/2d";
 import { control } from "fenrir-ts/ui";
 const entities = new EntityList();
-// A Renderable2D value, and the AssetStore augmentation from fenrir-ts/2d.
+// A Renderable2D value, and a 2D texture function from fenrir-ts/2d.
 EntityBuilder.create().transform2D(1, 2).with(Renderable2D, sprite2D("hero.png")).spawn(entities);
-const status: "loading" | "ready" | "failed" = new AssetStore().requestTexture2D(assetKey("hero"), "hero.png").state.status;
+const status: "loading" | "ready" | "failed" = requestTexture2D({ assets: new AssetStore() }, assetKey("hero"), "hero.png").state.status;
 export { createTestGame, pixi2d, Transform2D, control, status };
 `,
 };

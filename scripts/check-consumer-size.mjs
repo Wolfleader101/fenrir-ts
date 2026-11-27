@@ -79,6 +79,13 @@ const USES_STORAGE = ["game-2d-storage"];
 const INSPECTOR_ONLY = /__FENRIR__|\$truncated/g;
 /** Fixtures that inspect the game. */
 const USES_INSPECTOR = ["game-2d-inspector"];
+/**
+ * What only requestTexture2D and loadTexture2D hold: their names, which survive minification
+ * only as properties (AssetStore methods before 0.3.0), and the texture handle's message.
+ */
+const TEXTURE_REQUEST_ONLY = /(?:requestTexture2D|loadTexture2D)|Texture readiness listener failed/g;
+/** Fixtures that request 2D textures by URL. None does: game-2d-assets loads through a manifest. */
+const USES_TEXTURE_REQUEST = [];
 /** Names only the UI controls kit holds. */
 const UI_ONLY = /fenrir\.(?:ui|UiFocus|UiControls)\b/g;
 /** Fixtures that use controls. */
@@ -294,7 +301,7 @@ try {
       console.error(`${name}: ships ${manifestLeaked.join(", ")} without declaring an asset manifest. Keep it tree-shakeable.`);
       failed = true;
     }
-    for (const [only, users, what] of [[AUDIO_ONLY, USES_AUDIO, "playing sounds"], [STORAGE_ONLY, USES_STORAGE, "storing values"], [INSPECTOR_ONLY, USES_INSPECTOR, "calling inspect or exposeInspector"], [UI_ONLY, USES_UI, "importing fenrir-ts/ui"]]) {
+    for (const [only, users, what] of [[AUDIO_ONLY, USES_AUDIO, "playing sounds"], [STORAGE_ONLY, USES_STORAGE, "storing values"], [INSPECTOR_ONLY, USES_INSPECTOR, "calling inspect or exposeInspector"], [UI_ONLY, USES_UI, "importing fenrir-ts/ui"], [TEXTURE_REQUEST_ONLY, USES_TEXTURE_REQUEST, "calling requestTexture2D or loadTexture2D"]]) {
       const shipped = users.includes(name) ? [] : [...new Set(result.engine.match(only) ?? [])];
       if (shipped.length > 0) {
         console.error(`${name}: ships ${shipped.join(", ")} without ${what}. Keep it tree-shakeable.`);

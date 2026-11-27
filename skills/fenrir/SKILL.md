@@ -343,7 +343,7 @@ console.log(game.resources.get(Art.progress).bundles.reef.fraction, reef.label, 
 - `loadAssets` is idempotent (same promise while loading or loaded; retries failures). An asset in two bundles loads once and is kept until the last holder unloads. `loadAsset(ctx, manifest, name | names)` / `unloadAsset` hold single assets by name with no bundle, for lazy images.
 - `getAsset` throws until loaded: wait for `AssetBundleLoaded` / `AssetLoaded`, or read `ctx.resources.get(manifest.progress)` (a HUD reads it each frame).
 - `unloadAssets` destroys textures nothing else holds: despawn what shows them first.
-- An asset's name is also its store key, so `with(Renderable2D, sprite2D("logo"))` and `ctx.assets.getTexture2D("logo")` read it. Tests use `setAssetLoader(game, { load })`. Full rules: [references/assets.md](references/assets.md).
+- An asset's name is also its store key, so `with(Renderable2D, sprite2D("logo"))` and `getTexture2D(ctx, "logo")` (from `fenrir-ts/2d`) read it. Tests use `setAssetLoader(game, { load })`. Full rules: [references/assets.md](references/assets.md).
 
 ## Storage: `storage()`
 

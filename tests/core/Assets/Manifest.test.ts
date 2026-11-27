@@ -20,7 +20,7 @@ import { NullLogger } from "@/core/NullLogger";
 import { Schedule } from "@/core/Scheduler";
 import { createTestGame, type TestGame } from "@/core/TestGame";
 import type { SystemCtx } from "@/core/SystemCtx";
-import "@/core/Assets/Assets2D";
+import { getTexture2D, registerTexture2DLoader } from "@/core/Assets/Assets2D";
 import { inspect } from "@/core/Inspect";
 
 /** A stand-in texture: the manifest only passes values through. */
@@ -204,7 +204,7 @@ describe("loading a bundle", () => {
     await fake.resolve("logo");
     await fake.resolve("rock");
     await loading;
-    await expect(game.assets.getTexture2D("logo")).resolves.toEqual(texture("logo"));
+    await expect(getTexture2D(game, "logo")).resolves.toEqual(texture("logo"));
     expect(game.assets.kindOf("logo")).toBe("texture2d");
   });
 
@@ -332,7 +332,7 @@ describe("failures", () => {
     await loading;
 
     expect(getAsset(game, GameAssets, "reef")).toEqual(texture("missing"));
-    await expect(game.assets.getTexture2D("reef")).resolves.toEqual(texture("missing"));
+    await expect(getTexture2D(game, "reef")).resolves.toEqual(texture("missing"));
     expect(progressOf(game).assets.reef).toEqual({ status: "fallback", error: "404 Not Found", bundles: ["reef"], direct: false });
     expect(progressOf(game).bundles.reef).toEqual({ status: "loaded", loaded: 3, missing: 0, failed: 0, total: 3, fraction: 1 });
     expect(loadedEvents).toEqual([{ manifest: "test.assets", bundle: "reef", fallbacks: ["reef"], missing: [] }]);
@@ -381,7 +381,7 @@ describe("unloading", () => {
     expect(fake.unloaded.sort()).toEqual(["missing", "reef"]);
     expect(getAsset(game, GameAssets, "logo")).toEqual(texture("logo"));
     expect(() => getAsset(game, GameAssets, "reef")).toThrow('getAsset: "reef" of test.assets is not loaded. Load a bundle that lists it (reef) or call loadAsset.');
-    await expect(game.assets.getTexture2D("reef")).rejects.toThrow("Asset not loaded: reef");
+    await expect(getTexture2D(game, "reef")).rejects.toThrow("Asset not loaded: reef");
     expect(progressOf(game).bundles.reef.status).toBe("unloaded");
     expect(progressOf(game).assets.logo.bundles).toEqual(["boot"]);
     expect(progressOf(game)).toMatchObject({ loaded: 2, total: 2 });
@@ -433,7 +433,7 @@ describe("unloading", () => {
     const game = await createTestGame({ seed: 1, logger: new NullLogger() });
     const unload = vi.fn();
     const sheet = texture("sheet");
-    game.assets.registerTexture2DLoader("test-sheet", { loader: async () => sheet, extensions: ["sheet"], unload });
+    registerTexture2DLoader(game, "test-sheet", { loader: async () => sheet, extensions: ["sheet"], unload });
     const Sheets = defineAssets("test.sheets", { assets: { hud: { kind: "texture2d", src: "hud.sheet" } }, bundles: { hud: ["hud"] } });
     await loadAssets(game, Sheets, "hud");
     expect(getAsset(game, Sheets, "hud")).toBe(sheet);
@@ -557,7 +557,7 @@ describe("loading one asset by name", () => {
     // No bundle was loaded, so none says it was.
     expect(Object.values(progressOf(game).bundles).map((b) => b.status)).toEqual(["unloaded", "unloaded", "unloaded"]);
     expect(loaded).toEqual([{ manifest: "test.assets", asset: "cave", status: "loaded" }]);
-    await expect(game.assets.getTexture2D("cave")).resolves.toEqual(texture("cave"));
+    await expect(getTexture2D(game, "cave")).resolves.toEqual(texture("cave"));
     await game.stop();
   });
 
@@ -703,7 +703,7 @@ describe("optional assets", () => {
     expect(logger.errors).toEqual([]);
     expect(logger.warnings).toEqual(['Optional asset "glow" of test.optionalArt failed to load from "img/glow.png"; it is missing']);
     // The store's getter resolves with nothing rather than rejecting.
-    await expect(game.assets.getTexture2D("glow")).resolves.toBeUndefined();
+    await expect(getTexture2D(game, "glow")).resolves.toBeUndefined();
     await game.stop();
   });
 

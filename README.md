@@ -96,7 +96,7 @@ The package has one entry point per area. Core never loads a renderer, so a 2D g
 | `fenrir-ts/audio` | The `audio()` plugin, `defineSound`, `playSound`, `stopSound` |
 | `fenrir-ts/ui` | UI controls on Pixi nodes: the `ui()` plugin, `control`, `modalScope`, `UiFocus`, `ControlActivated`, `paginate`, `activateControl`, `listControls` |
 
-Importing `fenrir-ts/2d` adds the 2D texture methods to `AssetStore`, so `requestTexture2D` exists once you import it. It adds nothing to `EntityBuilder`: give an entity a 2D component with `with(PixiNode, { node, layer })` or `with(Renderable2D, circle2D(16))`. The frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their own methods to `EntityBuilder` when imported.
+Importing `fenrir-ts/2d` adds the `texture2d` asset kind and its default loader, and patches no class. Its texture calls are functions that take a `ctx` or the game, as `getAsset` does: `requestTexture2D(game, "hero", "/sprites/hero.png")`. Give an entity a 2D component with `with(PixiNode, { node, layer })` or `with(Renderable2D, circle2D(16))`. The frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their own methods to `EntityBuilder` when imported.
 
 ### Quick start (2D)
 
