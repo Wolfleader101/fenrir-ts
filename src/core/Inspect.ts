@@ -2,6 +2,7 @@ import { Name, Relationship } from "./ECS/DefaultComponents";
 import type { Entity, EntityList } from "./ECS/EntityList";
 import type { Engine } from "./Engine";
 import type { GameBase, GameImpl } from "./Game";
+import type { InputImpl } from "./Input/Input";
 import { toJson, type JsonValue } from "./Json";
 import type { Resources } from "./Resource";
 import { Schedule, type ScheduleStage } from "./Schedule";
@@ -19,6 +20,21 @@ export interface EntitySnapshot {
   readonly components: Readonly<Record<string, JsonValue>>;
 }
 
+/** The input of the latest frame, as `inspect(game)` reports it: what systems in that frame read from `game.input`. */
+export interface InputSnapshot {
+  /**
+   * The bindings held in the latched frame, sorted: `KeyboardEvent.code` values such as `"KeyA"`,
+   * and `"pointer.primary"` or `"pointer.secondary"`. A tap between two frames is held for the
+   * frame it is pressed in. A binding hidden by `consume` or `consumePointer` is still listed.
+   * Actions are not listed: `defineAction` keeps no registry.
+   */
+  readonly held: readonly string[];
+  /** `game.input.pointer`: logical position, and whether it is down, over the canvas, or was cancelled this frame. */
+  readonly pointer: { readonly x: number; readonly y: number; readonly down: boolean; readonly inside: boolean; readonly cancelled: boolean };
+  /** `game.input.focused`: the canvas had keyboard focus when the frame started. */
+  readonly focused: boolean;
+}
+
 /** What a game is doing, as plain JSON. Returned by `inspect(game)`. */
 export interface GameSnapshot {
   /** Frames run since the current run started. 0 during startup; kept after `stop()` until the next `run()`. */
@@ -33,6 +49,8 @@ export interface GameSnapshot {
   readonly resources: Readonly<Record<string, JsonValue>>;
   /** The active scene's entities, by id. */
   readonly entities: readonly EntitySnapshot[];
+  /** The input latched when the latest frame started. Nothing is held before the first frame. */
+  readonly input: InputSnapshot;
 }
 
 const FOLDED: readonly symbol[] = [Name, Relationship];
@@ -70,8 +88,17 @@ function entitySnapshots(list: EntityList): EntitySnapshot[] {
   return snapshots;
 }
 
+function inputSnapshot(input: InputImpl): InputSnapshot {
+  const { x, y, down, inside, cancelled } = input.pointer;
+  return {
+    held: [...input["held_"]].sort(),
+    pointer: { x, y, down, inside, cancelled },
+    focused: input.focused,
+  };
+}
+
 /** Builds `inspect(game)`'s snapshot. Reads the engine's internals; changes nothing. */
-export function inspectGame(engine: Engine, states: GameStates, resources: Resources): GameSnapshot {
+export function inspectGame(engine: Engine, states: GameStates, resources: Resources, input: InputImpl): GameSnapshot {
   const { count, elapsed } = engine["frames"];
   const scheduler = engine.getScheduler();
   const schedule = {} as Record<ScheduleStage, readonly string[]>;
@@ -101,6 +128,7 @@ export function inspectGame(engine: Engine, states: GameStates, resources: Resou
     states: stateValues,
     resources: resourceValues,
     entities: entitySnapshots(engine["sceneManager"].getActiveScene().entityList),
+    input: inputSnapshot(input),
   };
 }
 
@@ -110,8 +138,8 @@ export interface DebugGlobal {
 }
 
 /**
- * What `game` is doing, as plain JSON: frame, time, schedule, states, resources and the active
- * scene's entities. Works on a `Game` and a `TestGame`, before the game runs, while paused and
+ * What `game` is doing, as plain JSON: frame, time, schedule, states, resources, the active
+ * scene's entities and the latched input. Works on a `Game` and a `TestGame`, before the game runs, while paused and
  * after `stop()`; never throws. A function rather than a method, so a game that never calls it
  * ships none of the snapshot and JSON-encoding code. The serialisation rules are in skills/fenrir/references/testing.md
  * under "Inspecting a game".
@@ -122,7 +150,7 @@ export interface DebugGlobal {
  */
 export function inspect(game: GameBase): GameSnapshot {
   const impl = game as GameImpl;
-  return inspectGame(impl["engine"], impl.states as GameStates, impl.resources);
+  return inspectGame(impl["engine"], impl.states as GameStates, impl.resources, impl.input as InputImpl);
 }
 
 /**
