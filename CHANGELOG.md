@@ -4,6 +4,17 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Docs: gaps a clean agent hit on 0.3.0
+
+No code change. A clean agent extended the starter game from the published 0.3.0 (the M4 gate, recorded on #39), and these are the places it found the guide wrong, silent or confusing:
+
+- Tween timing (`references/motion.md`): a tween ends in the frame its floating-point `elapsed` reaches its time, so a 0.2 s tween can land on its end values a frame after 12 steps of 1/60. Tests should step past the end or wait for `TweenDone`.
+- Keyboard focus (`references/ui.md`): Tab inside an open modal scope leaves past the last control rather than cycling, and the arrows wrap. `next` is ArrowDown and ArrowRight, `previous` ArrowUp and ArrowLeft.
+- A pattern for controls that run headless (`references/ui.md`): shapes and controls in a module the tests import, labels added by the browser entry, and the sheet mounted from an `Init` system, once the layers exist.
+- Restarting inside a state (`references/core.md`): setting the current value runs no hooks, so reset directly or go through another value.
+- Missing plugins (`references/audio.md`, `references/storage.md`): `playSound`, `stopSound`, `unlockAudio` and the storage functions throw without their plugin, naming it.
+- `SKILL.md` "Mistakes that look right" gains the restart and tween-frame cases.
+
 ## 0.3.0
 
 Three breaking changes: `fenrir-ts/2d` and `fenrir-ts/physics` no longer add methods to `EntityBuilder` and `AssetStore` when they are imported. Each section below has a before/after for its migration. Also new: a starter game (`npx fenrir-ts create`), SVG textures, input in `inspect(game)`, and a UI kit that can walk only the layers that hold controls.
