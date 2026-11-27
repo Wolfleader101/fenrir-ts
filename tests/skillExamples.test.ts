@@ -45,6 +45,13 @@ function expectations(code: string): string[] {
 /** Both sides without whitespace and quotes, so `{ x: 0 }` matches `{"x":0}`. */
 const loose = (text: string) => text.replace(/[\s"']/g, "");
 const show = (value: unknown) => (value === undefined ? "undefined" : JSON.stringify(value));
+/**
+ * Each block is imported fresh, so the first block to use a module (motion, assets, ui) also
+ * transforms that engine code. That took over 5 s, Vitest's default, beside the type tests on
+ * a busy machine; the block then finished during the next test and its console.log landed in
+ * that test's output. The limit only stops a hang: no block takes long to run.
+ */
+const BLOCK_TIMEOUT_MS = 60_000;
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -75,6 +82,6 @@ describe("skills/fenrir/SKILL.md examples", () => {
 
       const wanted = expectations(block.code);
       expect(logged.map(loose)).toEqual(wanted.map(loose));
-    });
+    }, BLOCK_TIMEOUT_MS);
   }
 });
