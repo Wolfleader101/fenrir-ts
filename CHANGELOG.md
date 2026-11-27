@@ -8,6 +8,11 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 - The default `texture2d` loader that `pixi2d` registers now loads `.svg` sources, through Pixi's own SVG parser, as a `Texture`. Before, an `.svg` failed with "Unsupported ... format". An SVG is rasterised at its declared `width`/`height`, so set those to the size it is drawn at: scaling the sprite up later blurs it, as with a PNG. 3D texture loading is unchanged.
 
+### `inspect(game)` shows input (#93)
+
+- `GameSnapshot.input` is the input the latest frame latched: `held`, the bindings held, sorted (`["KeyA", "pointer.primary"]`); `pointer`, as `game.input.pointer` (`x`, `y`, `down`, `inside`, `cancelled`); and `focused`, as `game.input.focused`. Its type is exported as `InputSnapshot`. Actions are not listed by name: `defineAction` still registers nothing. Games that never call `inspect` ship none of it. [Testing and inspecting a game](https://github.com/Wolfleader101/fenrir-ts/blob/main/skills/fenrir/references/testing.md#inspecting-a-game) has the rules.
+- A test that compares a whole snapshot with `toEqual` (or a stored snapshot) gains the `input` field: add it to the expected value, or compare only the fields you check.
+
 ## 0.2.1
 
 The first release staged by the release workflow. No change to the package's code: games can stay on 0.2.0.

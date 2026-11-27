@@ -16,7 +16,7 @@ export type { TestClock, TestGame, TestGameOptions } from "./TestGame";
 
 // Inspection: inspect(game) and window.__FENRIR__, functions so a game that never calls them ships none of it
 export { inspect, exposeInspector } from "./Inspect";
-export type { GameSnapshot, EntitySnapshot, DebugGlobal } from "./Inspect";
+export type { GameSnapshot, EntitySnapshot, InputSnapshot, DebugGlobal } from "./Inspect";
 export type { JsonValue } from "./Json";
 
 // States: state machines with enter and exit hooks, and the inState run condition
