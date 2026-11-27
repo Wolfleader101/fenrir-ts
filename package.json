@@ -2,9 +2,8 @@
   "name": "fenrir-ts",
   "version": "0.2.0",
   "type": "module",
-  "description": "A TypeScript game engine with ECS architecture",
+  "description": "A 2D-first TypeScript game engine for the web: a sparse-set ECS with named systems, PixiJS rendering, and games that test headless.",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -70,19 +69,20 @@
   },
   "keywords": [
     "game-engine",
+    "gamedev",
     "ecs",
+    "entity-component-system",
     "typescript",
-    "three.js",
     "pixi.js",
+    "pixijs",
     "2d",
-    "3d",
-    "physics",
-    "jolt"
+    "webgl",
+    "browser-game"
   ],
   "author": "James Morgan (https://github.com/Wolfleader101)",
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "packageManager": "pnpm@12.18.0",
   "repository": {

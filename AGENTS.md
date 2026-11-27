@@ -20,7 +20,7 @@ pnpm install --frozen-lockfile
 pnpm test:run     # vitest run, all tests once
 pnpm type-check   # tsc --noEmit over src and tests
 pnpm build:lib    # library build into dist/
-pnpm build:demos  # production build of the demo pages
+pnpm build:demos  # production build of the demo pages into dist-demos/ (and .vercel/output/), never dist/
 pnpm dev          # Vite dev server for the demos, http://localhost:5173
 pnpm bench        # Vitest benchmarks in tests/bench/, not run by test:run or CI
 pnpm docs:agent   # regenerate skills/fenrir/api/, llms.txt and llms-full.txt

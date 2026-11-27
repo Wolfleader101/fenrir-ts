@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import { dirname, resolve } from "node:path";
 import dts from "vite-plugin-dts";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
 /**
  * Gives every relative import in the declarations its file: "./core/Game" becomes
@@ -43,68 +42,37 @@ function addDeclarationExtensions(dir: string): void {
 }
 
 export default defineConfig({
+  // public/ holds the demo pages' models and textures; the library ships none of it.
   publicDir: false,
   plugins: [
     dts({
-      // No entryRoot: the plugin derives it from the included files (all under
-      // src/ once tests/ is excluded). Combined with that exclude, entryRoot:
-      // "src" made the plugin skip every declaration as "outside" dist.
-      outDir: "dist",
-      exclude: [
-        "**/*.test.ts",
-        "**/*.spec.ts",
-        "src/demos/**/*",
-        // Demo navigation, used only by the demo pages.
-        "src/shared/**/*",
-        "tests/**/*",
-      ],
-      tsconfigPath: "./tsconfig.json",
-      compilerOptions: {
-        baseUrl: ".",
-        paths: {
-          "@/*": ["./src/*"],
-        },
-      },
+      // No entryRoot: the plugin derives it from the included files, all under src/.
+      // entryRoot: "src" with this include made it skip every declaration as outside dist.
+      include: ["src"],
+      exclude: ["src/demos", "src/shared"],
       afterBuild: () => addDeclarationExtensions("dist"),
     }),
   ],
   build: {
     lib: {
+      // One entry per package export. Core (index) must import no renderer:
+      // scripts/check-entry-imports.mjs checks the output.
       entry: {
-        // One entry per package export. Core (index) must import no renderer:
-        // scripts/check-entry-imports.mjs checks the output.
-        index: resolve(__dirname, "src/index.ts"),
-        "2d": resolve(__dirname, "src/2d.ts"),
-        "3d": resolve(__dirname, "src/3d.ts"),
-        physics: resolve(__dirname, "src/physics.ts"),
-        audio: resolve(__dirname, "src/audio.ts"),
-        ui: resolve(__dirname, "src/ui.ts"),
+        index: "src/index.ts",
+        "2d": "src/2d.ts",
+        "3d": "src/3d.ts",
+        physics: "src/physics.ts",
+        audio: "src/audio.ts",
+        ui: "src/ui.ts",
       },
       formats: ["es"],
     },
     rollupOptions: {
-      external: [
-        /^pixi\.js(\/.*)?$/,
-        /^three(\/.*)?$/,
-        /^jolt-physics(\/.*)?$/,
-      ],
-      output: {
-        preserveModules: false,
-        exports: "named",
-        assetFileNames: "assets/[name][extname]",
-      },
+      external: [/^pixi\.js(\/.*)?$/, /^three(\/.*)?$/, /^jolt-physics(\/.*)?$/],
     },
     // "hidden": maps are written for check:imports and check:consumer, but the
     // published files carry no sourceMappingURL and package.json "files" leaves
     // the maps out of the tarball. dist/ is not minified, so stack traces stay readable.
     sourcemap: "hidden",
-    outDir: "dist",
-  },
-  resolve: {
-    alias: [
-      // fileURLToPath, not URL.pathname: on Windows pathname is "/C:/...", and the
-      // declarations then imported the build machine's src/ by absolute path.
-      { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
-    ],
   },
 });
