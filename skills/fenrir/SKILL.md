@@ -14,7 +14,7 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 ## Project setup
 
 - `package.json`: `"type": "module"`; dependencies `fenrir-ts` and `pixi.js` (8.x, for `/2d` and `/ui`); dev dependencies `typescript` and `vitest` (and a bundler such as Vite for the browser build). No other peer is needed for the 2D path.
-- `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable"]`, `"strict": true`.
+- `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]` (Vitest 4's types use `Disposable`), `"strict": true`, `"skipLibCheck": true`.
 - Vitest needs no environment and no config for headless tests: `createTestGame`, `ui({ root })`, Pixi `Container`/`Graphics`/`Sprite` and `Texture.WHITE` all work in the default `node` environment. Use `jsdom` only for code that touches `document` or `window`.
 
 ## The model in one page
@@ -206,7 +206,7 @@ game.step();
 await game.stop();
 ```
 
-- Bindings are `KeyboardEvent.code` values (`"KeyA"`, `"Space"`, `"ArrowLeft"`, `"Enter"`) or `"pointer.primary"` / `"pointer.secondary"`. `"a"` or `"space"` throws.
+- Bindings are `KeyboardEvent.code` values (`"KeyA"`, `"Space"`, `"ArrowLeft"`, `"Enter"`) or `"pointer.primary"` / `"pointer.secondary"`. `"a"` or `"space"` is a compile error, and throws at `defineAction` if it slips through untyped.
 - Input is latched once per frame: `pressed` / `released` are true for exactly one frame (exactly one `Tick`), `held` while any binding is down. A tap between two frames is never lost.
 - **What consume hides, and for how long.** `consumePointer()` hides the pointer's press, hold and release from **systems that run after it, in this and later frames, until the pointer lifts**; the next press is seen again. `consume(action)` does the same for the bindings of that action that went down this frame, keys included, so other actions on those keys are hidden too. It hides nothing from systems that already ran: the consumer must be ordered first (`before`), or in `PreUpdate` when gameplay reads `Tick`.
 - `ctx.input.pointer` is `{ x, y, down, inside, cancelled }` in **logical units** (the design frame). `input.edges(actions)` lists this frame's presses in arrival order, for typed sequences.
@@ -222,6 +222,7 @@ Don't: `window.addEventListener("keydown", ...)`, `canvas.onclick`, `sprite.even
 - `Transform2D` and `Display2D` are core data, exported by both `fenrir-ts` and `fenrir-ts/2d` (the same values); gameplay that must run headless imports them from `fenrir-ts`.
 - Entities: `EntityBuilder.create().transform2D(x, y).pixiNode(node, { layer }).spawn(ctx.entities)`. Move them by writing `Transform2D` (`x`, `y`, `rotation`, `scaleX`, `scaleY`) and `Display2D` (`alpha`, `visible`); the renderer copies them to the node every frame. Removing the entity or `PixiNode` destroys the node (`keep: true` only unmounts). A node with child entities should be a plain `Container`.
 - Pixi objects you add to `root` yourself are yours: you destroy them.
+- Headless gameplay that spawns visible things: gameplay spawns entities with `transform2D()`, `display2D()` and its own components (`.with(Card, { face: 3 })`); a browser-only `Update` system gives each one that has no `PixiNode` yet its node (`entities.set(entity, PixiNode, { node, layer })`), so the same gameplay runs in tests with no Pixi objects.
 
 ```ts
 import { EntityBuilder, Schedule, createGame, type SystemCtx } from "fenrir-ts";
@@ -435,7 +436,7 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 
 - `createTestGame({ seed, plugins?, now?, maxFrameDelta? })`: the same systems, states, events and plugins, no canvas. `await game.start()`, `game.step(dt = 1/60, frames = 1)`, `await game.stop()`. `dt` above `maxFrameDelta` throws: step one second as `step(1 / 60, 60)`.
 - `pixi2d` cannot install in a test game (no canvas): that is why gameplay is registered apart from drawing. `ui({ root })`, `audio({ backend: testAudio() })`, `storage({ backend: memoryStorage() })` and `setAssetLoader` make the other plugins headless.
-- Entities in a test: `game` has no `entities` or `scene`. Read through `inspect(game).entities` (each `id` is the entity handle), or outside a system use `game.scenes.getActiveScene().entityList.get(entity, Transform2D)`.
+- Entities in a test: `game` has no `entities`, `scene` or `scenes`; those are on `ctx`. Read through `inspect(game).entities` (each `id` is the entity handle, `components` keyed by name; cast the values), or register a test-only system that reads `ctx.entities` into a variable.
 - The engine's components appear in `inspect()` under their names: `fenrir.Transform`, `fenrir.Transform2D`, `fenrir.Display2D`, `fenrir.Name` (folded into `name`), `fenrir.Relationship` (folded into `parent`), `fenrir.PixiNode`, `fenrir.Renderable2D`, `fenrir.Timers`, `fenrir.Tweens`. Plugin resources: `fenrir.MotionSettings`, `fenrir.StorageStatus`, `fenrir.AudioState`, `fenrir.UiFocus`, `fenrir.UiControls`, `fenrir.viewport.Viewport`.
 - Textures in tests: a fake loader may return `Texture.WHITE` (from `pixi.js`), a real texture that needs no renderer, so code that builds a `Sprite` from `getAsset` runs headless too. Pixi `Text` measures itself with a DOM canvas: keep it in browser-only drawing code.
 - A reload: a second `createTestGame` with `storage({ backend })` on the same `memoryStorage()` object reads what the first one stored. Manifest progress is in `inspect(game).resources[manifest.name]`.

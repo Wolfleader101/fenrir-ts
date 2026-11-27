@@ -172,7 +172,7 @@ Members:
 
 - `focused`: `UiFocus.id` is this control.
 - `blocked`: Outside the top modal scope: takes no taps, focus or `activateControl`.
-- `bounds`: The hit area's box in logical units, as of the latest render: turn it into a click with `logicalToScreen`.
+- `bounds`: The hit area's box in logical units, computed from the nodes' transforms, so correct in a test game that never renders: turn it into a click with `logicalToScreen`.
 
 ### ControlOptions
 

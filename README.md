@@ -1065,7 +1065,7 @@ game
 - More than 16 transitions of one state in one frame throws, naming the state and its last transitions. A hook that throws acts like a system that throws in that stage: in startup, `run()` rejects and the game rolls back.
 - States belong to one game. Names are identities, so prefix them with your namespace.
 
-**Important:** The canvas element must exist in the DOM before you call `createGame()` or `bootstrapEngine()`. If you're calling it in a script, either:
+**Important:** The canvas element must exist in the DOM before you call `createGame()` (or, on the 3D path, `bootstrapEngine()` from `fenrir-ts/3d`). If you're calling it in a script, either:
 
 - Place the script at the end of the body
 - Use `DOMContentLoaded` event listener

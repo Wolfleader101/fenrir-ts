@@ -13,8 +13,8 @@ import type { Input } from "./Input/Input";
 /**
  * Services a game shares between `Game` and every `SystemCtx`: `game.x` and `ctx.x` are the
  * same object. `createGame` builds them and passes them to the engine. Entities are not a
- * service: they belong to the active scene, `ctx.entities` in a system and
- * `game.scenes.getActiveScene().entityList` outside one.
+ * service: they belong to the active scene, `ctx.entities` in a system. Outside one, a test
+ * reads them through `inspect(game).entities`.
  */
 export interface GameServices {
   /** Singleton values this game owns. See `defineResource`. */

@@ -77,7 +77,7 @@ export interface ControlInfo {
   readonly focused: boolean;
   /** Outside the top modal scope: takes no taps, focus or `activateControl`. */
   readonly blocked: boolean;
-  /** The hit area's box in logical units, as of the latest render: turn it into a click with `logicalToScreen`. */
+  /** The hit area's box in logical units, computed from the nodes' transforms, so correct in a test game that never renders: turn it into a click with `logicalToScreen`. */
   readonly bounds: ControlBounds;
 }
 
