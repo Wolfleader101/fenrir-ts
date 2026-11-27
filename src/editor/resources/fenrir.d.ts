@@ -7,16 +7,20 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import * as THREE_WEBGPU from 'three/webgpu';
 
+/** Where an asset loads from. */
 export type AssetSource = {
 	url: string;
 } | {
 	url: string;
 	format?: string;
 };
+/** Loads one asset from a source. Registered per kind and extension on the asset store. */
 export type AssetLoader<T> = (src: AssetSource) => Promise<T>;
+/** A key in the asset store: an asset's name. Make one with `assetKey(name)`. */
 export type AssetKey = string & {
 	__assetKey?: true;
 };
+/** Brands a string as an `AssetKey`. */
 export declare const assetKey: (k: string) => AssetKey;
 /** A loader and the file extensions it handles. */
 export type LoaderConfig<T> = {
@@ -102,6 +106,7 @@ export declare class AssetStore implements IAssetStore {
 	get<K extends AssetKind>(key: AssetKey, kind: K, label?: string): Promise<AssetKinds[K]>;
 	clear(): void;
 }
+/** The stage names for `addSystem`. `PreInit`, `Init`, `PostInit` and `Exit` may be async and are awaited; `PreUpdate`, `Tick` (fixed step), `Update` and `PostUpdate` run every frame and must be sync. */
 export declare const Schedule: {
 	readonly PreInit: "preInit";
 	readonly Init: "init";
@@ -112,8 +117,11 @@ export declare const Schedule: {
 	readonly PostUpdate: "postUpdate";
 	readonly Exit: "exit";
 };
+/** A value of `Schedule`. */
 export type ScheduleStage = (typeof Schedule)[keyof typeof Schedule];
+/** The stages whose systems may return a promise, which is awaited: `PreInit`, `Init`, `PostInit` and `Exit`. */
 export type AsyncStage = typeof Schedule.PreInit | typeof Schedule.Init | typeof Schedule.PostInit | typeof Schedule.Exit;
+/** The per-frame stages. Their systems must be synchronous: a returned promise is not awaited. */
 export type SyncStage = Exclude<ScheduleStage, AsyncStage>;
 /**
  * Sparse-set component pool (EnTT-style).
@@ -152,6 +160,7 @@ export declare class Pool<T> {
 	 */
 	forEach(fn: (entityId: number, component: T) => void): void;
 }
+/** A typed component key, made by `defineComponent<T>(name)`. */
 export type ComponentType<T> = symbol & {
 	__component?: T;
 };
@@ -194,6 +203,7 @@ export type ComponentDataOf<C> = C extends ComponentType<infer T> ? T : never;
 export type ComponentTuple<TTypes extends readonly ComponentType<any>[]> = {
 	[K in keyof TTypes]: ComponentDataOf<TTypes[K]>;
 };
+/** A cached query over entities with every component in `types`. `entities.each(QUERY, fn)` uses one; keep each query tuple in a module-level constant. */
 export declare class View<TTypes extends readonly ComponentType<any>[]> {
 	private readonly entityList;
 	readonly types: TTypes;
@@ -207,6 +217,7 @@ export declare class View<TTypes extends readonly ComponentType<any>[]> {
 	private each4;
 	private eachN;
 }
+/** An entity handle. Plain number: store it, compare it, never do arithmetic on it. */
 export type Entity = number;
 export type AnyTypes = readonly ComponentType<any>[];
 /**
@@ -279,6 +290,7 @@ export declare class EntityList {
 	private detachFromParent;
 	private destroyChildrenRecursive;
 }
+/** A typed event key, made by `defineEvent<T>(name)`. */
 export type EventType<T> = symbol & {
 	__eventType?: T;
 };
@@ -291,9 +303,11 @@ export type EventType<T> = symbol & {
  * export const PlayerDied = defineEvent<{ entity: Entity }>("myGame.playerDied");
  */
 export declare function defineEvent<T>(name: string): EventType<T>;
+/** What `events.createReader(Type)` returns: `read()` gives the events it has not returned before. Create one per consumer, once. */
 export type EventReader<T> = {
 	read(): readonly T[];
 };
+/** Internal storage for one event type. Games use `EventBus` (`ctx.events`) instead. */
 export declare class EventQueue<T> {
 	private nextSequence;
 	private current;
@@ -315,6 +329,7 @@ export declare class EventQueue<T> {
  * logged like a throw.
  */
 export type EventHandler<T> = (payload: T, ctx: SystemCtx) => void;
+/** The game's events: `ctx.events` and `game.events`. Buffers each event for two frames for readers, and calls immediate listeners inside `send`. */
 export declare class EventBus {
 	private queues;
 	private listeners;
@@ -386,6 +401,7 @@ export declare class Resources {
 	set<T>(resource: ResourceType<T>, value: NoInfer<T>): void;
 }
 export type LogMeta = Record<string, unknown>;
+/** The logger: `ctx.logger` and `game.logger`. Pass one to `createGame({ logger })` to route engine messages. */
 export interface ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;
@@ -402,6 +418,7 @@ export declare class Scene {
 	readonly entityList: EntityList;
 	constructor(name: string);
 }
+/** The game's scenes: `ctx.scenes`. Always holds at least one scene; `ctx.scene` and `ctx.entities` are the active one's. */
 export declare class SceneManager {
 	private scenes;
 	private activeSceneIndex;
@@ -738,7 +755,9 @@ export interface SystemCtx extends GameServices {
 	onCleanup(cleanup: () => void | Promise<void>): void;
 	stop(): void;
 }
+/** A system for a per-frame stage. */
 export type SyncSystemFn = (ctx: SystemCtx) => void;
+/** A system for a startup or `Exit` stage; a returned promise is awaited. */
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;
 /** How a system is registered. Every field is optional. */
 export interface SystemOptions {
@@ -814,6 +833,7 @@ export declare class Scheduler {
 	/** Replaces a stage's entries. While running, the new order is resolved now so errors throw here. */
 	private change;
 }
+/** What `new Engine(options)` takes. 2D games use `createGame` instead. */
 export type EngineOptions = {
 	scheduler: Scheduler;
 	sceneManager: SceneManager;
@@ -840,6 +860,7 @@ export type EngineOptions = {
 	/** Called before each frame that `step` runs, with its `dt`. The test game advances its clock here. */
 	beforeStep?: (dt: number) => void;
 };
+/** The frame loop and lifecycle under a `Game`. 2D games use `createGame`; `Engine` stays exported for the 3D path and the editor. */
 export declare class Engine {
 	private readonly time;
 	private readonly scheduler;
@@ -916,6 +937,7 @@ interface Plugin$1 {
 	readonly name: string;
 	install(game: Game): void | Promise<void>;
 }
+/** What `createGame` takes. Only `canvas` is required. */
 export interface GameOptions {
 	/** The canvas the game draws to. Renderer plugins read it from `game.canvas`. */
 	canvas: HTMLCanvasElement;
@@ -1009,6 +1031,7 @@ export interface Game extends GameBase {
  * ```
  */
 export declare function createGame(options: GameOptions): Promise<Game>;
+/** What `createTestGame` takes. `seed` is required; there is no canvas. */
 export interface TestGameOptions {
 	/** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
 	seed: number;
@@ -1263,6 +1286,7 @@ export type MotionCtx = {
 export type NumericKeys<T> = {
 	[K in keyof T]-?: T[K] extends number ? K : never;
 }[keyof T] & string;
+/** What `addTween` takes. `to` names the component's number fields to move; the rest is optional. */
 export interface TweenOptions<T> {
 	/** End values of numeric fields of the component. */
 	to: Partial<Record<NumericKeys<T>, number>>;
@@ -1285,6 +1309,7 @@ export interface TweenOptions<T> {
 	name?: string;
 	group?: string;
 }
+/** What `addTimer` takes: how long, how many repeats, a pause group, and the state it belongs to. */
 export interface TimerOptions {
 	/** Seconds until it fires, and between firings. */
 	duration: number;
@@ -1374,6 +1399,7 @@ export interface StorageKey<T> {
 	/** False when a migrated value is written only by the next `setStored` or `updateStored`. Absent means true. */
 	readonly writeMigrated?: boolean;
 }
+/** What `defineStorageKey` and `defineStorageKeyFamily` take: the default value, and how to parse and migrate stored data. */
 export interface StorageKeyOptions<T> {
 	/** What a read returns when nothing valid is stored. Objects are copied, so mutating one is safe. */
 	default: T;
@@ -1427,6 +1453,7 @@ export type StorageCtx = {
 	readonly resources: Resources;
 	readonly logger: ILogger;
 };
+/** What the `storage()` plugin takes: the backend (default `localStorage`, falling back to memory) and a key prefix. */
 export interface StorageOptions {
 	/** Defaults to `localStorage`, or to memory when it is unavailable (private mode, blocked in a webview). */
 	backend?: StorageBackend;
@@ -1534,6 +1561,7 @@ export declare function persistResource<T extends object, K extends keyof T & st
  * const test = await createTestGame({ seed: 1, plugins: [storage({ backend: memoryStorage() })] });
  */
 export declare function storage(options?: StorageOptions): Plugin$1;
+/** Logs to the browser console. The default logger of `createGame`. */
 export declare class ConsoleLogger implements ILogger {
 	trace(message: string, meta?: LogMeta): void;
 	debug(message: string, meta?: LogMeta): void;
@@ -1541,6 +1569,7 @@ export declare class ConsoleLogger implements ILogger {
 	warn(message: string, meta?: LogMeta): void;
 	error(message: string, meta?: LogMeta): void;
 }
+/** Drops every message. Extend it in tests to record what was logged. */
 export declare class NullLogger implements ILogger {
 	trace(_m: string, _meta?: LogMeta): void;
 	debug(_m: string, _meta?: LogMeta): void;
@@ -1561,10 +1590,12 @@ export type QuatLike = {
 	z: number;
 	w: number;
 };
+/** The engine's name component (`fenrir.Name`), set by `EntityBuilder.name()`. `inspect()` shows it as the entity's `name`. */
 export type Name = {
 	name: string;
 };
 export declare const Name: ComponentType<Name>;
+/** The engine's parent and sibling links (`fenrir.Relationship`), set by `EntityBuilder.child()` and `spawnInto`. `inspect()` shows it as `parent`. */
 export type Relationship = {
 	parent: Entity;
 	firstChild: Entity;
@@ -1599,6 +1630,7 @@ export type Display2D = {
 };
 export declare const Display2D: ComponentType<Display2D>;
 export type ValueOrFactory<T> = T | ((e: Entity, entities: EntityList) => T);
+/** Builds an entity from components, then `spawn(ctx.entities)`. Renderer entries add their own methods when imported, such as `pixiNode` from `fenrir-ts/2d`. */
 export declare class EntityBuilder {
 	private readonly ops;
 	private readonly children;

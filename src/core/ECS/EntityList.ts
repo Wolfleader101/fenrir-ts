@@ -4,6 +4,7 @@ import { Pool } from "./Pool";
 import { ComponentSignals } from "./Signals";
 import { View, type ComponentTuple } from "./View";
 
+/** An entity handle. Plain number: store it, compare it, never do arithmetic on it. */
 export type Entity = number;
 
 // 20 bits for id => up to ~1,048,576 entities

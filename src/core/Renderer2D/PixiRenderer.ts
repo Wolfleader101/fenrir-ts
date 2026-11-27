@@ -22,6 +22,7 @@ type ObjKey = string;
 const BACKDROP = "fenrir.backdrop";
 const keyFor = (e: Entity, id: number): string => `${e}:${id}`;
 
+/** Options of the 2D renderer, passed through `pixi2d()`. */
 export interface PixiRendererOptions {
   readonly canvas?: HTMLCanvasElement;
   readonly logger: ILogger;
@@ -50,6 +51,7 @@ type RenderedObject = {
   view: PIXI.Container;
 };
 
+/** The 2D renderer behind `pixi2d()`, as `plugin.renderer`. Game code adds Pixi content to `root` (logical units) or `backdrop` (full-bleed CSS pixels), or reads a named layer with `layer(name)`. */
 export class PixiRenderer {
   private readonly options: PixiRendererOptions;
   private application: PIXI.Application;

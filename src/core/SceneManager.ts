@@ -1,6 +1,7 @@
 import { Scene } from "./Scene";
 import type { ILogger } from "./ILogger";
 
+/** The game's scenes: `ctx.scenes`. Always holds at least one scene; `ctx.scene` and `ctx.entities` are the active one's. */
 export class SceneManager {
   private scenes: Scene[] = [];
   private activeSceneIndex = 0;

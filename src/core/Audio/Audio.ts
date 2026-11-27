@@ -99,6 +99,7 @@ type ParamsOption<P extends object> = NoParams extends P
   ? { /** The synth's parameters. It has none. */ params?: NoInfer<P> }
   : { /** The synth's parameters for a play that passes none: every field, since a play may pass only some. */ params: NoInfer<P> };
 
+/** What `defineSound` takes: a `sample` (an `audio` asset name) or a `synth`, plus bus, volume, loop and voice limit. */
 export type SoundOptions<P extends object = NoParams> =
   | (SoundBase & { /** The name of an `audio` asset of a manifest. */ sample: string; synth?: never; params?: never })
   | (SoundBase & { /** Builds the sound on the context. */ synth: Synth<P>; sample?: never } & ParamsOption<P>);
@@ -202,6 +203,7 @@ export interface AudioBackend {
   decode(data: ArrayBuffer): Promise<AudioClip>;
 }
 
+/** What the `audio()` plugin takes: bus names and the backend (`webAudio()` by default, `testAudio()` in tests). */
 export interface AudioOptions {
   /** Bus names. Defaults to `["sfx", "music"]`. */
   buses?: readonly string[];

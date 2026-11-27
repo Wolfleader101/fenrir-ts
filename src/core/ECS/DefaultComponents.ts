@@ -40,12 +40,14 @@ export function setDefaultTransformFactory(factory: () => Transform): void {
   makeDefaultTransform = factory;
 }
 
+/** The engine's name component (`fenrir.Name`), set by `EntityBuilder.name()`. `inspect()` shows it as the entity's `name`. */
 export type Name = {
   name: string;
 };
 
 export const Name = defineComponent<Name>("fenrir.Name");
 
+/** The engine's parent and sibling links (`fenrir.Relationship`), set by `EntityBuilder.child()` and `spawnInto`. `inspect()` shows it as `parent`. */
 export type Relationship = {
   parent: Entity;
   firstChild: Entity;

@@ -9,6 +9,7 @@ export type ComponentTuple<TTypes extends readonly ComponentType<any>[]> = {
   [K in keyof TTypes]: ComponentDataOf<TTypes[K]>;
 };
 
+/** A cached query over entities with every component in `types`. `entities.each(QUERY, fn)` uses one; keep each query tuple in a module-level constant. */
 export class View<TTypes extends readonly ComponentType<any>[]> {
   private readonly entityList: EntityList;
   public readonly types: TTypes;

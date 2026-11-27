@@ -53,5 +53,7 @@ export interface SystemCtx extends GameServices {
   stop(): void;
 }
 
+/** A system for a per-frame stage. */
 export type SyncSystemFn = (ctx: SystemCtx) => void;
+/** A system for a startup or `Exit` stage; a returned promise is awaited. */
 export type AsyncSystemFn = (ctx: SystemCtx) => void | Promise<void>;

@@ -1,5 +1,6 @@
 import type { ILogger, LogMeta } from "./ILogger.ts";
 
+/** Logs to the browser console. The default logger of `createGame`. */
 export class ConsoleLogger implements ILogger {
   trace(message: string, meta?: LogMeta): void {
     meta

@@ -38,8 +38,11 @@
   },
   "files": [
     "dist",
+    "skills",
+    "llms.txt",
+    "llms-full.txt",
     "README.md",
-    "AGENTS.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -48,11 +51,13 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:demos": "vite build",
     "type-check": "tsc --noEmit",
-    "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md",
+    "check:docs": "node scripts/check-docs.mjs README.md AGENTS.md --standalone skills/fenrir/SKILL.md",
     "check:size": "node scripts/check-size.mjs",
     "check:imports": "node scripts/check-entry-imports.mjs",
     "check:consumer": "node scripts/check-consumer-size.mjs",
     "types:bundle": "dts-bundle-generator -o src/editor/resources/fenrir.d.ts --external-imports=three --external-imports=jolt-physics --no-banner src/editor/resources/fenrir-api.ts",
+    "api:reference": "node scripts/api-reference.mjs",
+    "docs:agent": "node scripts/api-reference.mjs && node scripts/agent-docs.mjs",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
@@ -62,7 +67,8 @@
     "test:ci": "vitest run --reporter=verbose --coverage",
     "bench": "vitest bench --run",
     "prepublishOnly": "npm run test:run && npm run build:lib",
-    "check:editor-types": "pnpm types:bundle && git diff --exit-code -- src/editor/resources/fenrir.d.ts"
+    "check:editor-types": "pnpm types:bundle && git diff --exit-code -- src/editor/resources/fenrir.d.ts",
+    "check:agent-docs": "node scripts/api-reference.mjs --check && node scripts/agent-docs.mjs --check"
   },
   "keywords": [
     "game-engine",

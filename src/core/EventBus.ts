@@ -15,6 +15,7 @@ const MAX_DEPTH = 32;
 
 const eventName = (type: symbol) => type.description?.slice("event:".length);
 
+/** The game's events: `ctx.events` and `game.events`. Buffers each event for two frames for readers, and calls immediate listeners inside `send`. */
 export class EventBus {
   private queues = new Map<symbol, EventQueue<any>>();
   // Copy-on-write: `on` and `off` replace the array, so `send` iterates without copying and a

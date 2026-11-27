@@ -31,6 +31,39 @@ Each entry point needs its own peer dependency. Install the ones for the entries
 
 The core entry, `fenrir-ts`, needs none of them.
 
+### Using Fenrir with a coding agent
+
+The package ships a guide for an agent that builds a game with Fenrir, with the full rules for each service and an API reference generated from the TSDoc, so the agent needs nothing but the installed package:
+
+```text
+node_modules/fenrir-ts/
+├── llms.txt                     index of the docs below, in the llms.txt format
+├── llms-full.txt                the guide, every reference and the 2D-path API in one file
+└── skills/fenrir/
+    ├── SKILL.md                 the guide: the model, a minimal game and its test, the rules that prevent common mistakes
+    ├── references/*.md          one file per service: core, testing, input, 2d, motion, assets, storage, audio, ui
+    └── api/*.md                 one file per entry point: every export with its signature and docs
+```
+
+The references are this README's sections, so the rules are the same in both. `SKILL.md` is Markdown with a `name` and `description` frontmatter, the Agent Skills format; agents that do not read skills read the same file, so there is no separate plain copy.
+
+Tell your agent where it is. In your game repository's `AGENTS.md` or `CLAUDE.md`:
+
+```md
+This game is built on the Fenrir engine (`fenrir-ts`). Before writing or changing game code, read
+`node_modules/fenrir-ts/skills/fenrir/SKILL.md` and follow it. Look up names and options in
+`node_modules/fenrir-ts/skills/fenrir/api/` instead of guessing, and the rules for a service in
+`node_modules/fenrir-ts/skills/fenrir/references/`.
+```
+
+For an agent that loads skills from a folder, such as Claude Code's `.claude/skills/`, link the package's skill there so it follows upgrades:
+
+```sh
+mkdir -p .claude/skills && ln -s ../../node_modules/fenrir-ts/skills/fenrir .claude/skills/fenrir
+```
+
+On Windows, `New-Item -ItemType Junction -Path .claude\skillsenrir -Target node_modulesenrir-ts\skillsenrir`. Or copy the folder, and copy it again after upgrading. This works the same for a registry install, a packed tarball and a `file:` dependency.
+
 ---
 
 ## Usage

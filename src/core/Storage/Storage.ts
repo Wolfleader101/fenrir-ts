@@ -42,6 +42,7 @@ export interface StorageKey<T> {
   readonly writeMigrated?: boolean;
 }
 
+/** What `defineStorageKey` and `defineStorageKeyFamily` take: the default value, and how to parse and migrate stored data. */
 export interface StorageKeyOptions<T> {
   /** What a read returns when nothing valid is stored. Objects are copied, so mutating one is safe. */
   default: T;
@@ -93,6 +94,7 @@ export const StorageStatus = defineResource<StorageStatus>("fenrir.StorageStatus
 /** What the storage functions need: a `SystemCtx`, or the `Game` or `TestGame` itself. */
 export type StorageCtx = { readonly resources: Resources; readonly logger: ILogger };
 
+/** What the `storage()` plugin takes: the backend (default `localStorage`, falling back to memory) and a key prefix. */
 export interface StorageOptions {
   /** Defaults to `localStorage`, or to memory when it is unavailable (private mode, blocked in a webview). */
   backend?: StorageBackend;

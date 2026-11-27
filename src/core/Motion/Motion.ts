@@ -108,6 +108,7 @@ export type MotionCtx = { readonly entities: EntityList; readonly resources: Res
 /** The keys of `T` whose values are numbers. */
 export type NumericKeys<T> = { [K in keyof T]-?: T[K] extends number ? K : never }[keyof T] & string;
 
+/** What `addTween` takes. `to` names the component's number fields to move; the rest is optional. */
 export interface TweenOptions<T> {
   /** End values of numeric fields of the component. */
   to: Partial<Record<NumericKeys<T>, number>>;
@@ -131,6 +132,7 @@ export interface TweenOptions<T> {
   group?: string;
 }
 
+/** What `addTimer` takes: how long, how many repeats, a pause group, and the state it belongs to. */
 export interface TimerOptions {
   /** Seconds until it fires, and between firings. */
   duration: number;

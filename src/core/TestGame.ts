@@ -4,6 +4,7 @@ import type { GameBase, Plugin } from "./Game";
 import type { ILogger } from "./ILogger";
 import type { TestInput } from "./Input/Input";
 
+/** What `createTestGame` takes. `seed` is required; there is no canvas. */
 export interface TestGameOptions {
   /** Seeds `game.random` and `ctx.random`: a safe integer. Required, so every run draws the same numbers. */
   seed: number;

@@ -7,6 +7,7 @@ import { createPixiRendererSystem } from "./PixiRendererSystem";
 import type { ViewportDesign } from "./Viewport";
 import { createViewportSystems } from "./ViewportSystem";
 
+/** What `pixi2d()` takes: the design frame, layers, background and Pixi application options. Every field is optional. */
 export interface Pixi2DOptions {
   /**
    * The size the game is designed for, in logical units. With it the plugin owns the canvas
@@ -45,6 +46,7 @@ export interface Pixi2DOptions {
   readonly applicationOptions?: PixiRendererOptions["applicationOptions"];
 }
 
+/** What `pixi2d()` returns: a plugin for `createGame`, with the renderer it installs. */
 export interface Pixi2DPlugin extends Plugin {
   /**
    * The renderer, for game code that draws with Pixi directly: add content to `renderer.root`

@@ -383,8 +383,8 @@ describe("audio() plugin", () => {
     expect(inspect(s.game).resources["fenrir.AudioState"]).toMatchObject({ status: "running", playing: { "test.theme": 1, "test.coin": 2 } });
   });
 
-  it("runs the AGENTS.md example", async () => {
-    // AGENTS.md "Audio". Change both together.
+  it("runs the guide's audio example", async () => {
+    // The audio example in skills/fenrir/SKILL.md, which tests/skillExamples.test.ts also runs.
     const Blip = defineSound("myGame.blip", { synth: blip, limit: 2 });
     const Theme = defineSound("myGame.theme", { sample: "theme", bus: "music", loop: true });
     const sounds = testAudio();

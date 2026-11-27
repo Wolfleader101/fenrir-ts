@@ -4,6 +4,14 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Agent docs ship in the package (part of #39)
+
+- **`skills/fenrir/`** ships with the package: `SKILL.md`, a guide for an agent building a game (the model, a minimal game and its test, the engine's system names and how to order against them, what `consume` hides and for how long, run-scoped and app-scoped listeners, and a table of tempting mistakes), `references/` (this README's sections per service, generated) and `api/` (every export of every entry point with its signature and TSDoc, generated). README "Using Fenrir with a coding agent" says how to wire it into a game repository.
+- **`llms.txt`** and **`llms-full.txt`** at the package root: an index of those docs, and all of them in one file.
+- **`AGENTS.md` no longer ships**: it is now only for changing the engine. Migration: a game repository that pointed its agent at `node_modules/fenrir-ts/AGENTS.md` points it at `node_modules/fenrir-ts/skills/fenrir/SKILL.md`. `CHANGELOG.md` ships instead.
+- TSDoc added to the public symbols that had none on the 2D path (`GameOptions`, `Schedule`, `EventBus`, `EntityBuilder`, `PixiRenderer`, `UiOptions`, `AudioOptions` and others).
+- For contributors: `pnpm docs:agent` regenerates the docs, `pnpm check:agent-docs` (in CI) fails when they are stale, and `check:docs` now also compiles every block of `SKILL.md` on its own and rejects examples that import anything but the entry points and peers.
+
 ### Asset manifests: one asset at a time, and optional assets (part of #39)
 
 - **`loadAsset(ctx, manifest, name | names)`** and **`unloadAsset(...)`** load and release assets by name, with no bundle. A name is held like a one-asset bundle with its fallback and shares the load with any bundle that lists it; an asset is released when neither holds it. It shows in `manifest.progress` as `assets[name].direct` and in the top-level counts, sends **`AssetLoaded`** `{ manifest, asset, status }` or **`AssetFailed`** `{ manifest, asset, src, error }`, and rejects with **`AssetLoadError`**. A game that loaded images lazily through a generated one-asset bundle each can drop those bundles.

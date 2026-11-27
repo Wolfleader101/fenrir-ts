@@ -1,0 +1,38 @@
+# Fenrir TS
+
+> Fenrir TS is a TypeScript game engine for the browser, 2D-first on PixiJS: one package, `fenrir-ts`, with entry points `fenrir-ts` (core: ECS, named systems in stages, events, resources, states, input, timers and tweens, asset manifests, storage, test games, inspection), `fenrir-ts/2d` (Pixi renderer and design frame), `fenrir-ts/ui` (controls on Pixi nodes), `fenrir-ts/audio` (sounds) and the frozen `fenrir-ts/3d`, `fenrir-ts/physics` and `fenrir-ts/editor`. Each feature is an opt-in plugin that costs nothing when not imported, and every game runs headless under `createTestGame` with deterministic `step`.
+
+Paths are relative to the package root (`node_modules/fenrir-ts/`). Start with the guide; it links to the rest.
+
+## Guide
+
+- [Building a game with Fenrir](skills/fenrir/SKILL.md): build browser games with the Fenrir TS engine (the fenrir-ts package) - 2D on PixiJS with an ECS, named systems in stages, events, states, input actions, timers and tweens, asset manifests, storage, audio and UI controls, tested headless with createTestGame and step. Use when writing, changing or testing game code that imports fenrir-ts, fenrir-ts/2d, fenrir-ts/ui or fenrir-ts/audio.
+
+## References
+
+- [Core: plugins, systems, resources, states, events, time](skills/fenrir/references/core.md): how a game is put together and how its systems are ordered
+- [Testing and inspecting a game](skills/fenrir/references/testing.md): `createTestGame`, `step`, and `inspect(game)`
+- [Input](skills/fenrir/references/input.md): actions, the pointer, what `consume` hides, `onDown` and `onGesture`, and test input
+- [2D: pixi2d, the design frame, layers and nodes](skills/fenrir/references/2d.md): the `pixi2d` plugin, `Viewport`, `Transform2D`, `Display2D`, `PixiNode` and layers
+- [Timers and tweens](skills/fenrir/references/motion.md): the `motion()` plugin
+- [Assets](skills/fenrir/references/assets.md): asset manifests, bundles, per-asset loading, fallbacks and optional assets
+- [Storage](skills/fenrir/references/storage.md): the `storage()` plugin, keys, migrations, families and `persistResource`
+- [Audio](skills/fenrir/references/audio.md): `fenrir-ts/audio`: sounds, buses, unlock and test audio
+- [UI controls](skills/fenrir/references/ui.md): `fenrir-ts/ui`: controls, modal scopes, focus and accessibility
+
+## API reference
+
+- [Index](skills/fenrir/api/README.md): one page per entry point, generated from the TSDoc
+- [`fenrir-ts`](skills/fenrir/api/fenrir-ts.md)
+- [`fenrir-ts/2d`](skills/fenrir/api/2d.md)
+- [`fenrir-ts/ui`](skills/fenrir/api/ui.md)
+- [`fenrir-ts/audio`](skills/fenrir/api/audio.md)
+
+## Optional
+
+- [Everything above in one file](llms-full.txt)
+- [`fenrir-ts/3d (frozen)`](skills/fenrir/api/3d.md): kept working, no new features
+- [`fenrir-ts/physics (frozen)`](skills/fenrir/api/physics.md): kept working, no new features
+- [`fenrir-ts/editor (frozen)`](skills/fenrir/api/editor.md): kept working, no new features
+- [README](README.md): the same rules for people, with the 3D path and the editor
+- [Changelog](CHANGELOG.md): breaking changes, each with a migration line
