@@ -2,7 +2,7 @@
 // state with a paged list of controls, closed with Escape. Its size minus game-2d's is what the
 // controls kit costs a game. Bundled, never run.
 import { EntityBuilder, Schedule, createGame, defineEvent } from "fenrir-ts";
-import { Transform2D, pixi2d } from "fenrir-ts/2d";
+import { PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
 import { ControlActivated, control, modalScope, paginate, ui } from "fenrir-ts/ui";
 import { Container, Graphics } from "pixi.js";
 
@@ -38,7 +38,7 @@ game.on(ControlActivated, ({ id, via }) => game.logger.info("activated", { id, v
 game
   .addSystem(Schedule.Init, function spawn({ entities }) {
     const ball = new Graphics().circle(0, 0, 8).fill(0xffffff);
-    EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0.8 }).pixiNode(ball, { layer: "world" }).spawn(entities);
+    EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0.8 }).with(PixiNode, { node: ball, layer: "world" }).spawn(entities);
     const open = new Graphics().roundRect(0, 0, 60, 30, 6).fill(0x223344);
     control(open, { id: "open", label: "Open items", onActivate: () => ((view.open = true), (view.dirty = true)) });
     pixi.renderer.layer("ui").addChild(open, sheet);

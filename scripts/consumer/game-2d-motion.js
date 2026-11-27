@@ -2,7 +2,7 @@
 // pausable group and a timer. Its size minus game-2d's is what timers and tweens cost a game.
 // Bundled, never run.
 import { EntityBuilder, MotionSettings, Schedule, TimerFired, addTimer, addTween, createGame, defineEvent, motion } from "fenrir-ts";
-import { Display2D, Transform2D, pixi2d } from "fenrir-ts/2d";
+import { Display2D, PixiNode, Transform2D, pixi2d } from "fenrir-ts/2d";
 import { Graphics } from "pixi.js";
 
 const Scored = defineEvent("fixture.scored");
@@ -16,7 +16,7 @@ const MOVING = [Transform2D];
 game
   .addSystem(Schedule.Init, function spawn(ctx) {
     const ball = new Graphics().circle(0, 0, 8).fill(0xffffff);
-    const entity = EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0 }).pixiNode(ball, { layer: "world" }).spawn(ctx.entities);
+    const entity = EntityBuilder.create().transform2D(20, 20).display2D({ alpha: 0 }).with(PixiNode, { node: ball, layer: "world" }).spawn(ctx.entities);
     addTween(ctx, entity, Display2D, { to: { alpha: 1 }, duration: 0.3, ease: "quadOut" });
     addTween(ctx, entity, Transform2D, { to: { y: 28 }, duration: 1, repeat: Infinity, yoyo: true, ease: "sineInOut", group: "ambient" });
     addTimer(ctx, entity, "fixture.score", { duration: 2, repeat: Infinity });

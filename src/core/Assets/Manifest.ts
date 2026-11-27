@@ -2,7 +2,7 @@
 //
 // Opt-in, like motion(): nothing here is reachable from code that does not import it, so a game
 // without a manifest ships none of it. Loads go through the game's AssetStore (its loaders and
-// cache), so `getTexture2D(name)` and `renderSprite(name)` see a manifest's assets too.
+// cache), so `getTexture2D(name)` and `sprite2D(name)` see a manifest's assets too.
 import type { EventBus } from "../EventBus";
 import { defineEvent } from "../EventQueue";
 import type { ILogger } from "../ILogger";
@@ -455,7 +455,7 @@ function drop(store: AssetStore, state: StoreState, user: string, members: reado
  * tool or a test can read them. An asset in two bundles is loaded once and kept until the last
  * bundle holding it is unloaded.
  *
- * An asset's name is its key in `game.assets`, so `getTexture2D(name)` and `renderSprite(name)`
+ * An asset's name is its key in `game.assets`, so `getTexture2D(name)` and `sprite2D(name)`
  * read it too. Two manifests that use one name must declare the same kind and source.
  *
  * Mark an asset `optional: true` when a failure is cosmetic: it is then `missing` (a warning, not

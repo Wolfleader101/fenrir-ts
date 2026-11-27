@@ -138,7 +138,7 @@ or location. Plain data: `manifest.assets` and `manifest.bundles` are what was p
 tool or a test can read them. An asset in two bundles is loaded once and kept until the last
 bundle holding it is unloaded.
 
-An asset's name is its key in `game.assets`, so `getTexture2D(name)` and `renderSprite(name)`
+An asset's name is its key in `game.assets`, so `getTexture2D(name)` and `sprite2D(name)`
 read it too. Two manifests that use one name must declare the same kind and source.
 
 Mark an asset `optional: true` when a failure is cosmetic: it is then `missing` (a warning, not
@@ -679,7 +679,9 @@ class EntityBuilder {
 }
 ```
 
-Builds an entity from components, then `spawn(ctx.entities)`. Renderer entries add their own methods when imported, such as `pixiNode` from `fenrir-ts/2d`.
+Builds an entity from components, then `spawn(ctx.entities)`. Add any component with
+`with(type, value)`, such as `with(PixiNode, { node, layer })` from `fenrir-ts/2d`. The frozen
+`fenrir-ts/3d` and `fenrir-ts/physics` entries still add their own methods when imported.
 
 Members:
 
