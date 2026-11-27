@@ -15,6 +15,10 @@ No code change. A clean agent extended the starter game from the published 0.3.0
 - Missing plugins (`references/audio.md`, `references/storage.md`): `playSound`, `stopSound`, `unlockAudio` and the storage functions throw without their plugin, naming it.
 - `SKILL.md` "Mistakes that look right" gains the restart and tween-frame cases.
 
+### For contributors: LF in `bin/` and `templates/` on Windows
+
+- A `.gitattributes` keeps `bin/` and `templates/` in LF on every checkout. With `core.autocrlf` on Windows they came out as CRLF, so `check:consumer` failed with `ERR_PNPM_BIN_CRLF` and a tarball packed there would have shipped CRLF starter files. The published package is unchanged: releases are packed on Linux.
+
 ## 0.3.0
 
 Three breaking changes: `fenrir-ts/2d` and `fenrir-ts/physics` no longer add methods to `EntityBuilder` and `AssetStore` when they are imported. Each section below has a before/after for its migration. Also new: a starter game (`npx fenrir-ts create`), SVG textures, input in `inspect(game)`, and a UI kit that can walk only the layers that hold controls.
