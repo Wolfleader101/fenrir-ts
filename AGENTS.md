@@ -44,7 +44,10 @@ pnpm check:imports  # core loads no renderer or physics package; other entries o
 pnpm check:consumer  # bundles the fixture games in scripts/consumer/ the way a consumer would and checks their size
 pnpm check:package   # the npm tarball: allowed files only, size budget, manifest rules, publint and attw
 pnpm check:install   # installs the tarball with npm and pnpm, with and without pixi.js: no peer warnings, imports, types (bundler, nodenext)
+pnpm check:template  # creates the starter game from the tarball (bin/fenrir-ts.js) and runs its type-check, tests and build
 ```
+
+A second job, `template-browser`, runs `pnpm check:template --e2e` on every pull request: the same, plus the starter game's Playwright test in Chromium.
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. Examples import only `fenrir-ts`, its entry points and peer packages, never `@/` or `src/`. A README or reference fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`; a `skills/fenrir/SKILL.md` block gets nothing and must compile on its own.
 
@@ -57,6 +60,8 @@ If `check:size` fails, find what grew before raising the budget. Raise it with `
 If `check:package` fails, it names the rule. A file outside its allowed list means `files` in `package.json` or the build put something in the tarball a consumer does not need; widen `ALLOWED` in `scripts/check-package.mjs` only for a file a consumer reads. The package has no runtime `dependencies` (build tools are dev dependencies) and every peer is optional (`peerDependenciesMeta`). Do not add `"sideEffects"`: it was measured to save nothing and broke consumers twice (publint suggests it; that suggestion is expected). The build writes source maps as `"hidden"` for `check:imports` and `check:consumer`; they do not ship. Declarations are post-processed in `vite.config.lib.ts` so every relative import names its `.js` file, which `node16` and `nodenext` consumers need; published sources use relative imports, not `@/`.
 
 If `check:install` fails, it names the package manager, the project and the step. A peer warning or a `/3d` import that succeeds means `peerDependencies` or `peerDependenciesMeta` changed; a `nodenext` type error means a declaration import lost its `.js` (see `addDeclarationExtensions` in `vite.config.lib.ts`). `node scripts/check-install.mjs --keep` leaves the projects to inspect. It needs the network for `pixi.js`.
+
+If `check:template` fails, it names the step. The starter game is `templates/game-2d/`, copied by `bin/fenrir-ts.js` (`npx fenrir-ts create <dir>`); both ship in the tarball and no entry imports them. The template's `package.json` has no `dependencies`: `create` writes `fenrir-ts` as `~` the package's version and `pixi.js` as its peer range, so the two cannot drift. Its `typescript` and `vitest` stay on the engine's majors (`tests/bin/create.test.ts` checks). `vitest` is pinned to `~4.0` because 4.1's peers crash npm before 11.6 (`reading 'edgesOut'`), which Node 22 ships; CI runs `check:template` with npm 10.9, so a template that old npm cannot install fails there. `gitignore` has no dot because `npm pack` drops `.gitignore`. A change to the public API that the template uses updates the template in the same change. `node scripts/check-template.mjs --keep` leaves the game to inspect; it needs the network.
 
 Releases: [`RELEASING.md`](RELEASING.md). A PR adds its notes under `## Unreleased` in `CHANGELOG.md` and does not change the version; a release PR does.
 

@@ -33,6 +33,9 @@ const ALLOWED = [
   /^dist\/(?:[\w-]+\/)*[\w-]+\.d\.ts$/,
   /^skills\/fenrir\/SKILL\.md$/,
   /^skills\/fenrir\/(?:references|api)\/[\w.-]+\.md$/,
+  // `npx fenrir-ts create <dir>` and the starter game it copies.
+  /^bin\/fenrir-ts\.js$/,
+  /^templates\/game-2d\/(?:[\w.-]+\/)*[\w.-]+$/,
 ];
 
 const failures = [];

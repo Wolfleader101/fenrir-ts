@@ -56,6 +56,8 @@ mkdir /tmp/fenrir-check && cd /tmp/fenrir-check && npm init -y >/dev/null
 npm install fenrir-ts@0.3.0 pixi.js              # no peer warnings
 node --input-type=module -e "import('fenrir-ts').then(m => console.log(Object.keys(m).length, 'exports')); import('fenrir-ts/2d')"
 npm audit signatures                             # the registry signature and provenance attestation verify
+cd /tmp && npx fenrir-ts@0.3.0 create fenrir-starter && cd fenrir-starter
+npm install && npm test && npm run build         # the starter game installs this version and passes
 ```
 
 For a version staged by the workflow, the package page on npmjs.com should show a "Provenance" section linking to the workflow run and commit. npm's docs do not say whether provenance survives staging, so check this on the first release staged from CI. 0.2.0 has none: it was staged by hand.

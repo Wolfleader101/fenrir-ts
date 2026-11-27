@@ -20,6 +20,12 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 - A 2D game ships only the value functions it calls: the `game-2d` fixture's engine code went from 55.28 kB to 54.46 kB minified (17.51 kB to 17.29 kB gzip). `fenrir-ts/2d` still adds the texture methods to `AssetStore`, and the frozen `fenrir-ts/3d` and `fenrir-ts/physics` entries still add their builder methods.
 
+### A starter game: `npx fenrir-ts create`
+
+- `npx fenrir-ts@latest create my-game` copies a starter game that ships in the package into a new folder: a `pixi2d` game (one action, one state, one `.png` texture, one entity drawn through a `PixiNode`), gameplay in `src/game.ts` tested headless with Vitest, a Playwright test that reads `window.__FENRIR__.inspect()`, a GitHub Actions workflow, and `AGENTS.md` / `CLAUDE.md` pointing coding agents at the guide in the package. It depends on the `fenrir-ts` version that created it. Nothing in the engine's entry points changed.
+- Docs: a minified production build renames functions, and a system's name is its function's name. `SKILL.md` and `references/core.md` now say to keep names (Vite: `esbuild: { keepNames: true }`, as the starter game does) or name every system.
+- For contributors: `pnpm check:template` (in CI) creates the starter game from the packed tarball and runs its type-check, tests and build. The `template-browser` CI job also runs its Playwright test on every pull request.
+
 ### SVG textures (#92)
 
 - The default `texture2d` loader that `pixi2d` registers now loads `.svg` sources, through Pixi's own SVG parser, as a `Texture`. Before, an `.svg` failed with "Unsupported ... format". An SVG is rasterised at its declared `width`/`height`, so set those to the size it is drawn at: scaling the sprite up later blurs it, as with a PNG. 3D texture loading is unchanged.

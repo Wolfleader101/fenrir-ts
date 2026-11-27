@@ -8,6 +8,17 @@ It focuses on **clear engine architecture**, **explicit data flow**, and **high-
 
 ## Installation
 
+### A new game
+
+```bash
+npx fenrir-ts@latest create my-game
+cd my-game && npm install && npm test && npm run dev
+```
+
+`create` copies the starter game that ships in the package into a new folder (it refuses one that is not empty): a `pixi2d` game with an action, a state, a texture and an entity drawn through a `PixiNode`, its gameplay apart from its drawing so a Vitest test runs it headless, a Playwright test that reads `window.__FENRIR__.inspect()`, a GitHub Actions workflow, and `AGENTS.md` (with a `CLAUDE.md` that points at it) sending coding agents to the guide in the package. The game depends on the `fenrir-ts` version that created it. It takes no options and installs nothing.
+
+### An existing project
+
 Install `fenrir-ts` and the peer of each entry point you import. A 2D game:
 
 ```bash
