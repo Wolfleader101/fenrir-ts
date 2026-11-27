@@ -465,6 +465,8 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 | Gameplay on the arrows or Space next to UI controls with default `ui()` keys | `ui({ pixi, keys: { next: [], previous: [] }, tapFocus: "clear" })`, or other gameplay keys |
 | Expecting an open `modalScope` to stop gameplay keys | `runIf` on your own pause state |
 | A "paused" value in the state a timer's `state` option names | a separate pause state, and `MotionSettings.pausedAll` |
+| A "Restart" that sets the state the game is already in, expecting its enter hook to reset the round | call the reset yourself (the enter hook calls the same function); setting the current value does nothing |
+| A test that asserts a 0.2 s tween is done after exactly 12 frames of 1/60 | step past the end, or wait for `TweenDone`: the frame sum can fall a hair short |
 | A `PostUpdate` system that moves sprites | move them in `Update`, or `{ before: "fenrir.pixi.postUpdate" }` |
 | "Press Space to start" with nothing else: keys do nothing until the player clicks the canvas | `canvas.focus()` after `await game.run()`, and a tap that starts too |
 | Touching `pixi.renderer` in `PreInit` or an initial state's enter hook | `Init` or later |
