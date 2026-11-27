@@ -103,6 +103,8 @@ game.addSystem(Schedule.Init, spawnBall);
 await game.run();
 ```
 
+The canvas element must exist in the DOM before you call `createGame()`: put the script at the end of the body or a `type="module"` script (deferred), wait for `DOMContentLoaded`, or call it from a framework's mounted hook.
+
 `game.run()` resolves once `PreInit`, `Init` and `PostInit` have run and the first frame is scheduled. If any of them throws, the run rolls back: `Exit` systems and cleanups run, and `run()` rejects with the error. `game.stop()`, `game.pause()` and `game.resume()` control the loop, and `game.step(dt)` runs frames while paused. `game.isRunning()` is true from the end of startup until `stop()` is called, paused included. `run()` also resolves when a system calls `ctx.stop()` during startup, so check `isRunning()` after `await game.run()` to know whether gameplay started. Tests use `createTestGame` instead: see [Testing a game](#testing-a-game).
 
 `game.assets` is the asset store. The 2D texture methods come from `fenrir-ts/2d`:
@@ -318,7 +320,7 @@ game
 await game.run();
 ```
 
-- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
+- **Where.** `loadAssets(ctx, manifest, bundle | bundles)`, `unloadAssets(...)` and `getAsset(ctx, manifest, name)` take a `SystemCtx` or the game itself; a helper of your own that calls them takes `AssetCtx`. An asset's `src` is a URL the browser fetches relative to the page: with Vite, a file in `public/img/` is `img/logo.png`. `ctx.assets` is `game.assets`, the asset store; a manifest loads through its loaders (chosen by kind and extension) and stores each asset under its name, so `getTexture2D("logo")` and `renderSprite("logo")` see it too. Two manifests may share a name only for the same kind and source.
 - **Loading.** A loading or loaded bundle returns the same promise; an asset in two bundles loads once. Await `loadAssets` in a `PreInit` system to hold `run()` until a bundle is ready, or call it without awaiting and watch progress. Loads are not tied to a run: they finish after `stop()`, and loaded bundles stay loaded across `stop()` and `run()`, like entities.
 - **Progress.** `ctx.resources.get(manifest.progress)` is plain data updated as each asset settles: `loaded`, `missing`, `failed`, `total` and `fraction` (`(loaded + missing) / total`) over every held asset, the same per bundle with its `status` (`unloaded`, `loading`, `loaded`, `failed`), and each asset's `status` (`unloaded`, `loading`, `loaded`, `fallback`, `missing`, `failed`), `error`, the `bundles` holding it and `direct` (held by `loadAsset`). `inspect(game)` shows it under the manifest's name. A bundle sends `AssetBundleLoaded { manifest, bundle, fallbacks, missing }` or `AssetBundleFailed { manifest, bundle, failures }` when it settles.
 - **Failure.** Every asset of a bundle is tried. One that fails shows its declared `fallback` (another asset of the same kind, which every bundle listing it also loads) and the failure is logged as a warning. One that fails without a fallback fails the bundle: it is logged, `AssetBundleFailed` is sent and the promise rejects with an `AssetBundleError` whose `failures` name each asset, source and error. The assets that loaded stay loaded. Calling `loadAssets` again retries the failed assets; nothing retries on its own.
@@ -393,6 +395,7 @@ import { EntityBuilder, MotionSettings, Schedule, TimerFired, TweenDone, addTime
 import { Display2D, Transform2D, pixi2d } from "fenrir-ts/2d";
 
 const Phase = defineState("myGame.Phase", { values: ["playing", "over"], initial: "playing" });
+const Overlay = defineState("myGame.Overlay", { values: ["closed", "open"], initial: "closed" });
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const game = await createGame({ canvas, plugins: [motion(), pixi2d({ design: { width: 390, minHeight: 520 } })] });
 const fired = game.events.createReader(TimerFired);
@@ -419,7 +422,7 @@ function spawn(ctx: SystemCtx): void {
 function react({ states, logger, resources }: SystemCtx): void {
   for (const { name } of fired.read()) if (name === "myGame.roundOver") states.set(Phase, "over");
   for (const { name } of finished.read()) if (name === "myGame.leap") logger.info("splash");
-  resources.get(MotionSettings).paused.ambient = document.body.classList.contains("menu-open");
+  resources.get(MotionSettings).paused.ambient = states.get(Overlay) === "open";
 }
 
 game.addSystem(Schedule.Init, spawn).addSystem(Schedule.Update, react);
@@ -1065,12 +1068,6 @@ game
 - More than 16 transitions of one state in one frame throws, naming the state and its last transitions. A hook that throws acts like a system that throws in that stage: in startup, `run()` rejects and the game rolls back.
 - States belong to one game. Names are identities, so prefix them with your namespace.
 
-**Important:** The canvas element must exist in the DOM before you call `createGame()` (or, on the 3D path, `bootstrapEngine()` from `fenrir-ts/3d`). If you're calling it in a script, either:
-
-- Place the script at the end of the body
-- Use `DOMContentLoaded` event listener
-- In frameworks like React/Vue, call it in a mounted lifecycle hook
-
 ### Events
 
 `defineEvent<T>(name)` returns a typed key, and `events.send(Event, payload)` sends one. There are two ways to receive it. Use `on` for side effects that do not feed back into the frame, such as audio, analytics and notices. Use a reader when the result changes game state and order matters: `read()` runs in a system, in schedule order, and returns each event once.
@@ -1100,7 +1097,8 @@ function showNotices({ events }: SystemCtx): void {
 }
 
 game.addSystem(Schedule.Update, addScore).addSystem(Schedule.Init, showNotices);
-// Send from a system or, while the game runs, from anywhere else, such as a DOM handler.
+// Send from a system or, while the game runs, from page UI outside the canvas, such as an HTML button.
+// (Input on the canvas itself is read with defineAction, never with DOM listeners.)
 document.querySelector("#goal")?.addEventListener("click", () => game.events.send(Scored, { points: 10 }));
 off(); // removes the game.on listener early
 ```
@@ -1152,7 +1150,7 @@ it("lands the fish after one second of casting", async () => {
 - `seed` is required. Nothing in a test game reads `performance.now()`, `Date.now()` or `requestAnimationFrame`.
 - A test game has no canvas, so a plugin that reads `game.canvas`, such as `pixi2d`, throws when it installs, saying so. Plugins that only add systems, resources or listeners install as usual. A system that draws with Pixi needs the renderer and is tested in the browser; keep drawing out of gameplay systems so they run in both.
 - A test game has `start()` where a `Game` has `run()`, and no `pause` or `resume`: between steps it is never running, so there is nothing to pause.
-- `game.input` has `press(action)`, `release(action)`, `pointerDown(x, y)`, `pointerMove(x, y)` and `pointerUp()`, which take effect on the next `step`: see [Input](#input).
+- `game.input` has `press(action)`, `release(action)`, `pointerDown(x, y)`, `pointerMove(x, y)`, `pointerUp()`, `pointerCancel()`, `focus()` and `blur()`, which take effect on the next `step`: see [Input](#input).
 - A system that throws stops the game, and the error propagates from `step`. A system that calls `ctx.stop()` ends the remaining frames of the `step` call.
 
 `game.step` also exists on a `Game` made by `createGame`, for frame-by-frame debugging: call `game.pause()` first. Each step advances the game by `dt` whatever the real time, and runs every system, so the `pixi2d` renderer draws each stepped frame. Calling `step` before `run()` or while running throws and says to pause first.

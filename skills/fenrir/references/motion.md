@@ -13,6 +13,7 @@ import { EntityBuilder, MotionSettings, Schedule, TimerFired, TweenDone, addTime
 import { Display2D, Transform2D, pixi2d } from "fenrir-ts/2d";
 
 const Phase = defineState("myGame.Phase", { values: ["playing", "over"], initial: "playing" });
+const Overlay = defineState("myGame.Overlay", { values: ["closed", "open"], initial: "closed" });
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const game = await createGame({ canvas, plugins: [motion(), pixi2d({ design: { width: 390, minHeight: 520 } })] });
 const fired = game.events.createReader(TimerFired);
@@ -39,7 +40,7 @@ function spawn(ctx: SystemCtx): void {
 function react({ states, logger, resources }: SystemCtx): void {
   for (const { name } of fired.read()) if (name === "myGame.roundOver") states.set(Phase, "over");
   for (const { name } of finished.read()) if (name === "myGame.leap") logger.info("splash");
-  resources.get(MotionSettings).paused.ambient = document.body.classList.contains("menu-open");
+  resources.get(MotionSettings).paused.ambient = states.get(Overlay) === "open";
 }
 
 game.addSystem(Schedule.Init, spawn).addSystem(Schedule.Update, react);

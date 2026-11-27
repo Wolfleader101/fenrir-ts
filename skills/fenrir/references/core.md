@@ -165,12 +165,6 @@ game
 - More than 16 transitions of one state in one frame throws, naming the state and its last transitions. A hook that throws acts like a system that throws in that stage: in startup, `run()` rejects and the game rolls back.
 - States belong to one game. Names are identities, so prefix them with your namespace.
 
-**Important:** The canvas element must exist in the DOM before you call `createGame()` (or, on the 3D path, `bootstrapEngine()` from `fenrir-ts/3d`). If you're calling it in a script, either:
-
-- Place the script at the end of the body
-- Use `DOMContentLoaded` event listener
-- In frameworks like React/Vue, call it in a mounted lifecycle hook
-
 ## Events
 
 `defineEvent<T>(name)` returns a typed key, and `events.send(Event, payload)` sends one. There are two ways to receive it. Use `on` for side effects that do not feed back into the frame, such as audio, analytics and notices. Use a reader when the result changes game state and order matters: `read()` runs in a system, in schedule order, and returns each event once.
@@ -200,7 +194,8 @@ function showNotices({ events }: SystemCtx): void {
 }
 
 game.addSystem(Schedule.Update, addScore).addSystem(Schedule.Init, showNotices);
-// Send from a system or, while the game runs, from anywhere else, such as a DOM handler.
+// Send from a system or, while the game runs, from page UI outside the canvas, such as an HTML button.
+// (Input on the canvas itself is read with defineAction, never with DOM listeners.)
 document.querySelector("#goal")?.addEventListener("click", () => game.events.send(Scored, { points: 10 }));
 off(); // removes the game.on listener early
 ```

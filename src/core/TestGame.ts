@@ -44,7 +44,8 @@ export interface TestGame extends GameBase {
   start(): Promise<void>;
   /**
    * The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`,
-   * `pointerMove` and `pointerUp`, which stand in for the player and take effect on the next `step`.
+   * `pointerMove`, `pointerUp`, `pointerCancel`, `focus` and `blur`, which stand in for the player
+   * and take effect on the next `step`.
    */
   readonly input: TestInput;
 }

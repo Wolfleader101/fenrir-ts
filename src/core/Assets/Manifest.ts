@@ -623,6 +623,8 @@ export function unloadAsset<A extends AssetDeclarations, B extends string>(
 
 /**
  * The loaded asset `name` of `manifest`, typed by its kind: a Pixi `Texture` for `texture2d`.
+ * `ctx` is a `SystemCtx`, the game, or anything with its `assets`, `resources`, `events` and
+ * `logger` (`AssetCtx`).
  * Its fallback's value if it failed and has one. `undefined` for an `optional` asset that is
  * `missing` (its type includes `undefined` only for assets declared `optional: true`).
  * Throws if it is not loaded yet, or failed; read `manifest.progress`, or wait for

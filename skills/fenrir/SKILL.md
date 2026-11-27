@@ -24,7 +24,7 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 - **Order within a stage** is registration order, except where `before` / `after` (system names in the same stage) say otherwise. Plugins register first, so **engine systems run before yours in every stage unless you say `before`**. Know the engine's names (table below).
 - **Data.** Per-entity data is in components (`defineComponent`, `ctx.entities`), one-per-game values in resources (`defineResource`, `ctx.resources`), modes in states (`defineState`, `ctx.states`). Systems talk through events (`defineEvent`, `ctx.events`). Every name is namespaced: `myGame.Health`. `fenrir.*` is the engine's.
 - **Features are plugins, and opt-in.** `pixi2d()`, `motion()`, `storage()`, `audio()` and `ui()` go in `createGame({ plugins })`. A game that does not import one ships none of its bytes. Each plugin's resource is set when it installs (inside `createGame`), so it exists in every system and state hook, the initial enter hooks included; a game that may run without a plugin checks with `resources.has(X)`.
-- **The engine owns the DOM.** It listens to the canvas for keys and pointers, to the window for resizes, to page visibility for audio, and it focuses the canvas. Game code reads `ctx.input`, `Viewport` and resources; it never adds DOM listeners, never uses Pixi's events (`eventMode`, `on("pointerdown")`) or Pixi's accessibility, and never reads `KeyboardEvent`s.
+- **The engine owns the DOM.** It listens to the canvas for keys and pointers, to the window for resizes, to page visibility for audio, and it focuses the canvas. Game code reads `ctx.input`, `Viewport` and resources; it never adds DOM listeners for input on the canvas or the window (page UI outside the canvas, such as an HTML button, may call `game.events.send`), never uses Pixi's events (`eventMode`, `on("pointerdown")`) or Pixi's accessibility, and never reads `KeyboardEvent`s.
 - **Deterministic.** Read `ctx.time` and `ctx.random`, never `Date.now()`, `performance.now()`, `Math.random()`, `setTimeout` or `setInterval`. Then `createTestGame({ seed })` and `game.step(dt, frames)` run the same systems headless and replay exactly.
 - **Lifetime.** Entities, resources, states' hooks, `game.on` listeners and loaded assets belong to the game and survive `stop()` then `run()`. Anything a run acquires (a DOM element, a listener, a timer of the browser's) is released through `ctx.onCleanup` or `ctx.signal`, so a failed startup rolls it back.
 
@@ -132,7 +132,8 @@ The page needs `<canvas id="game"></canvas>` and `<meta name="viewport" content=
 ## Systems and order
 
 - Name every system: a named `function`, or `{ name: "myGame.thing" }` for an arrow. An anonymous function with no name throws; two systems with one name in a stage throw.
-- `before` / `after` take names in the **same stage**. An unknown name or a cycle makes `run()` reject naming both. `runIf: inState(State, ...values)` gates by state.
+- `before` / `after` take names in the **same stage**. An unknown name or a cycle makes `run()` reject naming both. `runIf: inState(State, ...values)` gates by state; combine conditions with a function, `runIf: (ctx) => inState(Phase, "playing")(ctx) && inState(Pause, "running")(ctx)`.
+- Helpers of your own that call engine functions take the narrow context those functions name, or a whole `SystemCtx`: `AssetCtx` (manifests), `MotionCtx` (timers, tweens), `StorageCtx` (storage), `AudioCtx`, `UiCtx`. A `Pick<SystemCtx, "assets">` is not enough for `getAsset`.
 - Startup systems may be `async` and are awaited. **Per-frame systems must not be `async`**: the promise is dropped.
 - `ctx.stop()` stops the game. `game.isRunning()` after `await game.run()` says whether startup stopped it.
 

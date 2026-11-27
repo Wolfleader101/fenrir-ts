@@ -304,6 +304,8 @@ function getAsset<A extends AssetDeclarations, N extends keyof A & string>(ctx: 
 ```
 
 The loaded asset `name` of `manifest`, typed by its kind: a Pixi `Texture` for `texture2d`.
+`ctx` is a `SystemCtx`, the game, or anything with its `assets`, `resources`, `events` and
+`logger` (`AssetCtx`).
 Its fallback's value if it failed and has one. `undefined` for an `optional` asset that is
 `missing` (its type includes `undefined` only for assets declared `optional: true`).
 Throws if it is not loaded yet, or failed; read `manifest.progress`, or wait for
@@ -2326,7 +2328,7 @@ running between steps, so there is nothing to pause.
 Members:
 
 - `start`: Runs PreInit, Init and PostInit, as `run()` does on a `Game`, with the same rollback when a startup system throws. Schedules no frame: call `step(dt)`.
-- `input`: The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`, `pointerMove` and `pointerUp`, which stand in for the player and take effect on the next `step`.
+- `input`: The same `Input` that systems read as `ctx.input`, plus `press`, `release`, `pointerDown`, `pointerMove`, `pointerUp`, `pointerCancel`, `focus` and `blur`, which stand in for the player and take effect on the next `step`.
 
 ### TestGameOptions
 
