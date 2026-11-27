@@ -31,3 +31,47 @@ await assets.loadModel("ship", "/models/ship.glb");
 engine.addSystems(Schedule.Update, [yourGameSystem]);
 await engine.run();
 ```
+
+## Physics entities
+
+`fenrir-ts/physics` adds no methods to `EntityBuilder`. A body needs three components, added with the builder's `with`: a `PhysicsBody` (`createPhysicsBody` picks the sync mode, collision layer and mask from the motion type unless given), a `PhysicsShape` from `ShapeBuilder` and, optionally, a `PhysicsMaterial` from `CommonMaterials`. The physics system creates the Jolt body for every entity with a `Transform`, a `PhysicsBody` and a `PhysicsShape`.
+
+The presets `dynamicBox`, `dynamicSphere`, `staticBox`, `staticSphere` and `kinematicBox` add all three to the builder they are given and return it. A `with` after a preset replaces what it added.
+
+```ts
+import { EntityBuilder, type SystemCtx } from "fenrir-ts";
+import { Vector3 } from "three";
+import {
+  CollisionUtils,
+  CommonLayers,
+  CommonMaterials,
+  MotionType,
+  PhysicsBody,
+  PhysicsMaterial,
+  PhysicsShape,
+  ShapeBuilder,
+  createPhysicsBody,
+  dynamicSphere,
+  staticBox,
+} from "fenrir-ts/physics";
+
+export function spawnLevel({ entities }: SystemCtx): void {
+  staticBox(EntityBuilder.create().transform(new Vector3(0, -1, 0)), new Vector3(20, 1, 20)).spawn(entities);
+
+  dynamicSphere(EntityBuilder.create().transform(new Vector3(0, 5, 0)), 0.5, 1)
+    .with(PhysicsMaterial, CommonMaterials.metal())
+    .spawn(entities);
+
+  EntityBuilder.create()
+    .transform(new Vector3(2, 8, 0))
+    .with(PhysicsBody, createPhysicsBody({
+      motionType: MotionType.Dynamic,
+      mass: 2,
+      collisionLayer: CommonLayers.CHARACTER,
+      collisionMask: CollisionUtils.createMask(CommonLayers.STATIC, CommonLayers.DYNAMIC),
+    }))
+    .with(PhysicsShape, ShapeBuilder.capsule(0.5, 0.3))
+    .with(PhysicsMaterial, CommonMaterials.wood())
+    .spawn(entities);
+}
+```

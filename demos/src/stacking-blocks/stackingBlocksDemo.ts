@@ -1,6 +1,7 @@
 import { Vector3 } from "three";
 import type { AsyncSystemFn, SyncSystemFn } from "fenrir-ts";
 import { EntityBuilder } from "fenrir-ts";
+import { PhysicsMaterial, CommonMaterials, dynamicBox, dynamicSphere, staticBox } from "fenrir-ts/physics";
 import type { IAssetStore } from "fenrir-ts";
 import { SkyboxUtils } from "fenrir-ts/3d";
 
@@ -31,10 +32,9 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
     }
 
     // Ground
-    EntityBuilder.create()
+    staticBox(EntityBuilder.create(), new Vector3(20, 1, 20))
       .name("Ground")
       .transform(new Vector3(0, -5, 0))
-      .staticBox(new Vector3(20, 1, 20))
       .renderBox([40, 2, 40], {
         material: {
           kind: "standard",
@@ -58,11 +58,10 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
         for (let i = 0; i < width; i++) {
           const x = centerX + (i - width / 2 + 0.5) * boxSize;
 
-          EntityBuilder.create()
+          dynamicBox(EntityBuilder.create(), new Vector3(boxSize / 2, boxSize / 2, boxSize / 2), 2.0)
             .name(`Pyramid Block L${layer}-${i}`)
             .transform(new Vector3(x, y, centerZ))
-            .dynamicBox(new Vector3(boxSize / 2, boxSize / 2, boxSize / 2), 2.0)
-            .physicsMaterial("wood")
+            .with(PhysicsMaterial, CommonMaterials.wood())
             .renderBox([boxSize, boxSize, boxSize], {
               material: {
                 kind: "standard",
@@ -87,11 +86,10 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
       color: number
     ) => {
       for (let i = 0; i < height; i++) {
-        EntityBuilder.create()
+        dynamicBox(EntityBuilder.create(), new Vector3(0.4, 0.5, 0.4), 1.5)
           .name(`Tower Block ${i}`)
           .transform(new Vector3(x, -3.5 + i * 1.2, z))
-          .dynamicBox(new Vector3(0.4, 0.5, 0.4), 1.5)
-          .physicsMaterial("wood")
+          .with(PhysicsMaterial, CommonMaterials.wood())
           .renderBox([0.8, 1.0, 0.8], {
             material: {
               kind: "standard",
@@ -110,11 +108,10 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
     buildTower(0, 6, 5, 0xf39c12);
 
     // Add some wrecking balls
-    EntityBuilder.create()
+    dynamicSphere(EntityBuilder.create(), 0.6, 5.0)
       .name("Wrecking Ball 1")
       .transform(new Vector3(-8, 5, 0))
-      .dynamicSphere(0.6, 5.0)
-      .physicsMaterial("metal")
+      .with(PhysicsMaterial, CommonMaterials.metal())
       .renderSphere(0.6, 32, 16, {
         material: {
           kind: "standard",
@@ -125,11 +122,10 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
       })
       .spawn(entities);
 
-    EntityBuilder.create()
+    dynamicSphere(EntityBuilder.create(), 0.6, 5.0)
       .name("Wrecking Ball 2")
       .transform(new Vector3(8, 5, 0))
-      .dynamicSphere(0.6, 5.0)
-      .physicsMaterial("metal")
+      .with(PhysicsMaterial, CommonMaterials.metal())
       .renderSphere(0.6, 32, 16, {
         material: {
           kind: "standard",
@@ -154,11 +150,10 @@ export function createStackingBlocksDemo(assetStore?: IAssetStore) {
       const z = (Math.random() - 0.5) * 12;
       const randomColor = Math.floor(Math.random() * 0xffffff);
 
-      EntityBuilder.create()
+      dynamicBox(EntityBuilder.create(), new Vector3(0.3, 0.3, 0.3), 1.0)
         .name("Random Block")
         .transform(new Vector3(x, 10, z))
-        .dynamicBox(new Vector3(0.3, 0.3, 0.3), 1.0)
-        .physicsMaterial("wood")
+        .with(PhysicsMaterial, CommonMaterials.wood())
         .renderBox([0.6, 0.6, 0.6], {
           material: {
             kind: "standard",
