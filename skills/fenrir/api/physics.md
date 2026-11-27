@@ -147,23 +147,16 @@ This class is instantiated by PhysicsSystem and provided via SystemCtx
 
 Members:
 
-- `applyImpulse`: Apply an impulse to a physics body (instantaneous velocity change)
- Automatically wakes up sleeping bodies
-- `addForce`: Add force to a physics body (continuous acceleration)
- Automatically wakes up sleeping bodies
-- `addTorque`: Add torque to a physics body (rotational force)
- Automatically wakes up sleeping bodies
-- `applyAngularImpulse`: Apply an angular impulse to a physics body
- Automatically wakes up sleeping bodies
+- `applyImpulse`: Apply an impulse to a physics body (instantaneous velocity change) Automatically wakes up sleeping bodies
+- `addForce`: Add force to a physics body (continuous acceleration) Automatically wakes up sleeping bodies
+- `addTorque`: Add torque to a physics body (rotational force) Automatically wakes up sleeping bodies
+- `applyAngularImpulse`: Apply an angular impulse to a physics body Automatically wakes up sleeping bodies
 - `getVelocity`: Get the current linear velocity of a physics body
-- `setVelocity`: Set the linear velocity of a physics body
- Automatically wakes up sleeping bodies
+- `setVelocity`: Set the linear velocity of a physics body Automatically wakes up sleeping bodies
 - `getAngularVelocity`: Get the current angular velocity of a physics body
-- `setAngularVelocity`: Set the angular velocity of a physics body
- Automatically wakes up sleeping bodies
+- `setAngularVelocity`: Set the angular velocity of a physics body Automatically wakes up sleeping bodies
 - `isActive`: Check if the physics body is active (not sleeping)
-- `activate`: Activate (wake up) a physics body
- Useful to force a body awake before applying physics operations
+- `activate`: Activate (wake up) a physics body Useful to force a body awake before applying physics operations
 - `getMass`: Get the mass of a physics body
 - `setFriction`: Set friction for a physics body
 - `setRestitution`: Set restitution (bounciness) for a physics body

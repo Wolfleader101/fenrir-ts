@@ -2487,10 +2487,8 @@ Members:
 - `indexOf`: Returns dense index, or -1 if missing
 - `get`: Get component by entity id (sparse lookup)
 - `getAt`: Get by dense index (fast path)
-- `set`: Add or replace.
- Returns true if inserted, false if replaced.
-- `remove`: Remove component for entityId.
- Returns true if removed, false if it wasn't present.
+- `set`: Add or replace. Returns true if inserted, false if replaced.
+- `remove`: Remove component for entityId. Returns true if removed, false if it wasn't present.
 - `forEach`: Iterate all entries in packed order
 
 ### Random
@@ -2515,8 +2513,7 @@ Members:
 
 - `seed`: The 32-bit seed this source started from. Log it to replay a run.
 - `next`: A float in [0, 1).
-- `int`: An integer from `min` to `max`, both included. Unbiased: draws are rejected rather than
- folded with `%`. `max - min` may be at most 2^32 - 1.
+- `int`: An integer from `min` to `max`, both included. Unbiased: draws are rejected rather than folded with `%`. `max - min` may be at most 2^32 - 1.
 - `pick`: One item of `items`, each equally likely. Throws on an empty list.
 
 ### Resources
@@ -2599,19 +2596,16 @@ at the next `flush`, which the engine calls before each frame and between startu
 
 Members:
 
-- `replaceSystem`: Swaps the function of every system called `name`, keeping its stage, position and options.
- While running, the new function runs from the next frame.
+- `replaceSystem`: Swaps the function of every system called `name`, keeping its stage, position and options. While running, the new function runs from the next frame.
 - `removeSystem`: Removes every system called `name`. While running, it stops running from the next frame.
 - `getSystems`: The system functions of a stage, in the order they run.
 - `getSchedule`: The systems of a stage with their names and options, in the order they run.
 - `describe`: The whole schedule as text, one stage per line: `update: movePlayer, applyDamage`.
-- `beginRun`: Resolves the order of every stage and starts applying changes at `flush` only.
- Throws, naming the systems involved, if a constraint is unknown or cyclic.
+- `beginRun`: Resolves the order of every stage and starts applying changes at `flush` only. Throws, naming the systems involved, if a constraint is unknown or cyclic.
 - `flush`: Applies changes made since the last flush. Called by the engine between frames.
 - `endRun`: Ends the run: changes apply immediately again and are checked when the next run begins.
 - `current`: The systems a stage runs now, as of the last flush while running.
-- `runSyncStage`: Runs a stage's systems in order. State changes queued by a system are applied after it
- returns, before the next system's `runIf`; changes made outside a system, before the first.
+- `runSyncStage`: Runs a stage's systems in order. State changes queued by a system are applied after it returns, before the next system's `runIf`; changes made outside a system, before the first.
 - `runAsyncStage`: As `runSyncStage`, awaiting each system. Stops before the next system once `ctx.signal` aborts.
 
 ### Time
@@ -2637,16 +2631,11 @@ real one, so tests can control every reading.
 Members:
 
 - `fixedDelta`: Seconds per fixed tick. Settable; defaults to 1/60.
-- `accumulator`: Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame.
- `accumulator / fixedDelta` is the interpolation factor between the last two ticks.
+- `accumulator`: Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame. `accumulator / fixedDelta` is the interpolation factor between the last two ticks.
 - `delta`: Seconds since the last frame, clamped to the engine's maximum frame delta.
 - `elapsed`: Seconds of game time since the run started, excluding pauses.
 - `now`: Wall-clock milliseconds since the Unix epoch. Use instead of `Date.now()`.
-- `update`: Starts a frame: sets `delta`, clamped to `maxDelta`, and adds it to the accumulator.
- Without `frameSeconds`, the frame lasted since the last update, read from the clock. With
- it, the frame lasted exactly that long, which is how `game.step(dt)` runs frames: the delta
- is `dt` itself, not a clock difference, so fixed ticks add up without rounding. A frame
- stepped while paused counts towards `elapsed`.
+- `update`: Starts a frame: sets `delta`, clamped to `maxDelta`, and adds it to the accumulator. Without `frameSeconds`, the frame lasted since the last update, read from the clock. With it, the frame lasted exactly that long, which is how `game.step(dt)` runs frames: the delta is `dt` itself, not a clock difference, so fixed ticks add up without rounding. A frame stepped while paused counts towards `elapsed`.
 
 ### View
 
@@ -3466,46 +3455,15 @@ stage, reads the same answers. `game.input` and `ctx.input` are the same object.
 
 Members:
 
-- `pressed`: The action went down this frame: none of its bindings was held last frame and one is now.
- True for exactly one frame, even for a tap that went down and up between two frames. In the
- `Tick` stage it is true in exactly one tick: the first that runs after the press.
+- `pressed`: The action went down this frame: none of its bindings was held last frame and one is now. True for exactly one frame, even for a tap that went down and up between two frames. In the `Tick` stage it is true in exactly one tick: the first that runs after the press.
 - `released`: The action went up this frame: it was held last frame and no binding is down now. In `Tick`, true in exactly one tick.
 - `held`: Any of the action's bindings is down. A tap is held for the one frame it is pressed in.
 - `focused`: The canvas had keyboard focus when this frame started. Keys reach the game only while it has.
-- `edges`: This frame's presses and releases of `actions`, in the order they happened, every one kept:
- two presses of one key between two frames are two `pressed` edges. An action is pressed
- when its first binding goes down and released when its last goes up, as for `pressed` and
- `released`. The list is what arrived since the last frame, so a quick tap is `pressed`
- then `released` here in the frame where `pressed()` is true. Bindings hidden by `consume`
- or `consumePointer` are left out until they lift; a press after the lift is listed again. In
- `Tick` it is the frame's list in every tick: read it in `PreUpdate` or `Update`.
-- `consumePointer`: Stops this frame's pointer press reaching actions: for UI that handled the tap. Systems that
- run after this call see no `pressed`, `held` or `released` from the pointer bindings until
- the pointer is lifted; keys bound to the same action still count. Systems that ran earlier
- in the frame already saw the press, so the UI system must run first. `pointer.down` still
- reports the pointer. Does nothing in a frame with no new pointer press. Only this press is
- hidden: a press after the pointer lifts is seen again, even one in the next frame or one that
- lifted and went down again between two frames.
-- `consume`: Stops this frame's press of `action` reaching later systems, whichever binding pressed it:
- for UI that handled the press. It hides the bindings that went down this frame as
- `consumePointer` hides the pointer: until they lift, systems that run after the call see no
- `pressed`, `held`, `released` or edges from them, for this action or any other bound to the
- same key or button. Does nothing when no binding of the action went down this frame. As for
- `consumePointer`, a later press of the same key is seen again.
-- `onDown`: Calls `handler` synchronously inside each DOM event that presses one of `action`'s
- bindings, before the press is latched: every `keydown` of a bound key, auto-repeats
- included, and the `pointerdown` that presses a bound pointer button. Return `true` to claim
- the event and the engine calls `preventDefault()` on it, for example to keep Tab on the
- canvas while a canvas control can still take focus. The press is latched either way.
- 
- Setup, like `game.on`: register once, not in a system. A handler stays across `stop()` and
- `run()` and is called only while the game runs. Returns a function that removes it. A
- handler that throws is logged and does not claim.
-- `onGesture`: Calls `handler` synchronously inside every user gesture on the canvas: each `keydown` that
- is not an auto-repeat, `pointerdown` and `pointerup`. Some browser calls work only inside a
- gesture, such as `audioContext.resume()` on iOS Safari, where a touch counts on `pointerup`.
- Setup, like `onDown`: stays across runs, called only while the game runs. Returns a function
- that removes it. A handler that throws is logged.
+- `edges`: This frame's presses and releases of `actions`, in the order they happened, every one kept: two presses of one key between two frames are two `pressed` edges. An action is pressed when its first binding goes down and released when its last goes up, as for `pressed` and `released`. The list is what arrived since the last frame, so a quick tap is `pressed` then `released` here in the frame where `pressed()` is true. Bindings hidden by `consume` or `consumePointer` are left out until they lift; a press after the lift is listed again. In `Tick` it is the frame's list in every tick: read it in `PreUpdate` or `Update`.
+- `consumePointer`: Stops this frame's pointer press reaching actions: for UI that handled the tap. Systems that run after this call see no `pressed`, `held` or `released` from the pointer bindings until the pointer is lifted; keys bound to the same action still count. Systems that ran earlier in the frame already saw the press, so the UI system must run first. `pointer.down` still reports the pointer. Does nothing in a frame with no new pointer press. Only this press is hidden: a press after the pointer lifts is seen again, even one in the next frame or one that lifted and went down again between two frames.
+- `consume`: Stops this frame's press of `action` reaching later systems, whichever binding pressed it: for UI that handled the press. It hides the bindings that went down this frame as `consumePointer` hides the pointer: until they lift, systems that run after the call see no `pressed`, `held`, `released` or edges from them, for this action or any other bound to the same key or button. Does nothing when no binding of the action went down this frame. As for `consumePointer`, a later press of the same key is seen again.
+- `onDown`: Calls `handler` synchronously inside each DOM event that presses one of `action`'s bindings, before the press is latched: every `keydown` of a bound key, auto-repeats included, and the `pointerdown` that presses a bound pointer button. Return `true` to claim the event and the engine calls `preventDefault()` on it, for example to keep Tab on the canvas while a canvas control can still take focus. The press is latched either way.
+- `onGesture`: Calls `handler` synchronously inside every user gesture on the canvas: each `keydown` that is not an auto-repeat, `pointerdown` and `pointerup`. Some browser calls work only inside a gesture, such as `audioContext.resume()` on iOS Safari, where a touch counts on `pointerup`. Setup, like `onDown`: stays across runs, called only while the game runs. Returns a function that removes it. A handler that throws is logged.
 
 ### InputBinding
 
@@ -3577,9 +3535,7 @@ Members:
 - `y`: Logical y of the last pointer position.
 - `down`: The primary pointer is down: left mouse button, a finger or a pen tip. `consumePointer` does not change it.
 - `inside`: The pointer is over the canvas. False after a finger lifts or the mouse leaves.
-- `cancelled`: The primary pointer went up this frame without being lifted: the browser cancelled it
- (`pointercancel` or lost pointer capture), the canvas lost focus, or the page was hidden.
- `released` still reports the release; check this to ignore a cancelled press.
+- `cancelled`: The primary pointer went up this frame without being lifted: the browser cancelled it (`pointercancel` or lost pointer capture), the canvas lost focus, or the page was hidden. `released` still reports the release; check this to ignore a cancelled press.
 
 ### JsonValue
 
@@ -3778,8 +3734,7 @@ The current value of each state, for one game. `game.states` and `ctx.states` ar
 Members:
 
 - `get`: The current value. A change queued with `set` is not visible until it is applied.
-- `set`: Queues a change, applied after the current system returns: exit hooks for the old value,
- then enter hooks for the new value, then the next system. Setting the current value does nothing.
+- `set`: Queues a change, applied after the current system returns: exit hooks for the old value, then enter hooks for the new value, then the next system. Setting the current value does nothing.
 - `timeIn`: Seconds of game time since the current value was entered. Pauses do not count.
 
 ### StateType
@@ -4041,13 +3996,9 @@ at the call, as they would inside the DOM event, while the game runs.
 
 Members:
 
-- `press`: Presses the action's first binding, as if that key or pointer button went down. Calls the
- `onDown` handlers of every action bound to it, then the `onGesture` handlers, passing
- `event`. Returns whether a handler claimed the press. A pointer binding also focuses the
- canvas, as a press on it does.
+- `press`: Presses the action's first binding, as if that key or pointer button went down. Calls the `onDown` handlers of every action bound to it, then the `onGesture` handlers, passing `event`. Returns whether a handler claimed the press. A pointer binding also focuses the canvas, as a press on it does.
 - `release`: Releases every binding of the action.
-- `pointerDown`: Moves the primary pointer to logical `x`, `y` over the canvas and presses it. Calls the
- handlers and focuses the canvas as `press` does, and returns whether a handler claimed it.
+- `pointerDown`: Moves the primary pointer to logical `x`, `y` over the canvas and presses it. Calls the handlers and focuses the canvas as `press` does, and returns whether a handler claimed it.
 - `pointerMove`: Moves the primary pointer to logical `x`, `y` over the canvas.
 - `pointerUp`: Lifts the primary pointer where it is. A gesture: calls the `onGesture` handlers.
 - `pointerCancel`: The browser cancels the primary pointer: it goes up, with `pointer.cancelled` in the frame that releases it.
@@ -4728,8 +4679,7 @@ interface EntityBuilder {
 }
 ```
 
-- `pixiNode`: Gives the entity a Pixi display object the app built (`PixiNode`). Mounted in `layer`, or
- under the parent entity's node; destroyed with the entity unless `keep` is true.
+- `pixiNode`: Gives the entity a Pixi display object the app built (`PixiNode`). Mounted in `layer`, or under the parent entity's node; destroyed with the entity unless `keep` is true.
 - `renderSprite`: Add a 2D sprite renderable
 - `renderCircle`: Add a 2D circle graphic
 - `renderRect`: Add a 2D rectangle graphic

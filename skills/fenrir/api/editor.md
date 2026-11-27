@@ -27,7 +27,7 @@ class CodeExecutor implements ICodeExecutor {
 
 ```ts
 class ControlBar extends SignalWatcherBase {
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     presenter: ControlBarPresenter | undefined;
     statusPresenter: StatusBadgePresenter | undefined;
 }
@@ -68,7 +68,7 @@ Members:
 class EditorBadge extends LitElement {
     variant: BadgeVariant;
     size: BadgeSize;
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     override render();
 }
 ```
@@ -82,7 +82,7 @@ Used for displaying engine state and other status information
 class EditorButton extends LitElement {
     variant: ButtonVariant;
     disabled: boolean;
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     override render();
 }
 ```
@@ -95,7 +95,7 @@ Accepts icon content via `icon` slot
 
 ```ts
 class EditorModal extends LitElement {
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     open: boolean;
     override title: string;
     override connectedCallback(): void;
@@ -112,7 +112,7 @@ Supports close button and escape key handling
 
 ```ts
 class EditorPanel extends LitElement {
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     shadow: PanelShadow;
     padding: string;
 }
@@ -136,14 +136,13 @@ Members:
 
 - `getSignal`: Get the current state signal for reactive access
 - `getState`: Get the current state value
-- `setState`: Update state with partial update
- Business logic should be in presenters, not here
+- `setState`: Update state with partial update Business logic should be in presenters, not here
 
 ### ErrorModal
 
 ```ts
 class ErrorModal extends SignalWatcherBase {
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     presenter: ErrorModalPresenter | undefined;
 }
 ```
@@ -238,7 +237,7 @@ class SandboxProvider implements ISandboxProvider {
 
 ```ts
 class StatusBadge extends SignalWatcherBase {
-    static override styles: import("C:/code/personal/ts/fenrir-ts/.claude/worktrees/m2-inspect-25c485/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/development/lit-element").CSSResult[];
+    static override styles: import("lit-element/development/lit-element").CSSResult[];
     presenter: StatusBadgePresenter | undefined;
 }
 ```

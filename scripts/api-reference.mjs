@@ -181,7 +181,7 @@ function memberDocs(node) {
     if (!m.name || isPrivate(m) || isHashPrivate(m) || hasInternalTag(m)) continue;
     const name = m.name.getText();
     if (/^_/.test(name) || seen.has(name)) continue;
-    const doc = docOf(m).split("\n\n")[0]?.replace(/\n/g, " ").trim();
+    const doc = docOf(m).replace(/\r\n?/g, "\n").split("\n\n")[0]?.replace(/\n/g, " ").trim();
     if (!doc) continue;
     seen.add(name);
     lines.push(`- \`${name}\`: ${doc}`);
@@ -302,7 +302,20 @@ function renderEntry(entry) {
     }
   }
   // A source checked out with CRLF line endings must give the same page as one with LF.
-  return lines.join("\n").replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+  return machineIndependent(lines.join("\n")).replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
+
+/**
+ * The same page on every machine: LF line endings, and no checkout paths in inferred types
+ * (`import("/abs/node_modules/.pnpm/x@1/node_modules/x/y")` becomes `import("x/y")`).
+ */
+function machineIndependent(text) {
+  const base = posix(root).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(new RegExp(`${base}/node_modules/\\.pnpm/[^/"]+/node_modules/`, "gi"), "")
+    .replace(new RegExp(`${base}/node_modules/`, "gi"), "")
+    .replace(new RegExp(`${base}/`, "gi"), "");
 }
 
 /** GitHub-style heading anchor. */
