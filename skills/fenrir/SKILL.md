@@ -16,7 +16,7 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 - **A new game:** `npx fenrir-ts@latest create <dir>`, then `npm install`. It copies the starter game in this package (`node_modules/fenrir-ts/templates/game-2d/`), already set up as below: gameplay in `src/game.ts`, drawing in `src/main.ts`, a headless test in `tests/`, a Playwright test in `e2e/`, CI, and `AGENTS.md`. Extend it rather than starting over. The rest of this list is for adding Fenrir to an existing project.
 - **Minified builds lose function names**, and a system's name is its function's name: with Vite, set `esbuild: { keepNames: true }` in `vite.config.ts` (the starter game does), or give every system `{ name }`. Otherwise the production build throws "Cannot add an anonymous system", or `before` / `after` stop matching.
 - `package.json`: `"type": "module"`; dependencies `fenrir-ts` and `pixi.js` (8.x, for `/2d` and `/ui`), installed with `npm install fenrir-ts pixi.js`; dev dependencies `typescript` and `vitest` (and a bundler such as Vite for the browser build). Every other peer is optional and needed only by the frozen entries (`three`, `jolt-physics`), so the 2D path installs nothing else and gets no peer warnings. At 0.x a breaking change bumps the minor version: pin `~0.x.y` and read `node_modules/fenrir-ts/CHANGELOG.md` before upgrading.
-- `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]` (Vitest 4's types use `Disposable`), `"strict": true`, `"skipLibCheck": true`.
+- `tsconfig.json`: `"module": "ESNext"`, `"moduleResolution": "Bundler"` (the entry points are package `exports` subpaths), `"target": "ES2022"` (top-level `await`), `"lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]` (the types of Vitest 4 and later use `Disposable`; the same file works with TypeScript 5.9 and 7), `"strict": true`, `"skipLibCheck": true`.
 - Vitest needs no environment and no config for headless tests: `createTestGame`, `ui({ root })`, Pixi `Container`/`Graphics`/`Sprite` and `Texture.WHITE` all work in the default `node` environment. Use `jsdom` only for code that touches `document` or `window`.
 
 ## The model in one page
@@ -26,7 +26,7 @@ This guide is for code that **uses** the engine. Everything here comes from the 
 - **Order within a stage** is registration order, except where `before` / `after` (system names in the same stage) say otherwise. Plugins register first, so **engine systems run before yours in every stage unless you say `before`**. Know the engine's names (table below).
 - **Data.** Per-entity data is in components (`defineComponent`, `ctx.entities`), one-per-game values in resources (`defineResource`, `ctx.resources`), modes in states (`defineState`, `ctx.states`). Systems talk through events (`defineEvent`, `ctx.events`). Every name is namespaced: `myGame.Health`. `fenrir.*` is the engine's.
 - **Features are plugins, and opt-in.** `pixi2d()`, `motion()`, `storage()`, `audio()` and `ui()` go in `createGame({ plugins })`. A game that does not import one ships none of its bytes. Each plugin's resource is set when it installs (inside `createGame`), so it exists in every system and state hook, the initial enter hooks included; a game that may run without a plugin checks with `resources.has(X)`.
-- **The engine owns the DOM.** It listens to the canvas for keys and pointers, to the window for resizes, to page visibility for audio, and it focuses the canvas. Game code reads `ctx.input`, `Viewport` and resources; it never adds DOM listeners for input on the canvas or the window (page UI outside the canvas, such as an HTML button, may call `game.events.send`), never uses Pixi's events (`eventMode`, `on("pointerdown")`) or Pixi's accessibility, and never reads `KeyboardEvent`s.
+- **The engine owns the DOM.** It listens to the canvas for keys and pointers, to the window for resizes, to page visibility for audio, and it makes the canvas focusable (`tabindex="0"`). It does not focus the canvas on load: keys reach the game only after the first click or tap on the canvas, a Tab into it, or a `canvas.focus()` call from the page (a keyboard-only start screen calls it after `run()`). Game code reads `ctx.input`, `Viewport` and resources; it never adds DOM listeners for input on the canvas or the window (page UI outside the canvas, such as an HTML button, may call `game.events.send`), never uses Pixi's events (`eventMode`, `on("pointerdown")`) or Pixi's accessibility, and never reads `KeyboardEvent`s.
 - **Deterministic.** Read `ctx.time` and `ctx.random`, never `Date.now()`, `performance.now()`, `Math.random()`, `setTimeout` or `setInterval`. Then `createTestGame({ seed })` and `game.step(dt, frames)` run the same systems headless and replay exactly.
 - **Lifetime.** Entities, resources, states' hooks, `game.on` listeners and loaded assets belong to the game and survive `stop()` then `run()`. Anything a run acquires (a DOM element, a listener, a timer of the browser's) is released through `ctx.onCleanup` or `ctx.signal`, so a failed startup rolls it back.
 
@@ -104,6 +104,7 @@ game
     label.text = states.get(Phase) === "playing" ? `${points} pts, ${Math.ceil(timeLeft)} s` : "Tap to play";
   }, { after: "play" });
 await game.run();
+canvas.focus(); // so Space works before the first tap
 
 // --- game.test.ts: Vitest, headless ---
 import { createTestGame, inspect } from "fenrir-ts";
@@ -222,7 +223,7 @@ Don't: `window.addEventListener("keydown", ...)`, `canvas.onclick`, `sprite.even
 
 ## 2D: `pixi2d`, the design frame, layers, nodes
 
-- `pixi2d({ design: { width, minHeight }, layers, background })`. With `design`, you draw in **design units**: the width is fixed, the logical height grows from `minHeight` to fill the screen. Read the current size from `ctx.resources.get(Viewport)` (`width`, `height`, `scale`, `insets`...), and redraw on `ViewportResized`. Without `design`, units are CSS pixels.
+- `pixi2d({ design: { width, minHeight }, layers, background })`. With `design`, you draw in **design units**: the width is fixed, the logical height grows from `minHeight` to fill the screen. Read the current size from `ctx.resources.get(Viewport)` (`width`, `height`, `scale`, `insets`...), and redraw on `ViewportResized`. The first `ViewportResized` is sent inside `fenrir.viewport.init`, before your `Init` systems can listen, so lay out once from `Viewport` when you mount, then listen (as below). The frame already sits inside the safe area (`safeArea: true` is the default), so a HUD at the frame's top edge clears a notch. Without `design`, units are CSS pixels.
 - Game content goes in `pixi.renderer.root` (design units) or a named layer, `pixi.renderer.layer("hud")`, declared back to front in `layers`. Full-bleed backgrounds go in `pixi.renderer.backdrop` (CSS pixels, behind everything). Layer names starting with `fenrir.` are reserved.
 - `Transform2D` and `Display2D` are core data, exported by both `fenrir-ts` and `fenrir-ts/2d` (the same values); gameplay that must run headless imports them from `fenrir-ts`.
 - Entities: `EntityBuilder.create().transform2D(x, y).with(PixiNode, { node, layer }).spawn(ctx.entities)`. Move them by writing `Transform2D` (`x`, `y`, `rotation`, `scaleX`, `scaleY`) and `Display2D` (`alpha`, `visible`); the renderer copies them to the node every frame. Removing the entity or `PixiNode` destroys the node (`keep: true` only unmounts). A node with child entities should be a plain `Container`.
@@ -335,6 +336,8 @@ const sparkle: Texture | undefined = getAsset(game, Art, "sparkle"); // undefine
 console.log(game.resources.get(Art.progress).bundles.reef.fraction, reef.label, sparkle); // 1 "reef" undefined
 ```
 
+- A bundle awaited in `PreInit` holds `run()`, so nothing is drawn while it loads. To show a loading bar, start it in `Init` without awaiting (`void loadAssets(ctx, Art, "boot")`), draw `ctx.resources.get(Art.progress).bundles.boot.fraction` each frame, and set the play state on `AssetBundleLoaded`: the pattern in [references/assets.md](references/assets.md).
+- Gameplay that declares `texture2d` assets imports `fenrir-ts/2d` for the kind, which loads `pixi.js` in tests too; that works in Vitest's default `node` environment.
 - `texture2d` sources must be `.png`, `.jpg`/`.jpeg`, `.webp`, `.gif`, `.bmp` or `.svg`. An SVG is rasterised at its declared `width`/`height`, so set those to the size it is drawn at (scaling it up later blurs it, as with a PNG). `src` is a URL relative to the page (with Vite, `public/img/logo.png` is `img/logo.png`).
 - Declare each asset once; a wrong asset or bundle name is a compile error, and `getAsset` is typed by kind (a Pixi `Texture` for `texture2d`, no cast).
 - `loadAssets` is idempotent (same promise while loading or loaded; retries failures). An asset in two bundles loads once and is kept until the last holder unloads. `loadAsset(ctx, manifest, name | names)` / `unloadAsset` hold single assets by name with no bundle, for lazy images.
@@ -463,6 +466,7 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 | Expecting an open `modalScope` to stop gameplay keys | `runIf` on your own pause state |
 | A "paused" value in the state a timer's `state` option names | a separate pause state, and `MotionSettings.pausedAll` |
 | A `PostUpdate` system that moves sprites | move them in `Update`, or `{ before: "fenrir.pixi.postUpdate" }` |
+| "Press Space to start" with nothing else: keys do nothing until the player clicks the canvas | `canvas.focus()` after `await game.run()`, and a tap that starts too |
 | Touching `pixi.renderer` in `PreInit` or an initial state's enter hook | `Init` or later |
 | `localStorage.getItem("best")` | `defineStorageKey` + `getStored` |
 | `new AudioContext()`, `new Audio(src)` | `audio()` + `defineSound` + `playSound` |

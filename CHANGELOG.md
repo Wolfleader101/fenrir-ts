@@ -46,6 +46,11 @@ No code change. The guide now states these limits, which are staying as they are
 - UI controls: a node that is not a control, drawn over one, does not block its taps (use a `modalScope`); a control hidden through `Display2D.visible` leaves the ring and accessibility output one frame behind (set `node.visible` for the same frame); the kit is tested in jsdom and desktop Chromium only, not with screen readers or on real phones. See `skills/fenrir/references/ui.md`.
 - Timers and tweens: they follow the game-wide `maxFrameDelta`, with no cap per group, and there is one motion system, so a tween that follows a value computed in `Update` follows it from the next frame. See `skills/fenrir/references/motion.md`.
 
+### Agent guide checked in a browser (part of #91)
+
+- `SKILL.md` no longer says the engine focuses the canvas: it makes it focusable, and keys reach the game after the first click, a Tab or `canvas.focus()`. The browser entry example calls `canvas.focus()` after `run()`, and "Mistakes that look right" lists a keyboard-only start screen.
+- The guide and references now say: the first `ViewportResized` is sent before the game's `Init` systems can listen; the design frame already sits inside the safe area; how to show a loading bar instead of awaiting the bundle in `PreInit`; a labelled button is a `Container` (Pixi warns on children of a `Graphics`); Escape reaches the game while no modal scope is open; the `fenrir.UiControls` snapshot shape; when a state set outside a system applies.
+
 ## 0.2.1
 
 The first release staged by the release workflow. No change to the package's code: games can stay on 0.2.0.
