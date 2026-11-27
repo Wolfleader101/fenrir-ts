@@ -11,9 +11,6 @@ vi.mock("pixi.js", () => {
 vi.mock("jolt-physics/wasm-compat", () => {
   throw new Error("fenrir-ts/audio imported jolt-physics");
 });
-vi.mock("monaco-editor", () => {
-  throw new Error("fenrir-ts/audio imported monaco-editor");
-});
 
 /** `fenrir-ts` plus `fenrir-ts/audio`, imported the way a game does. */
 let core: typeof import("@/index");

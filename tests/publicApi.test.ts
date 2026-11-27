@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-// The core entry must not load any renderer, physics or editor package. Each of
+// The core entry must not load any renderer or physics package. Each of
 // these throws if anything the core imports reaches it.
 vi.mock("three", () => {
   throw new Error("the core entry imported three");
@@ -10,9 +10,6 @@ vi.mock("pixi.js", () => {
 });
 vi.mock("jolt-physics/wasm-compat", () => {
   throw new Error("the core entry imported jolt-physics");
-});
-vi.mock("monaco-editor", () => {
-  throw new Error("the core entry imported monaco-editor");
 });
 
 /**

@@ -52,7 +52,7 @@ export * from "./core/Camera/CameraSystem";
 export * from "./core/Skybox/SkyboxComponents";
 export * from "./core/Skybox/SkyboxSystem";
 export * from "./core/Skybox/SkyboxUtils";
-// Its declarations add the skybox members to Scene, here and in the editor's bundled types.
+// Its declarations add the skybox members to Scene.
 export * from "./core/Skybox/SceneSkybox";
 export * from "./core/Animation";
 

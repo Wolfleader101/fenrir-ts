@@ -8,9 +8,6 @@ vi.mock("pixi.js", () => {
 vi.mock("jolt-physics/wasm-compat", () => {
   throw new Error("fenrir-ts/3d imported jolt-physics");
 });
-vi.mock("monaco-editor", () => {
-  throw new Error("fenrir-ts/3d imported monaco-editor");
-});
 
 /** `fenrir-ts` plus `fenrir-ts/3d`, imported the way a 3D game does. */
 describe("fenrir-ts/3d public API", () => {

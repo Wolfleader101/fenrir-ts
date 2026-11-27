@@ -1,10 +1,9 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 import vercel from "vite-plugin-vercel";
-import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [vercel(), tailwindcss()],
+  plugins: [vercel()],
   build: {
     rollupOptions: {
       input: {
@@ -12,7 +11,6 @@ export default defineConfig({
         animation: resolve(__dirname, "animation.html"),
         "bouncing-ball": resolve(__dirname, "bouncing-ball.html"),
         "stacking-blocks": resolve(__dirname, "stacking-blocks.html"),
-        "monaco-editor": resolve(__dirname, "monaco-editor.html"),
         pixi2d: resolve(__dirname, "pixi2d.html"),
         "ui-controls": resolve(__dirname, "ui-controls.html"),
         platformer: resolve(__dirname, "platformer.html"),
@@ -33,10 +31,6 @@ export default defineConfig({
       {
         source: "/stacking-blocks",
         destination: "/stacking-blocks.html",
-      },
-      {
-        source: "/monaco-editor",
-        destination: "/monaco-editor.html",
       },
       {
         source: "/ui-controls",
