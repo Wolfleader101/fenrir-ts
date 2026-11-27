@@ -4,6 +4,15 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### SVG textures (#92)
+
+- The default `texture2d` loader that `pixi2d` registers now loads `.svg` sources, through Pixi's own SVG parser, as a `Texture`. Before, an `.svg` failed with "Unsupported ... format". An SVG is rasterised at its declared `width`/`height`, so set those to the size it is drawn at: scaling the sprite up later blurs it, as with a PNG. 3D texture loading is unchanged.
+
+### `inspect(game)` shows input (#93)
+
+- `GameSnapshot.input` is the input the latest frame latched: `held`, the bindings held, sorted (`["KeyA", "pointer.primary"]`); `pointer`, as `game.input.pointer` (`x`, `y`, `down`, `inside`, `cancelled`); and `focused`, as `game.input.focused`. Its type is exported as `InputSnapshot`. Actions are not listed by name: `defineAction` still registers nothing. Games that never call `inspect` ship none of it. [Testing and inspecting a game](https://github.com/Wolfleader101/fenrir-ts/blob/main/skills/fenrir/references/testing.md#inspecting-a-game) has the rules.
+- A test that compares a whole snapshot with `toEqual` (or a stored snapshot) gains the `input` field: add it to the expected value, or compare only the fields you check.
+
 ### The UI kit can walk only the layers that hold controls (#95)
 
 - `ui({ pixi, layers: ["hud", "menus"] })` looks for controls and modal scopes only in those `pixi2d({ layers })` containers, and in `renderer.backdrop` only when `"fenrir.backdrop"` is listed. Without `layers` the kit walks every visible node under `backdrop` and `root` each frame, world sprites included, as before. A control in an unlisted layer or added straight to `root` is not live under `layers`, with no warning. An unknown layer name makes `createGame` reject, naming the declared layers. In `tests/bench/Ui.bench.ts`, 3,000 world sprites with 60 HUD controls: a frame with no input went from about 0.22 ms to 0.02 ms (p75), one with a key press from about 1.07 ms to 0.11 ms. Not breaking.
