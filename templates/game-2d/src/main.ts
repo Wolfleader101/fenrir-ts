@@ -1,6 +1,6 @@
 // The browser entry: the renderer, the art and the drawing. Gameplay is in ./game.ts.
 import { Schedule, assetKey, createGame, exposeInspector, type Entity, type SystemCtx } from "fenrir-ts";
-import { PixiNode, pixi2d } from "fenrir-ts/2d";
+import { PixiNode, getTexture2D, loadTexture2D, pixi2d } from "fenrir-ts/2d";
 import { Sprite, Text, type Texture } from "pixi.js";
 import { DESIGN, Phase, Score, Star, addGameplay } from "./game";
 
@@ -19,10 +19,10 @@ let starTexture: Texture;
 const label = new Text({ text: "", style: { fill: 0xffffff, fontSize: 24 } });
 
 game
-  .addSystem(Schedule.PreInit, async function loadArt({ assets }: SystemCtx) {
+  .addSystem(Schedule.PreInit, async function loadArt(ctx: SystemCtx) {
     // Files in public/ are served from the page's folder: public/star.png is "star.png".
-    await assets.loadTexture2D(STAR, "star.png");
-    starTexture = await assets.getTexture2D(STAR);
+    await loadTexture2D(ctx, STAR, "star.png");
+    starTexture = await getTexture2D(ctx, STAR);
   })
   .addSystem(Schedule.Init, function mountHud() {
     label.position.set(16, 16);
