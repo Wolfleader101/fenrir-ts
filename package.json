@@ -1,6 +1,6 @@
 {
   "name": "fenrir-ts",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "A 2D-first TypeScript game engine for the web: a sparse-set ECS with named systems, PixiJS rendering, and games that test headless.",
   "main": "./dist/index.js",
