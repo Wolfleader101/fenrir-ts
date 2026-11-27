@@ -30,7 +30,6 @@ const ENTRIES = [
   { name: "fenrir-ts/audio", file: "audio.md", source: "src/audio.ts", peer: "none", note: "Sounds, buses, the unlock policy, the `audio` asset kind and the Web Audio and test backends." },
   { name: "fenrir-ts/3d", file: "3d.md", source: "src/3d.ts", peer: "`three`", note: "Frozen: kept working, no new features. The Three renderer, camera, skybox, animation and window-level input." },
   { name: "fenrir-ts/physics", file: "physics.md", source: "src/physics.ts", peer: "`jolt-physics`, `three`", note: "Frozen: kept working, no new features. Jolt physics for the 3D path." },
-  { name: "fenrir-ts/editor", file: "editor.md", source: "src/editor/index.ts", peer: "`monaco-editor`", note: "Frozen: kept working, no new features. The Monaco live code editor." },
 ];
 
 const configPath = join(root, "tsconfig.json");

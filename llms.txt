@@ -1,6 +1,6 @@
 # Fenrir TS
 
-> Fenrir TS is a TypeScript game engine for the browser, 2D-first on PixiJS: one package, `fenrir-ts`, with entry points `fenrir-ts` (core: ECS, named systems in stages, events, resources, states, input, timers and tweens, asset manifests, storage, test games, inspection), `fenrir-ts/2d` (Pixi renderer and design frame), `fenrir-ts/ui` (controls on Pixi nodes), `fenrir-ts/audio` (sounds) and the frozen `fenrir-ts/3d`, `fenrir-ts/physics` and `fenrir-ts/editor`. Each feature is an opt-in plugin that costs nothing when not imported, and every game runs headless under `createTestGame` with deterministic `step`.
+> Fenrir TS is a TypeScript game engine for the browser, 2D-first on PixiJS: one package, `fenrir-ts`, with entry points `fenrir-ts` (core: ECS, named systems in stages, events, resources, states, input, timers and tweens, asset manifests, storage, test games, inspection), `fenrir-ts/2d` (Pixi renderer and design frame), `fenrir-ts/ui` (controls on Pixi nodes), `fenrir-ts/audio` (sounds) and the frozen `fenrir-ts/3d` and `fenrir-ts/physics`. Each feature is an opt-in plugin that costs nothing when not imported, and every game runs headless under `createTestGame` with deterministic `step`.
 
 Paths are relative to the package root (`node_modules/fenrir-ts/`). Start with the guide; it links to the rest.
 
@@ -31,9 +31,8 @@ Paths are relative to the package root (`node_modules/fenrir-ts/`). Start with t
 ## Optional
 
 - [Everything above in one file](llms-full.txt)
-- [3D, physics and the editor (frozen)](skills/fenrir/references/3d-and-editor.md): the frozen 3D path, physics and the Monaco editor: kept working, no new features
+- [3D and physics (frozen)](skills/fenrir/references/3d-and-physics.md): the frozen 3D path and physics: kept working, no new features
 - [`fenrir-ts/3d (frozen)`](skills/fenrir/api/3d.md): kept working, no new features
 - [`fenrir-ts/physics (frozen)`](skills/fenrir/api/physics.md): kept working, no new features
-- [`fenrir-ts/editor (frozen)`](skills/fenrir/api/editor.md): kept working, no new features
 - [README](README.md): an overview for people, with links to the references
 - [Changelog](CHANGELOG.md): breaking changes, each with a migration line

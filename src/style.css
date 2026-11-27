@@ -1,4 +1,14 @@
-@import "tailwindcss";
+/* The small part of a CSS reset the demo info panel relies on. */
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
+h3,
+p {
+  margin: 0;
+}
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;

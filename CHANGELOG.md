@@ -4,6 +4,13 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Removed: the `fenrir-ts/editor` entry
+
+- **Breaking.** The Monaco live code editor is gone: `fenrir-ts/editor` (`bootstrapEditor`, the sandbox, transpiler and Lit controls), the `monaco-editor.html` demo, and the `types:bundle` and `check:editor-types` scripts. `skills/fenrir/references/3d-and-editor.md` is now `3d-and-physics.md`, and `skills/fenrir/api/editor.md` is gone.
+- The package no longer depends on `lit`, `lit-html`, `@lit-labs/signals`, `signal-polyfill`, `signal-utils`, `lucide`, `postcss` or `@tailwindcss/postcss`, and no longer lists `monaco-editor`, `tailwindcss` or `@tailwindcss/vite` as peers. The demo pages no longer use Tailwind.
+
+Migration: nothing in the engine depended on the editor. A project that imported `fenrir-ts/editor` keeps an older version or embeds Monaco itself.
+
 ### Agent docs ship in the package (part of #39)
 
 - **`skills/fenrir/`** ships with the package: `SKILL.md`, a guide for an agent building a game (the model, a minimal game and its test, the engine's system names and how to order against them, what `consume` hides and for how long, run-scoped and app-scoped listeners, and a table of tempting mistakes), `references/` (the full rules per service, moved out of this README, which now links to them) and `api/` (every export of every entry point with its signature and TSDoc, generated). README "Using Fenrir with a coding agent" says how to wire it into a game repository.

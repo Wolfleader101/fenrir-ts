@@ -19,7 +19,6 @@ const DEMO_PAGES: readonly DemoPage[] = [
   { href: "ui-controls.html", title: "UI Controls" },
   { href: "platformer.html", title: "2D Platformer" },
   { href: "platformer-physics.html", title: "2D Platformer (Physics)" },
-  { href: "monaco-editor.html", title: "Monaco Editor Demo" },
 ] as const;
 
 /**

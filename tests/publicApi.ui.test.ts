@@ -8,9 +8,6 @@ vi.mock("three", () => {
 vi.mock("jolt-physics/wasm-compat", () => {
   throw new Error("fenrir-ts/ui imported jolt-physics");
 });
-vi.mock("monaco-editor", () => {
-  throw new Error("fenrir-ts/ui imported monaco-editor");
-});
 
 /** `fenrir-ts` plus `fenrir-ts/ui`, imported the way a game does. */
 let core: typeof import("@/index");

@@ -2,9 +2,8 @@
  * Fenrir-TS core: the `fenrir-ts` entry point.
  *
  * ECS, scheduler, engine, scenes, events, time, logging, input actions, the entity
- * builder and the asset cache. Imports no renderer, physics or editor code:
- * those are `fenrir-ts/2d`, `fenrir-ts/3d`, `fenrir-ts/physics` and
- * `fenrir-ts/editor`. scripts/check-entry-imports.mjs enforces this on the build.
+ * builder and the asset cache. Imports no renderer or physics code:
+ * those are `fenrir-ts/2d`, `fenrir-ts/3d` and `fenrir-ts/physics`. scripts/check-entry-imports.mjs enforces this on the build.
  */
 
 // Game: the way to start a game
