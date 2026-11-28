@@ -9,10 +9,12 @@ export class Time {
   /** Seconds per fixed tick. Settable; defaults to 1/60. */
   public fixedDelta = 1.0 / 60.0;
   /**
-   * Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame.
-   * `accumulator / fixedDelta` is the interpolation factor between the last two ticks.
+   * Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame's
+   * ticks. `tickFraction` is it as a fraction of a tick.
    */
   public accumulator = 0;
+
+  private tickCount = 0;
 
   private readonly clock: Clock;
   private frameDelta = 0;
@@ -37,6 +39,25 @@ export class Time {
   public get elapsed(): number {
     const currentTime = this.paused ? this.pauseStartTime : this.clock.monotonic();
     return (currentTime - this.startTime - this.totalPausedTime) * 0.001;
+  }
+
+  /**
+   * `Tick` stages begun since the run started. Inside a `Tick` system it numbers the tick
+   * running, from 1; in the other stages it is the number of the latest tick.
+   */
+  public get ticks(): number {
+    return this.tickCount;
+  }
+
+  /**
+   * How far the frame has run past the latest tick, as a fraction of a tick: `accumulator /
+   * fixedDelta`, from 0 to 1. Read it in `Update` or `PostUpdate`, after the frame's ticks, to
+   * draw state that `Tick` changes between its last two values:
+   * `previous + (current - previous) * time.tickFraction`. `tickValue()` keeps the previous
+   * value for you. In `PreUpdate` the frame's ticks have not run yet, and in `Tick` it means nothing.
+   */
+  public get tickFraction(): number {
+    return Math.min(1, this.accumulator / this.fixedDelta);
   }
 
   /** Wall-clock milliseconds since the Unix epoch. Use instead of `Date.now()`. */
@@ -83,6 +104,7 @@ export class Time {
   public reset(): void {
     this.frameDelta = 0;
     this.accumulator = 0;
+    this.tickCount = 0;
     this.startTime = this.clock.monotonic();
     this.prevTime = this.startTime;
     this.paused = false;

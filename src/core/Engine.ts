@@ -241,6 +241,7 @@ export class Engine {
     if (!Number.isFinite(step) || step <= 0) throw new RangeError(`time.fixedDelta must be a positive finite number of seconds, got ${step}`);
 
     for (let ticks = 0; this.time.accumulator >= step && ticks < this.maxTicksPerFrame; ticks++) {
+      this.time["tickCount"]++;
       this.input.tick(true);
       setEventTick(this.events, true);
       try {

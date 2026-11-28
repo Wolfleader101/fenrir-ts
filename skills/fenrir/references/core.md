@@ -79,6 +79,7 @@ Engine systems are named `fenrir.<module>.<stage>`, for example `fenrir.pixi.pos
 Read time and draw random numbers from the context, not from `Date.now()`, `performance.now()` or `Math.random()`, so a game replays exactly under test.
 
 - `time.delta`: seconds since the last frame, clamped. `time.fixedDelta`: seconds per `Tick`, settable, 1/60 by default. `time.elapsed`: seconds of game time since `run()`, excluding pauses. `time.now()`: wall-clock milliseconds, like `Date.now()`.
+- `time.ticks`: `Tick` stages begun since `run()`; inside `Tick` it numbers the running tick, from 1. `time.tickFraction`: how far the frame has run past the latest tick, as a fraction of one, from 0 to 1 (`accumulator / fixedDelta`). Read it in `Update` or `PostUpdate`, to draw between ticks (below).
 - `random.next()` is in [0, 1), `random.int(min, max)` includes both ends, and `random.pick(items)` returns one item and throws on an empty list. The generator is mulberry32.
 - `createGame({ seed })` seeds `ctx.random` and `game.random`. Without a seed it is seeded from the clock; `game.random.seed` reports the seed either way, so log it to replay a run. Stopping and running a game again continues the sequence.
 - `Time` reads only the `Clock` it is given: `{ monotonic(), now() }`. `Engine` takes one as `clock`; the default is the browser's.
@@ -102,6 +103,57 @@ function spawnEnemies({ time, random, logger }: SystemCtx): void {
 
 game.addSystem(Schedule.Update, spawnEnemies);
 ```
+
+## Drawing between ticks
+
+State that changes in `Tick` changes in steps of `fixedDelta`. Drawn as it is, it repeats whenever a frame runs no tick: at 144 Hz against a 120 Hz tick about one frame in six redraws the last one, and against the 1/60 default a 144 Hz screen shows motion stepping at 60 Hz. To draw it smoothly, draw each value between its last two ticks, at `time.tickFraction`: `previous + (current - previous) * time.tickFraction`.
+
+`tickValue(initial)` keeps the previous value for you. Write it with `set(ctx.time, value)` in `Tick` and draw `blend(ctx.time)` in `Update` or `PostUpdate`. It works for any number the frame draws, not only positions: a gauge's level, a rope's sag, a camera offset.
+
+```ts
+import { Schedule, Transform2D, tickValue, type Entity, type SystemCtx } from "fenrir-ts";
+
+// Simulation state: one TickValue per number that is drawn.
+const projectileX = tickValue(0);
+const projectileY = tickValue(100);
+let velocityY = 0;
+let projectile: Entity;
+
+function spawnProjectile({ entities }: SystemCtx): void {
+  projectile = entities.createEntity();
+  entities.set(projectile, Transform2D, { x: 0, y: 100, rotation: 0, scaleX: 1, scaleY: 1 });
+}
+
+function fly({ time }: SystemCtx): void {
+  velocityY += 300 * time.fixedDelta;
+  projectileX.set(time, projectileX.current + 120 * time.fixedDelta);
+  projectileY.set(time, projectileY.current + velocityY * time.fixedDelta);
+}
+
+function placeProjectile({ time, entities }: SystemCtx): void {
+  const transform = entities.get(projectile, Transform2D)!;
+  transform.x = projectileX.blend(time);
+  transform.y = projectileY.blend(time);
+}
+
+function launchAgain(): void {
+  projectileX.snap(0); // a jump: no blend from where it was
+  projectileY.snap(100);
+  velocityY = -200;
+}
+
+game
+  .addSystem(Schedule.Init, spawnProjectile)
+  .addSystem(Schedule.Tick, fly)
+  .addSystem(Schedule.Update, placeProjectile);
+```
+
+- Simulate only in `Tick` and draw only from `blend`, in `Update` or `PostUpdate` (the renderer writes `Transform2D` to nodes in `fenrir.pixi.postUpdate`). Keep the simulation's own value in `current`: never feed a blended value back into `Tick`.
+- The drawn value lags the simulation by up to one tick, the price of never drawing a state it did not reach.
+- The first `set` in each tick keeps the value it replaces as the one to blend from, so a frame that runs several ticks blends between its last two, not from where the frame began, and setting twice in one tick blends from the value before the first.
+- A tick that does not `set` the value leaves it still: `blend` returns `current`, so a value that stops changing stops moving.
+- `snap(value)` jumps with no blend, from any stage: use it for a start, a reset or a teleport. `set` belongs in `Tick` only; outside it, it would blend from the old value.
+- For a value that is not a number, blend its parts yourself: keep the previous copy at the first change in each tick (compare `time.ticks` with the tick you last copied at) and mix with `time.tickFraction`.
 
 ## Resources
 

@@ -48,6 +48,8 @@ export type { StorageKey, StorageKeyFamily, StorageKeyOptions, StorageBackend, S
 export { Engine } from "./Engine";
 export type { EngineOptions } from "./Engine";
 export { Time } from "./Time";
+export { tickValue } from "./TickValue";
+export type { TickValue, TickTime } from "./TickValue";
 export type { Clock } from "./Clock";
 export { Random } from "./Random";
 export { Scene } from "./Scene";

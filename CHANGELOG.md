@@ -4,6 +4,12 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Added: drawing `Tick` state between ticks (#112)
+
+- `time.tickFraction`: how far the frame has run past the latest tick, as a fraction of a tick (`accumulator / fixedDelta`), from 0 to 1. Read in `Update` or `PostUpdate`, it is the blend factor between the last two ticks. `time.ticks` counts the `Tick` stages begun since the run started.
+- `tickValue(initial)` makes a `TickValue`: a number set in `Tick` with `set(ctx.time, value)` and drawn with `blend(ctx.time)`, between its last two ticks, so it moves every frame when frames and ticks do not line up. A frame that runs several ticks blends between the last two; a tick that leaves the value alone stops it moving; `snap(value)` jumps with no blend. It works for any number, not only transforms: a gauge's level, a rope's sag, a camera offset.
+- `references/core.md` has a new "Drawing between ticks" section with the pattern.
+
 ### Added: `fixedDelta` and `maxTicksPerFrame` options (#111)
 
 - `createGame` and `createTestGame` take `fixedDelta`, the seconds per `Tick` set on `time.fixedDelta` before the first frame, and `maxTicksPerFrame`, the most ticks one frame runs. Without them nothing changes: 1/60 and 8. Both are checked when the game is built and throw a `RangeError` like `maxFrameDelta`'s. Setting `ctx.time.fixedDelta` from a system still works.
