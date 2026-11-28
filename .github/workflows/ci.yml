@@ -79,3 +79,32 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Create the starter game from the tarball and run its browser test
         run: pnpm check:template --e2e
+
+  # The guide's DOM examples (skills/fenrir/SKILL.md) in headless Chromium, against the packed
+  # tarball. A job of its own so it runs alongside `check`; it shares template-browser's cache.
+  docs-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          version: '12.18.0'
+          runtime: node@24
+          install: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the library
+        run: pnpm build:lib
+      - name: Playwright's version in the template
+        id: playwright
+        run: echo "version=$(node -p "require('./templates/game-2d/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright's browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Run the guide's DOM examples in Chromium
+        run: pnpm check:docs-browser

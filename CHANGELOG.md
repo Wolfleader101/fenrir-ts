@@ -4,6 +4,11 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### For contributors: the guide's DOM examples run in Chromium in CI (#101)
+
+- `pnpm check:docs-browser`, in a new `docs-browser` CI job beside the main one, builds the two DOM examples of `skills/fenrir/SKILL.md` (the minimal game's `main.ts` entry and the 2D example) into a Vite project that installs the packed tarball, and drives them in headless Chromium through `window.__FENRIR__.inspect()`: no console or page error, the canvas sized to the window, `Viewport` laid out for the window (also after a resize), the entry going `ready` to `playing` on a click and on Space, the fish moving. Its Vite and Playwright are installed in that temporary project, so the package and this repository's dependencies are unchanged.
+- `check:docs` and the new check read code blocks through one module, `scripts/docs-blocks.mjs`.
+
 ## 0.3.1
 
 Docs only: no change to the engine's code or API, so games can stay on 0.3.0. The guide and references in the package (`skills/fenrir/`) now cover what a clean agent found missing when it extended the 0.3.0 starter game. Upgrade to give your coding agent the corrected docs.

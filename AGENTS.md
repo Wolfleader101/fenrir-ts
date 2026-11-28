@@ -47,7 +47,12 @@ pnpm check:install   # installs the tarball with npm and pnpm, with and without 
 pnpm check:template  # creates the starter game from the tarball (bin/fenrir-ts.js) and runs its type-check, tests and build
 ```
 
-A second job, `template-browser`, runs `pnpm check:template --e2e` on every pull request: the same, plus the starter game's Playwright test in Chromium.
+Two more jobs run beside it on every pull request, each after its own `build:lib`, so the main chain stays as fast:
+
+- `template-browser` runs `pnpm check:template --e2e`: the same, plus the starter game's Playwright test in Chromium.
+- `docs-browser` runs `pnpm check:docs-browser`: the guide's DOM examples in headless Chromium, against the packed tarball.
+
+If `check:docs-browser` fails, it names the example (its line in `skills/fenrir/SKILL.md`) and the check. It takes every `ts` block of the guide with a section that uses `document.` (found by `scripts/docs-blocks.mjs`, which `check:docs` uses too), drops the sections that import `vitest`, appends `exposeInspector(game)`, and builds each as a page of a temporary Vite project that installs the tarball, `pixi.js`, and the starter game's Vite and Playwright versions; nothing is added to this repository's dependencies. Each page must log no console error and throw no page error, size the canvas to the window without scrolling the page, and set `Viewport` to `layoutViewport` of the window, at 1280x720 and after a resize; the minimal game's entry must start `ready` with its canvas focused and go `playing` on a click and on Space; the 2D example's fish must move. A new DOM example, or a heading renamed above one, fails until `CHECKS` in `scripts/check-docs-browser.mjs` names it. Chromium runs with SwiftShader WebGL (`--use-gl=angle --enable-unsafe-swiftshader`), so no GPU is needed. `node scripts/check-docs-browser.mjs --keep` leaves the project to inspect; it needs the network.
 
 If you change a public API, update the examples that show it; `check:docs` fails until they compile. Examples import only `fenrir-ts`, its entry points and peer packages, never `@/` or `src/`. A README or reference fragment that relies on a name from surrounding code gets it from `scripts/docs-ambient.d.ts`; a `skills/fenrir/SKILL.md` block gets nothing and must compile on its own.
 

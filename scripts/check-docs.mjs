@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { codeBlocks } from "./docs-blocks.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -42,28 +43,19 @@ const importErrors = [];
 function extract(files, dir) {
   const sources = new Map();
   for (const file of files) {
-    const lines = readFileSync(join(root, file), "utf8").split(/\r?\n/);
-    let start = -1;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (start === -1 && /^```(ts|typescript)$/.test(line)) {
-        start = i;
-      } else if (start !== -1 && line === "```") {
-        const code = lines.slice(start + 1, i);
-        code.forEach((text, offset) => {
-          for (const match of text.matchAll(/\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|^\s*import\s+["']([^"']+)["']/g)) {
-            const specifier = match[1] ?? match[2] ?? match[3];
-            if (!(specifier in ENTRIES) && !ALLOWED.test(specifier)) {
-              importErrors.push(`${file}(${start + 2 + offset}): imports "${specifier}". Examples import only fenrir-ts, its entry points and peer packages.`);
-            }
+    for (const { start, code } of codeBlocks(readFileSync(join(root, file), "utf8"))) {
+      code.forEach((text, offset) => {
+        for (const match of text.matchAll(/\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|^\s*import\s+["']([^"']+)["']/g)) {
+          const specifier = match[1] ?? match[2] ?? match[3];
+          if (!(specifier in ENTRIES) && !ALLOWED.test(specifier)) {
+            importErrors.push(`${file}(${start + 2 + offset}): imports "${specifier}". Examples import only fenrir-ts, its entry points and peer packages.`);
           }
-        });
-        const name = `${file.replace(/[^a-z0-9]/gi, "_")}_L${start + 1}.ts`;
-        // Blank lines before the code keep reported line numbers equal to the Markdown's.
-        writeFileSync(join(dir, name), "\n".repeat(start + 1) + code.join("\n") + "\nexport {};\n");
-        sources.set(name, file);
-        start = -1;
-      }
+        }
+      });
+      const name = `${file.replace(/[^a-z0-9]/gi, "_")}_L${start + 1}.ts`;
+      // Blank lines before the code keep reported line numbers equal to the Markdown's.
+      writeFileSync(join(dir, name), "\n".repeat(start + 1) + code.join("\n") + "\nexport {};\n");
+      sources.set(name, file);
     }
   }
   return sources;
