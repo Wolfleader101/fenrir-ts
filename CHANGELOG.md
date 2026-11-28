@@ -4,6 +4,10 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+## 0.3.2
+
+Fixed-step games: `Tick` readers no longer miss events after frames that run no tick, `createGame` and `createTestGame` take `fixedDelta` and `maxTicksPerFrame`, and `time.tickFraction` with `tickValue()` draws `Tick` state smoothly between ticks. No breaking change; a `Tick` reader that missed events sent outside `Tick` now receives them.
+
 ### Added: drawing `Tick` state between ticks (#112)
 
 - `time.tickFraction`: how far the frame has run past the latest tick, as a fraction of a tick (`accumulator / fixedDelta`), from 0 to 1. Read in `Update` or `PostUpdate`, it is the blend factor between the last two ticks. `time.ticks` counts the `Tick` stages begun since the run started.
