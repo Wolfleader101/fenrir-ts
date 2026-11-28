@@ -4,6 +4,11 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Added: `fixedDelta` and `maxTicksPerFrame` options (#111)
+
+- `createGame` and `createTestGame` take `fixedDelta`, the seconds per `Tick` set on `time.fixedDelta` before the first frame, and `maxTicksPerFrame`, the most ticks one frame runs. Without them nothing changes: 1/60 and 8. Both are checked when the game is built and throw a `RangeError` like `maxFrameDelta`'s. Setting `ctx.time.fixedDelta` from a system still works.
+- A game with a finer step can now raise the tick cap with it. At `fixedDelta: 1 / 120` the default 8 ticks cover only 1/15 s, so any frame longer than that dropped simulation time; `maxTicksPerFrame: 16` keeps the default 7.5 fps floor.
+
 ### Fixed: `Tick` readers no longer miss events after tickless frames (#113)
 
 - A reader read in `Tick` gets every event sent since the last tick began, however many frames ran no tick in between. Before, the bus kept two frames of events, so an event sent in `PreUpdate` or `Update` was dropped unread when two or more frames in a row ran no tick: at 1/180 or 1/240 s frames against the 1/60 default tick, a `Tick` reader saw none of it. A `Tick` reader that missed such events now receives them, once each.

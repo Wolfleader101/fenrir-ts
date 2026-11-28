@@ -28,8 +28,10 @@ export type EngineOptions = {
   logger?: ILogger | null;
   /** Maximum simulation delta in seconds. Defaults to 0.25. */
   maxFrameDelta?: number;
-  /** Maximum fixed updates per animation frame. Defaults to 8. */
+  /** Maximum fixed updates per animation frame: a positive integer. Defaults to 8. */
   maxTicksPerFrame?: number;
+  /** Seconds per fixed tick, set on `time.fixedDelta` before the first frame: a positive finite number. Defaults to 1/60. */
+  fixedDelta?: number;
   /**
    * Fields added to every SystemCtx. `createGame` passes the game's services here. Without
    * them, the engine makes its own, with `random` seeded from the clock.
@@ -104,6 +106,12 @@ export class Engine {
     }
     if (!Number.isSafeInteger(this.maxTicksPerFrame) || this.maxTicksPerFrame <= 0) {
       throw new RangeError("maxTicksPerFrame must be a positive integer");
+    }
+    if (opts.fixedDelta !== undefined) {
+      if (!Number.isFinite(opts.fixedDelta) || opts.fixedDelta <= 0) {
+        throw new RangeError("fixedDelta must be a positive finite number in seconds");
+      }
+      this.time.fixedDelta = opts.fixedDelta;
     }
   }
 

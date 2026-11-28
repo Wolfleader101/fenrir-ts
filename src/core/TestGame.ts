@@ -19,6 +19,10 @@ export interface TestGameOptions {
   logger?: ILogger;
   /** The frame-delta clamp, as in `createGame`: `step(dt)` throws for a `dt` above it. Defaults to 0.25. */
   maxFrameDelta?: number;
+  /** Seconds per `Tick`, as in `createGame`: set on `time.fixedDelta` before the first frame. Defaults to 1/60. */
+  fixedDelta?: number;
+  /** The most `Tick` stages one `step` frame runs, as in `createGame`; the rest are dropped. Defaults to 8. */
+  maxTicksPerFrame?: number;
 }
 
 /** The test game's clock. It moves only when told to. */

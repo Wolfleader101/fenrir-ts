@@ -55,6 +55,20 @@ export interface GameOptions {
    * sets a smaller cap, such as `1 / 20`. A positive finite number; anything else throws.
    */
   maxFrameDelta?: number;
+  /**
+   * Seconds per `Tick`, set on `time.fixedDelta` before the first frame. Defaults to 1/60. A
+   * system can still change `time.fixedDelta` while the game runs. A positive finite number;
+   * anything else throws.
+   */
+  fixedDelta?: number;
+  /**
+   * The most `Tick` stages one frame runs. Defaults to 8. A frame that owes more runs this many
+   * and drops the rest, so the game runs slower than real time below
+   * `1 / (fixedDelta * maxTicksPerFrame)` frames a second: 7.5 fps with the defaults. A game with
+   * a finer `fixedDelta` raises it to keep the same floor, such as 16 for `1 / 120`. A positive
+   * integer; anything else throws.
+   */
+  maxTicksPerFrame?: number;
 }
 
 /**
@@ -87,7 +101,7 @@ export interface GameBase extends GameServices {
   /**
    * Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the
    * same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at
-   * most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then
+   * most `maxTicksPerFrame`, 8 by default, the rest dropped, as after a long browser frame), Update, PostUpdate, then
    * the event buffers advance. Fixed ticks accumulate from `dt` exactly.
    *
    * `dt` is at most `maxFrameDelta` (0.25 s by default), the frame-delta clamp; a longer `dt` throws rather than silently
@@ -154,6 +168,8 @@ export class GameImpl implements Game {
       logger: this.logger,
       services,
       maxFrameDelta: options.maxFrameDelta,
+      fixedDelta: options.fixedDelta,
+      maxTicksPerFrame: options.maxTicksPerFrame,
       ...engineOptions,
     });
   }

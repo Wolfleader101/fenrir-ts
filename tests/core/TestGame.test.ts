@@ -163,6 +163,52 @@ describe("TestGame.step", () => {
     await expect(createTestGame({ seed: 1, logger, maxFrameDelta: Infinity })).rejects.toThrow(/maxFrameDelta must be a positive finite number/);
   });
 
+  it("takes fixedDelta and maxTicksPerFrame: 30 ticks of 1/120 in step(0.25), where the defaults run 8 of 1/60", async () => {
+    let ticks = 0;
+    let fixed = 0;
+    const count = function count({ time }: { time: { fixedDelta: number } }) { ticks++; fixed = time.fixedDelta; };
+
+    const fine = await createTestGame({ seed: 1, logger, fixedDelta: 1 / 120, maxTicksPerFrame: 30 });
+    fine.addSystem(Schedule.Tick, count);
+    await fine.start();
+    fine.step(0.25);
+    expect([ticks, fixed]).toEqual([30, 1 / 120]);
+    await fine.stop();
+
+    ticks = 0;
+    const plain = await createTestGame({ seed: 1, logger });
+    plain.addSystem(Schedule.Tick, count);
+    await plain.start();
+    plain.step(0.25);
+    expect([ticks, fixed]).toEqual([8, 1 / 60]);
+    await plain.stop();
+  });
+
+  it("lets a system still change the fixedDelta it was given", async () => {
+    const game = await createTestGame({ seed: 1, logger, fixedDelta: 1 / 120 });
+    let ticks = 0;
+    game
+      .addSystem(Schedule.Init, function slow({ time }) { time.fixedDelta = 1 / 30; })
+      .addSystem(Schedule.Tick, function count() { ticks++; });
+    await game.start();
+    game.step(1 / 60, 60);
+    expect(ticks).toBe(30);
+    await game.stop();
+  });
+
+  it.each([
+    [{ fixedDelta: 0 }, "fixedDelta must be a positive finite number in seconds"],
+    [{ fixedDelta: -1 / 60 }, "fixedDelta must be a positive finite number in seconds"],
+    [{ fixedDelta: Infinity }, "fixedDelta must be a positive finite number in seconds"],
+    [{ fixedDelta: Number.NaN }, "fixedDelta must be a positive finite number in seconds"],
+    [{ maxTicksPerFrame: 0 }, "maxTicksPerFrame must be a positive integer"],
+    [{ maxTicksPerFrame: 2.5 }, "maxTicksPerFrame must be a positive integer"],
+    [{ maxTicksPerFrame: Infinity }, "maxTicksPerFrame must be a positive integer"],
+  ])("rejects %o at construction, in createTestGame and createGame", async (options, message) => {
+    await expect(createTestGame({ seed: 1, logger, ...options })).rejects.toThrow(message);
+    await expect(createGame({ canvas: document.createElement("canvas"), logger, ...options })).rejects.toThrow(message);
+  });
+
   it("throws before start and after stop, saying to start", async () => {
     const game = await createTestGame({ seed: 1, logger });
     expect(() => game.step()).toThrow("step(dt) needs a started game. Await start() first");
@@ -276,6 +322,19 @@ describe("Game.step", () => {
     expect(() => game.step()).toThrow("step(dt) runs only while the game is paused. Await run(), then pause()");
     await game.run();
     expect(() => game.step()).toThrow("step(dt) runs only while the game is paused. Call pause() first");
+    await game.stop();
+  });
+
+  it("passes fixedDelta and maxTicksPerFrame from createGame to the browser loop", async () => {
+    const frame = stubFrames();
+    const now = vi.spyOn(performance, "now").mockReturnValue(1_000);
+    const game = await createGame({ canvas: document.createElement("canvas"), logger, fixedDelta: 1 / 120, maxTicksPerFrame: 30 });
+    let ticks = 0;
+    game.addSystem(Schedule.Tick, function count() { ticks++; });
+    await game.run();
+    now.mockReturnValue(1_250);
+    frame();
+    expect(ticks).toBe(30);
     await game.stop();
   });
 
