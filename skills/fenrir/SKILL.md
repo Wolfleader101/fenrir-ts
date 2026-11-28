@@ -182,7 +182,7 @@ await game.stop();
 
 ## Time, random, timers
 
-`ctx.time.delta` (seconds, clamped to `maxFrameDelta`, default 0.25), `time.fixedDelta` (per `Tick`, 1/60; set it with `createGame({ fixedDelta })`, and raise `maxTicksPerFrame`, default 8, with a finer step), `time.elapsed`, `time.now()` (epoch ms). `ctx.random.next()`, `int(min, max)` (inclusive), `pick(items)`; seed with `createGame({ seed })`. `states.timeIn(State)` is seconds in the current value. For "do X in 2 seconds" use a timer from `motion()` (below) or count `time.delta`; never `setTimeout`.
+`ctx.time.delta` (seconds, clamped to `maxFrameDelta`, default 0.25), `time.fixedDelta` (per `Tick`, 1/60; set it with `createGame({ fixedDelta })`, and raise `maxTicksPerFrame`, default 8, with a finer step), `time.elapsed`, `time.now()` (epoch ms), `time.ticks` (ticks run) and `time.tickFraction` (from 0 to 1, how far past the latest tick). To draw `Tick` state smoothly, keep each drawn number in a `tickValue(initial)`: `set(ctx.time, value)` in `Tick`, draw `blend(ctx.time)` in `Update`, `snap(value)` to jump (`references/core.md`, "Drawing between ticks"). `ctx.random.next()`, `int(min, max)` (inclusive), `pick(items)`; seed with `createGame({ seed })`. `states.timeIn(State)` is seconds in the current value. For "do X in 2 seconds" use a timer from `motion()` (below) or count `time.delta`; never `setTimeout`.
 
 ## States
 

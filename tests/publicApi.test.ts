@@ -589,4 +589,21 @@ describe("fenrir-ts time and random", () => {
     expect(time.now()).toBe(1_040);
     expect(core).not.toHaveProperty("ManualClock");
   });
+
+  it("draws Tick state between ticks with time.tickFraction and tickValue (#112)", async () => {
+    const { createTestGame, NullLogger, Schedule, tickValue } = core;
+    const game = await createTestGame({ seed: 1, logger: new NullLogger(), fixedDelta: 1 / 120 });
+    const level: import("@/index").TickValue = tickValue(0);
+    let drawn = -1;
+    game
+      .addSystem(Schedule.Tick, ({ time }) => level.set(time, level.current + 1), { name: "test.fill" })
+      .addSystem(Schedule.Update, ({ time }) => {
+        expectTypeOf(time.tickFraction).toEqualTypeOf<number>();
+        drawn = level.blend(time);
+      }, { name: "test.draw" });
+    await game.start();
+    game.step(1 / 120 + 1 / 480);
+    expect(drawn).toBeCloseTo(0.25, 9);
+    await game.stop();
+  });
 });

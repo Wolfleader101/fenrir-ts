@@ -8,10 +8,10 @@ Peer packages: none. Import from `fenrir-ts` only, never from `dist/` or a sourc
 
 ## Contents
 
-- Functions: [`addTimer`](#addtimer), [`addTween`](#addtween), [`cancelTimer`](#canceltimer), [`cancelTween`](#canceltween), [`createGame`](#creategame), [`createTestGame`](#createtestgame), [`defineAction`](#defineaction), [`defineAssets`](#defineassets), [`defineComponent`](#definecomponent), [`defineEasing`](#defineeasing), [`defineEvent`](#defineevent), [`defineResource`](#defineresource), [`defineState`](#definestate), [`defineStorageKey`](#definestoragekey), [`defineStorageKeyFamily`](#definestoragekeyfamily), [`exposeInspector`](#exposeinspector), [`getAsset`](#getasset), [`getStored`](#getstored), [`inspect`](#inspect), [`inState`](#instate), [`loadAsset`](#loadasset), [`loadAssets`](#loadassets), [`memoryStorage`](#memorystorage), [`motion`](#motion), [`persistResource`](#persistresource), [`removeStored`](#removestored), [`setAssetLoader`](#setassetloader), [`setStored`](#setstored), [`storage`](#storage), [`unloadAsset`](#unloadasset), [`unloadAssets`](#unloadassets), [`updateStored`](#updatestored)
+- Functions: [`addTimer`](#addtimer), [`addTween`](#addtween), [`cancelTimer`](#canceltimer), [`cancelTween`](#canceltween), [`createGame`](#creategame), [`createTestGame`](#createtestgame), [`defineAction`](#defineaction), [`defineAssets`](#defineassets), [`defineComponent`](#definecomponent), [`defineEasing`](#defineeasing), [`defineEvent`](#defineevent), [`defineResource`](#defineresource), [`defineState`](#definestate), [`defineStorageKey`](#definestoragekey), [`defineStorageKeyFamily`](#definestoragekeyfamily), [`exposeInspector`](#exposeinspector), [`getAsset`](#getasset), [`getStored`](#getstored), [`inspect`](#inspect), [`inState`](#instate), [`loadAsset`](#loadasset), [`loadAssets`](#loadassets), [`memoryStorage`](#memorystorage), [`motion`](#motion), [`persistResource`](#persistresource), [`removeStored`](#removestored), [`setAssetLoader`](#setassetloader), [`setStored`](#setstored), [`storage`](#storage), [`tickValue`](#tickvalue), [`unloadAsset`](#unloadasset), [`unloadAssets`](#unloadassets), [`updateStored`](#updatestored)
 - Classes: [`AssetBundleError`](#assetbundleerror), [`AssetLoadError`](#assetloaderror), [`AssetStore`](#assetstore), [`ConsoleLogger`](#consolelogger), [`Engine`](#engine), [`EntityBuilder`](#entitybuilder), [`EntityList`](#entitylist), [`EventBus`](#eventbus), [`EventQueue`](#eventqueue), [`NullLogger`](#nulllogger), [`Pool`](#pool), [`Random`](#random), [`Resources`](#resources), [`Scene`](#scene), [`SceneManager`](#scenemanager), [`Scheduler`](#scheduler), [`Time`](#time), [`View`](#view)
 - Constants: [`AssetBundleFailed`](#assetbundlefailed), [`AssetBundleLoaded`](#assetbundleloaded), [`AssetFailed`](#assetfailed), [`assetKey`](#assetkey), [`AssetLoaded`](#assetloaded), [`Display2D`](#display2d), [`easings`](#easings), [`MotionSettings`](#motionsettings), [`Name`](#name), [`Relationship`](#relationship), [`Schedule`](#schedule), [`StorageStatus`](#storagestatus), [`TimerFired`](#timerfired), [`Timers`](#timers), [`Transform`](#transform), [`Transform2D`](#transform2d), [`TweenDone`](#tweendone), [`Tweens`](#tweens)
-- Types: [`ActionType`](#actiontype), [`Asset`](#asset), [`AssetCounts`](#assetcounts), [`AssetCtx`](#assetctx), [`AssetDeclaration`](#assetdeclaration), [`AssetDeclarations`](#assetdeclarations), [`AssetFailure`](#assetfailure), [`AssetKey`](#assetkey), [`AssetKind`](#assetkind), [`AssetKinds`](#assetkinds), [`AssetLoader`](#assetloader), [`AssetManifest`](#assetmanifest), [`AssetName`](#assetname), [`AssetProgress`](#assetprogress), [`AssetSource`](#assetsource), [`AssetState`](#assetstate), [`AssetStatus`](#assetstatus), [`AssetStoreConfig`](#assetstoreconfig), [`AsyncStage`](#asyncstage), [`AsyncSystemFn`](#asyncsystemfn), [`BundleName`](#bundlename), [`BundleProgress`](#bundleprogress), [`BundleStatus`](#bundlestatus), [`Clock`](#clock), [`ComponentType`](#componenttype), [`DebugGlobal`](#debugglobal), [`Easing`](#easing), [`EasingName`](#easingname), [`EngineOptions`](#engineoptions), [`Entity`](#entity), [`EntitySnapshot`](#entitysnapshot), [`EventHandler`](#eventhandler), [`EventReader`](#eventreader), [`EventType`](#eventtype), [`Game`](#game), [`GameBase`](#gamebase), [`GameOptions`](#gameoptions), [`GameServices`](#gameservices), [`GameSnapshot`](#gamesnapshot), [`IAssetStore`](#iassetstore), [`ILogger`](#ilogger), [`Input`](#input), [`InputBinding`](#inputbinding), [`InputDomEvent`](#inputdomevent), [`InputDownHandler`](#inputdownhandler), [`InputEdge`](#inputedge), [`InputGestureHandler`](#inputgesturehandler), [`InputPointer`](#inputpointer), [`InputSnapshot`](#inputsnapshot), [`JsonValue`](#jsonvalue), [`KeyCode`](#keycode), [`LoaderConfig`](#loaderconfig), [`ManifestAsset`](#manifestasset), [`ManifestLoader`](#manifestloader), [`MotionCtx`](#motionctx), [`NumericKeys`](#numerickeys), [`Plugin`](#plugin), [`PointerBinding`](#pointerbinding), [`QuatLike`](#quatlike), [`ResourceType`](#resourcetype), [`ScheduledSystem`](#scheduledsystem), [`ScheduleStage`](#schedulestage), [`SkyboxDescriptor`](#skyboxdescriptor), [`States`](#states), [`StateType`](#statetype), [`StorageBackend`](#storagebackend), [`StorageCtx`](#storagectx), [`StorageKey`](#storagekey), [`StorageKeyFamily`](#storagekeyfamily), [`StorageKeyOptions`](#storagekeyoptions), [`StorageOptions`](#storageoptions), [`SyncStage`](#syncstage), [`SyncSystemFn`](#syncsystemfn), [`SystemCtx`](#systemctx), [`SystemOptions`](#systemoptions), [`TestClock`](#testclock), [`TestGame`](#testgame), [`TestGameOptions`](#testgameoptions), [`TestInput`](#testinput), [`Timer`](#timer), [`TimerOptions`](#timeroptions), [`Tween`](#tween), [`TweenOptions`](#tweenoptions), [`Vec3Like`](#vec3like)
+- Types: [`ActionType`](#actiontype), [`Asset`](#asset), [`AssetCounts`](#assetcounts), [`AssetCtx`](#assetctx), [`AssetDeclaration`](#assetdeclaration), [`AssetDeclarations`](#assetdeclarations), [`AssetFailure`](#assetfailure), [`AssetKey`](#assetkey), [`AssetKind`](#assetkind), [`AssetKinds`](#assetkinds), [`AssetLoader`](#assetloader), [`AssetManifest`](#assetmanifest), [`AssetName`](#assetname), [`AssetProgress`](#assetprogress), [`AssetSource`](#assetsource), [`AssetState`](#assetstate), [`AssetStatus`](#assetstatus), [`AssetStoreConfig`](#assetstoreconfig), [`AsyncStage`](#asyncstage), [`AsyncSystemFn`](#asyncsystemfn), [`BundleName`](#bundlename), [`BundleProgress`](#bundleprogress), [`BundleStatus`](#bundlestatus), [`Clock`](#clock), [`ComponentType`](#componenttype), [`DebugGlobal`](#debugglobal), [`Easing`](#easing), [`EasingName`](#easingname), [`EngineOptions`](#engineoptions), [`Entity`](#entity), [`EntitySnapshot`](#entitysnapshot), [`EventHandler`](#eventhandler), [`EventReader`](#eventreader), [`EventType`](#eventtype), [`Game`](#game), [`GameBase`](#gamebase), [`GameOptions`](#gameoptions), [`GameServices`](#gameservices), [`GameSnapshot`](#gamesnapshot), [`IAssetStore`](#iassetstore), [`ILogger`](#ilogger), [`Input`](#input), [`InputBinding`](#inputbinding), [`InputDomEvent`](#inputdomevent), [`InputDownHandler`](#inputdownhandler), [`InputEdge`](#inputedge), [`InputGestureHandler`](#inputgesturehandler), [`InputPointer`](#inputpointer), [`InputSnapshot`](#inputsnapshot), [`JsonValue`](#jsonvalue), [`KeyCode`](#keycode), [`LoaderConfig`](#loaderconfig), [`ManifestAsset`](#manifestasset), [`ManifestLoader`](#manifestloader), [`MotionCtx`](#motionctx), [`NumericKeys`](#numerickeys), [`Plugin`](#plugin), [`PointerBinding`](#pointerbinding), [`QuatLike`](#quatlike), [`ResourceType`](#resourcetype), [`ScheduledSystem`](#scheduledsystem), [`ScheduleStage`](#schedulestage), [`SkyboxDescriptor`](#skyboxdescriptor), [`States`](#states), [`StateType`](#statetype), [`StorageBackend`](#storagebackend), [`StorageCtx`](#storagectx), [`StorageKey`](#storagekey), [`StorageKeyFamily`](#storagekeyfamily), [`StorageKeyOptions`](#storagekeyoptions), [`StorageOptions`](#storageoptions), [`SyncStage`](#syncstage), [`SyncSystemFn`](#syncsystemfn), [`SystemCtx`](#systemctx), [`SystemOptions`](#systemoptions), [`TestClock`](#testclock), [`TestGame`](#testgame), [`TestGameOptions`](#testgameoptions), [`TestInput`](#testinput), [`TickTime`](#ticktime), [`TickValue`](#tickvalue), [`Timer`](#timer), [`TimerOptions`](#timeroptions), [`Tween`](#tween), [`TweenOptions`](#tweenoptions), [`Vec3Like`](#vec3like)
 
 ## Functions
 
@@ -514,6 +514,26 @@ const game = await createGame({ canvas, plugins: [storage(), pixi2d()] });
 const test = await createTestGame({ seed: 1, plugins: [storage({ backend: memoryStorage() })] });
 ```
 
+### tickValue
+
+```ts
+function tickValue(initial?: number): TickValue;
+```
+
+Makes a `TickValue`: a number set in `Tick` and drawn between ticks. Use one for each number
+the frame draws from fixed-step state, such as a gauge's level, a rope's sag or a camera offset.
+
+```ts
+const level = tickValue(0);
+let gaugeWidth = 0;
+game.addSystem(Schedule.Tick, function fill({ time }) {
+  level.set(time, Math.min(1, level.current + 0.5 * time.fixedDelta));
+});
+game.addSystem(Schedule.Update, function drawGauge({ time }) {
+  gaugeWidth = 200 * level.blend(time);
+});
+```
+
 ### unloadAsset
 
 ```ts
@@ -956,6 +976,8 @@ class Time {
     constructor(clock: Clock);
     get delta(): number;
     get elapsed(): number;
+    get ticks(): number;
+    get tickFraction(): number;
     now(): number;
     update(maxDelta?: number, frameSeconds?: number);
     pause(): void;
@@ -970,9 +992,11 @@ real one, so tests can control every reading.
 Members:
 
 - `fixedDelta`: Seconds per fixed tick. Settable; defaults to 1/60.
-- `accumulator`: Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame. `accumulator / fixedDelta` is the interpolation factor between the last two ticks.
+- `accumulator`: Seconds of frame time not yet consumed by fixed ticks, below `fixedDelta` after each frame's ticks. `tickFraction` is it as a fraction of a tick.
 - `delta`: Seconds since the last frame, clamped to the engine's maximum frame delta.
 - `elapsed`: Seconds of game time since the run started, excluding pauses.
+- `ticks`: `Tick` stages begun since the run started. Inside a `Tick` system it numbers the tick running, from 1; in the other stages it is the number of the latest tick.
+- `tickFraction`: How far the frame has run past the latest tick, as a fraction of a tick: `accumulator / fixedDelta`, from 0 to 1. Read it in `Update` or `PostUpdate`, after the frame's ticks, to draw state that `Tick` changes between its last two values: `previous + (current - previous) * time.tickFraction`. `tickValue()` keeps the previous value for you. In `PreUpdate` the frame's ticks have not run yet, and in `Tick` it means nothing.
 - `now`: Wall-clock milliseconds since the Unix epoch. Use instead of `Date.now()`.
 - `update`: Starts a frame: sets `delta`, clamped to `maxDelta`, and adds it to the accumulator. Without `frameSeconds`, the frame lasted since the last update, read from the clock. With it, the frame lasted exactly that long, which is how `game.step(dt)` runs frames: the delta is `dt` itself, not a clock difference, so fixed ticks add up without rounding. A frame stepped while paused counts towards `elapsed`.
 
@@ -2387,6 +2411,40 @@ Members:
 - `pointerCancel`: The browser cancels the primary pointer: it goes up, with `pointer.cancelled` in the frame that releases it.
 - `focus`: The canvas gains keyboard focus.
 - `blur`: The canvas loses keyboard focus, which releases everything held, as in the browser.
+
+### TickTime
+
+```ts
+type TickTime = {
+    readonly ticks: number;
+    readonly tickFraction: number;
+};
+```
+
+What `TickValue` reads from `ctx.time`: the tick count and the fraction past the latest tick.
+
+### TickValue
+
+```ts
+interface TickValue {
+    readonly current: number;
+    set(time: TickTime, value: number): void;
+    snap(value: number): void;
+    blend(time: TickTime): number;
+}
+```
+
+A number that `Tick` changes and the frame draws between ticks. Made by `tickValue(initial)`.
+
+Write it with `set` in `Tick`, and read `blend(ctx.time)` in `Update` or `PostUpdate`: the value
+between the last two ticks, so it moves every frame even when frames and ticks do not line up.
+
+Members:
+
+- `current`: The value the latest `set` or `snap` gave it: the simulation's value.
+- `set`: Sets the value from a `Tick` system. The first `set` in each tick keeps the value it replaces as the one to blend from, so a frame that runs several ticks blends from the second-to-last.
+- `snap`: Jumps to `value` with no blend from the old one: for a start, a reset or a teleport, from any stage.
+- `blend`: The value to draw now: `previous + (current - previous) * time.tickFraction` when the latest tick set it, where `previous` is its value before that tick. `current` when the latest tick left it alone, so a value that stops changing stops moving.
 
 ### Timer
 

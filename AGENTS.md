@@ -123,7 +123,7 @@ The sections below say where each service's code is, how it works inside, what a
 
 **Resources.** `src/core/Resource.ts`. Values live in one `Resources` per game; engine code reads them with the internal `peekResource`, never `get`, so it does not run a factory. `Engine.reset()` clears them. An `Engine` built without `services` makes its own `Resources`. `Game` has no `reset` yet.
 
-**Time and random.** `Time` (`src/core/Time.ts`) reads only its `Clock` (`src/core/Clock.ts`): `monotonic()` for deltas and `elapsed`, `now()` for wall time. The default `realClock` is the only core code that reads `performance.now()` or `Date.now()`. `ManualClock` is internal; tests use it through `createManualTime()` in `tests/utils/testHelpers.ts`. `Random` (`src/core/Random.ts`) is mulberry32.
+**Time and random.** `Time` (`src/core/Time.ts`) reads only its `Clock` (`src/core/Clock.ts`): `monotonic()` for deltas and `elapsed`, `now()` for wall time. The default `realClock` is the only core code that reads `performance.now()` or `Date.now()`. `ManualClock` is internal; tests use it through `createManualTime()` in `tests/utils/testHelpers.ts`. `Random` (`src/core/Random.ts`) is mulberry32. `time.ticks` counts `Tick` stages begun (the engine increments the private `tickCount` before each), and `time.tickFraction` is `accumulator / fixedDelta`. `tickValue` (`src/core/TickValue.ts`) reads only those two, so it works with any `{ ticks, tickFraction }`; no fixture calls it, and `check:consumer` fails if one ships it (its `setAt` property). Tests: `tests/core/TickValue.test.ts`.
 
 **States.** `src/core/State.ts`. Queued changes are applied by `beforeStage` and `afterSystem`, called from `Scheduler.runSyncStage`, `Scheduler.runAsyncStage` and the `Exit` loop in `Engine`.
 
