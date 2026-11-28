@@ -1545,6 +1545,7 @@ type EngineOptions = {
     logger?: ILogger | null;
     maxFrameDelta?: number;
     maxTicksPerFrame?: number;
+    fixedDelta?: number;
     services?: GameServices;
     clock?: Clock;
     loop?: "animationFrame" | "step";
@@ -1667,7 +1668,7 @@ Members:
 - `replaceSystem`: Swaps the function of every system called `name`, keeping its position and options.
 - `stop`: Runs Exit systems, then cleanups in reverse order.
 - `isRunning`: Whether the game is running: startup finished and `stop()` has not been called since, paused included. False before `run()` (or `start()` on a test game), during startup, and from the moment `stop()` is called. `run()` resolves without throwing when the game is stopped during startup, so check this after `await game.run()` to know gameplay started.
-- `step`: Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at most 8 a frame, the rest dropped, as after a long browser frame), Update, PostUpdate, then the event buffers advance. Fixed ticks accumulate from `dt` exactly.
+- `step`: Runs `frames` whole frames now, each `dt` seconds of game time (default 1/60), through the same frame body as the browser loop: PreUpdate, the Tick stages the accumulator holds (at most `maxTicksPerFrame`, 8 by default, the rest dropped, as after a long browser frame), Update, PostUpdate, then the event buffers advance. Fixed ticks accumulate from `dt` exactly.
 - `onEnter`: Runs `system` each time `state` changes to `value`, after the exit hooks of the old value. Each run starts every state at its initial value and runs its enter hooks before the first PreInit system.
 - `onExit`: Runs `system` each time `state` changes away from `value`, before the enter hooks of the new value.
 - `on`: Calls `handler(payload, ctx)` synchronously at every `send` of `event` while the game runs, in registration order. Setup, like `addSystem`: it stays across `stop()` and `run()` until the returned function removes it. For a listener that belongs to one run, call `ctx.events.on` from a system.
@@ -1681,6 +1682,8 @@ interface GameOptions {
     logger?: ILogger;
     seed?: number;
     maxFrameDelta?: number;
+    fixedDelta?: number;
+    maxTicksPerFrame?: number;
 }
 ```
 
@@ -1693,6 +1696,8 @@ Members:
 - `logger`: Defaults to a ConsoleLogger.
 - `seed`: Seeds `game.random` and `ctx.random`: a safe integer. Without one, the seed comes from the clock, and `game.random.seed` reports it. Stopping and running the game again continues the sequence; it does not restart it.
 - `maxFrameDelta`: The longest frame the game simulates, in seconds: `time.delta` is clamped to it, so a frame after a stall (a background tab, a debugger, a slow device) moves the game this much at most, and `step(dt)` throws above it. Defaults to 0.25. A game whose motion must never jump far sets a smaller cap, such as `1 / 20`. A positive finite number; anything else throws.
+- `fixedDelta`: Seconds per `Tick`, set on `time.fixedDelta` before the first frame. Defaults to 1/60. A system can still change `time.fixedDelta` while the game runs. A positive finite number; anything else throws.
+- `maxTicksPerFrame`: The most `Tick` stages one frame runs. Defaults to 8. A frame that owes more runs this many and drops the rest, so the game runs slower than real time below `1 / (fixedDelta * maxTicksPerFrame)` frames a second: 7.5 fps with the defaults. A game with a finer `fixedDelta` raises it to keep the same floor, such as 16 for `1 / 120`. A positive integer; anything else throws.
 
 ### GameServices
 
@@ -2336,6 +2341,8 @@ interface TestGameOptions {
     plugins?: readonly Plugin[];
     logger?: ILogger;
     maxFrameDelta?: number;
+    fixedDelta?: number;
+    maxTicksPerFrame?: number;
 }
 ```
 
@@ -2348,6 +2355,8 @@ Members:
 - `plugins`: Installed in order, as in `createGame`. A test game has no canvas, so a plugin that reads `game.canvas`, such as `pixi2d`, throws when it installs.
 - `logger`: Defaults to a ConsoleLogger, as in `createGame`.
 - `maxFrameDelta`: The frame-delta clamp, as in `createGame`: `step(dt)` throws for a `dt` above it. Defaults to 0.25.
+- `fixedDelta`: Seconds per `Tick`, as in `createGame`: set on `time.fixedDelta` before the first frame. Defaults to 1/60.
+- `maxTicksPerFrame`: The most `Tick` stages one `step` frame runs, as in `createGame`; the rest are dropped. Defaults to 8.
 
 ### TestInput
 

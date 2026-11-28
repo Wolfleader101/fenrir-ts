@@ -182,7 +182,7 @@ await game.stop();
 
 ## Time, random, timers
 
-`ctx.time.delta` (seconds, clamped to `maxFrameDelta`, default 0.25), `time.fixedDelta` (per `Tick`, 1/60), `time.elapsed`, `time.now()` (epoch ms). `ctx.random.next()`, `int(min, max)` (inclusive), `pick(items)`; seed with `createGame({ seed })`. `states.timeIn(State)` is seconds in the current value. For "do X in 2 seconds" use a timer from `motion()` (below) or count `time.delta`; never `setTimeout`.
+`ctx.time.delta` (seconds, clamped to `maxFrameDelta`, default 0.25), `time.fixedDelta` (per `Tick`, 1/60; set it with `createGame({ fixedDelta })`, and raise `maxTicksPerFrame`, default 8, with a finer step), `time.elapsed`, `time.now()` (epoch ms). `ctx.random.next()`, `int(min, max)` (inclusive), `pick(items)`; seed with `createGame({ seed })`. `states.timeIn(State)` is seconds in the current value. For "do X in 2 seconds" use a timer from `motion()` (below) or count `time.delta`; never `setTimeout`.
 
 ## States
 
@@ -444,7 +444,7 @@ console.log(sounds.played.map((p) => p.sound)); // ["myGame.blip"]: the theme's 
 
 ## Testing and inspecting
 
-- `createTestGame({ seed, plugins?, now?, maxFrameDelta? })`: the same systems, states, events and plugins, no canvas. `await game.start()`, `game.step(dt = 1/60, frames = 1)`, `await game.stop()`. `dt` above `maxFrameDelta` throws: step one second as `step(1 / 60, 60)`.
+- `createTestGame({ seed, plugins?, now?, maxFrameDelta?, fixedDelta?, maxTicksPerFrame? })`: the same systems, states, events and plugins, no canvas. `await game.start()`, `game.step(dt = 1/60, frames = 1)`, `await game.stop()`. `dt` above `maxFrameDelta` throws: step one second as `step(1 / 60, 60)`.
 - `pixi2d` cannot install in a test game (no canvas): that is why gameplay is registered apart from drawing. `ui({ root })`, `audio({ backend: testAudio() })`, `storage({ backend: memoryStorage() })` and `setAssetLoader` make the other plugins headless.
 - Entities in a test: `game` has no `entities`, `scene` or `scenes`; those are on `ctx`. Read through `inspect(game).entities` (each `id` is the entity handle, `components` keyed by name; cast the values), or register a test-only system that reads `ctx.entities` into a variable.
 - The engine's components appear in `inspect()` under their names: `fenrir.Transform`, `fenrir.Transform2D`, `fenrir.Display2D`, `fenrir.Name` (folded into `name`), `fenrir.Relationship` (folded into `parent`), `fenrir.PixiNode`, `fenrir.Renderable2D`, `fenrir.Timers`, `fenrir.Tweens`. Plugin resources: `fenrir.MotionSettings`, `fenrir.StorageStatus`, `fenrir.AudioState`, `fenrir.UiFocus`, `fenrir.UiControls`, `fenrir.viewport.Viewport`.
