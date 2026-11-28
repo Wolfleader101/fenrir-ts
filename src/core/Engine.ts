@@ -11,7 +11,7 @@ import type { Clock } from "./Clock";
 import { realClock } from "./Clock";
 import { Random, seedFromClock } from "./Random";
 import type { AsyncSystemFn, GameServices, SyncSystemFn, SystemCtx } from "./SystemCtx";
-import { beginEventRun, endEventRun, type EventBus } from "./EventBus";
+import { beginEventRun, endEventRun, setEventTick, type EventBus } from "./EventBus";
 import type { SceneManager } from "./SceneManager";
 import type { ILogger } from "./ILogger";
 import { NullLogger } from "./NullLogger";
@@ -234,9 +234,11 @@ export class Engine {
 
     for (let ticks = 0; this.time.accumulator >= step && ticks < this.maxTicksPerFrame; ticks++) {
       this.input.tick(true);
+      setEventTick(this.events, true);
       try {
         this.scheduler.runSyncStage(Schedule.Tick, ctx);
       } finally {
+        setEventTick(this.events, false);
         this.input.tick(false);
       }
       this.time.accumulator -= step;

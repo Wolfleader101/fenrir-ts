@@ -4,6 +4,11 @@ Fenrir TS is at 0.x: breaking changes are allowed, and each one is listed here w
 
 ## Unreleased
 
+### Fixed: `Tick` readers no longer miss events after tickless frames (#113)
+
+- A reader read in `Tick` gets every event sent since the last tick began, however many frames ran no tick in between. Before, the bus kept two frames of events, so an event sent in `PreUpdate` or `Update` was dropped unread when two or more frames in a row ran no tick: at 1/180 or 1/240 s frames against the 1/60 default tick, a `Tick` reader saw none of it. A `Tick` reader that missed such events now receives them, once each.
+- Readers read in `PreUpdate`, `Update` and `PostUpdate`, and `events.read`, are unchanged: they see the last two frames. The extra events are kept only until a tick has begun after them.
+
 ## 0.3.1
 
 Docs only: no change to the engine's code or API, so games can stay on 0.3.0. The guide and references in the package (`skills/fenrir/`) now cover what a clean agent found missing when it extended the 0.3.0 starter game. Upgrade to give your coding agent the corrected docs.

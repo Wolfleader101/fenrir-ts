@@ -746,23 +746,27 @@ class EventBus {
     send<T>(type: EventType<T>, ev: T);
     on<T>(type: EventType<T>, handler: EventHandler<NoInfer<T>>): () => void;
     read<T>(type: EventType<T>);
-    createReader<T>(type: EventType<T>);
+    createReader<T>(type: EventType<T>): EventReader<T>;
     update();
     clear();
 }
 ```
 
-The game's events: `ctx.events` and `game.events`. Buffers each event for two frames for readers, and calls immediate listeners inside `send`.
+The game's events: `ctx.events` and `game.events`. Buffers each event for readers, two frames
+and, while the engine runs, until a `Tick` has begun after it; and calls immediate listeners
+inside `send`.
 
 Members:
 
 - `send`: Buffers the event for readers, then calls the immediate listeners in registration order. Listeners are called only while a run is going; outside one the event is only buffered.
 - `on`: Calls `handler` at every `send` of `type` for the rest of the current run, and removes it when the run stops. Call it from a system. Returns a function that removes it sooner. For a listener that outlives a run, use `game.on`.
+- `createReader`: A reader for `type`, with its own cursor: each `read()` returns the events it has not returned before. Create it once, outside the system that reads it.
 
 ### EventQueue
 
 ```ts
 class EventQueue<T> {
+    constructor(ticks?: EventTicks);
     send(ev: T);
     update();
     read(): readonly T[];
@@ -775,9 +779,9 @@ Internal storage for one event type. Games use `EventBus` (`ctx.events`) instead
 
 Members:
 
-- `update`: called once per frame, after all stages
-- `read`: returns stable array until next send/update
-- `createReader`: A reader has its own cursor over the queue's two retained frame buffers.
+- `update`: Called once per frame, after all stages. Drops the frame two frames old, except, on a bus the engine drives, the events sent since the last tick began: those stay until a tick has begun after them, so a `Tick` reader gets them. A tick runs at least every `fixedDelta` seconds of frame time, which bounds what is kept.
+- `read`: The last two frames of events, oldest first. A stable array until the next send or update.
+- `createReader`: A reader with its own cursor. Read in `Tick`, it returns every kept event it has not returned; read anywhere else, only those of the last two frames. See `EventReader`.
 
 ### NullLogger
 
@@ -1596,7 +1600,15 @@ type EventReader<T> = {
 };
 ```
 
-What `events.createReader(Type)` returns: `read()` gives the events it has not returned before. Create one per consumer, once.
+What `events.createReader(Type)` returns: `read()` gives the events it has not returned before.
+Create one per consumer, once.
+
+A reader read in a per-frame stage (`PreUpdate`, `Update`, `PostUpdate`) sees the last two
+frames of events, so one that skips a frame still gets them and one that skips two loses them.
+A reader read in `Tick` also gets every event sent since the last tick began, however many
+frames ran no tick in between: an event sent in `PreUpdate` or `Update` reaches the next
+`Tick` even when the frame rate is several times the tick rate. A frame that runs several
+ticks returns each event once, to the first `Tick` read after it was sent.
 
 ### EventType
 

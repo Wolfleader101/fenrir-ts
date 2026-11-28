@@ -177,6 +177,7 @@ await game.stop();
 - Listeners run synchronously inside `send`, only while a run is going. Use them for side effects (sound, analytics); use a reader when the result changes game state.
 - `ctx.events.on` with no run going throws: at setup use `game.on`. Never call `game.on` inside a system: it adds a listener every frame and never removes it.
 - Never create a reader inside a system, and never use `events.read(Type)` for gameplay: it returns everything buffered, so the same event twice across two frames.
+- To hand frame input to fixed-step logic, send an event in `PreUpdate` and read it with a reader in `Tick`: a `Tick` reader gets every event sent since the last tick, however many frames ran no tick, once each. A reader in a per-frame stage sees only the last two frames.
 - Do not write your own pub/sub, `EventTarget`, or abort-signal plumbing for listeners: lifetime is handled.
 
 ## Time, random, timers
