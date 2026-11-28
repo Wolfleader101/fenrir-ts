@@ -1,4 +1,4 @@
-import { EventQueue, type EventType } from "./EventQueue";
+import { EventQueue, type EventReader, type EventTicks, type EventType } from "./EventQueue";
 import type { SystemCtx } from "./SystemCtx";
 
 /**
@@ -15,7 +15,11 @@ const MAX_DEPTH = 32;
 
 const eventName = (type: symbol) => type.description?.slice("event:".length);
 
-/** The game's events: `ctx.events` and `game.events`. Buffers each event for two frames for readers, and calls immediate listeners inside `send`. */
+/**
+ * The game's events: `ctx.events` and `game.events`. Buffers each event for readers, two frames
+ * and, while the engine runs, until a `Tick` has begun after it; and calls immediate listeners
+ * inside `send`.
+ */
 export class EventBus {
   private queues = new Map<symbol, EventQueue<any>>();
   // Copy-on-write: `on` and `off` replace the array, so `send` iterates without copying and a
@@ -23,11 +27,12 @@ export class EventBus {
   private listeners = new Map<symbol, readonly Listener[]>();
   private ctx?: SystemCtx;
   private depth = 0;
+  private readonly ticks: EventTicks = { driven: false, ticking: false, count: 0 };
 
   private getQueue<T>(type: EventType<T>) {
     let q = this.queues.get(type) as EventQueue<T> | undefined;
     if (!q) {
-      q = new EventQueue<T>();
+      q = new EventQueue<T>(this.ticks);
       this.queues.set(type, q);
     }
     return q;
@@ -92,7 +97,16 @@ export class EventBus {
     return this.getQueue(type).read();
   }
 
-  public createReader<T>(type: EventType<T>) {
+  /**
+   * A reader for `type`, with its own cursor: each `read()` returns the events it has not
+   * returned before. Create it once, outside the system that reads it.
+   *
+   * Read in `PreUpdate`, `Update` or `PostUpdate`, it sees the last two frames of events. Read
+   * in `Tick`, it also gets every event sent since the last tick began, however many frames ran
+   * no tick: an event sent in `PreUpdate` reaches the next `Tick` at any frame rate, once, even
+   * when that frame runs several ticks.
+   */
+  public createReader<T>(type: EventType<T>): EventReader<T> {
     return this.getQueue(type).createReader();
   }
 
@@ -115,11 +129,20 @@ export function listenAcrossRuns<T>(bus: EventBus, type: EventType<T>, handler: 
 /** Starts delivering to listeners with `ctx`. The engine calls it once the run's context exists. */
 export function beginEventRun(bus: EventBus, ctx: SystemCtx): void {
   bus["ctx"] = ctx;
+  bus["ticks"].driven = true;
+}
+
+/** Marks a `Tick` stage: readers read in it get the events kept for ticks. The engine calls it around each tick. */
+export function setEventTick(bus: EventBus, ticking: boolean): void {
+  const ticks = bus["ticks"];
+  if (ticking) ticks.count++;
+  ticks.ticking = ticking;
 }
 
 /** Stops delivery and removes the listeners added with `events.on` during the run. */
 export function endEventRun(bus: EventBus): void {
   bus["ctx"] = undefined;
+  bus["ticks"].driven = false;
   for (const [type, listeners] of bus["listeners"]) {
     for (const listener of listeners) if (listener.run) listener.active = false;
     bus["listeners"].set(type, listeners.filter((l) => !l.run));
